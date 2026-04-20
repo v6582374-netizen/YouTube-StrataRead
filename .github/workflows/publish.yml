@@ -5,15 +5,11 @@ on:
     tags:
       - "v*"
 
-permissions:
-  id-token: write   # required for trusted publishing (OIDC)
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -31,7 +27,6 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    environment: pypi          # create this environment in GitHub repo settings
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -39,6 +34,6 @@ jobs:
           name: dist
           path: dist/
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        # No API token needed — uses OIDC trusted publisher.
-        # Set up the trusted publisher at https://pypi.org/manage/project/youtube-strataread/settings/publishing/
+        uses: pypa/gh-action-pypi-publish@v1.14.0
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

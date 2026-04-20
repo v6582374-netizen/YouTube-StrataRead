@@ -13,9 +13,9 @@ import time
 
 from rich.console import Console
 
-from bionic_youtube.reader.bionic_render import iter_bionic_chars, render_str
-from bionic_youtube.reader.doc_tree import Node
-from bionic_youtube.reader.keys import key_reader
+from youtube_strataread.reader.bionic_render import iter_bionic_chars, render_str
+from youtube_strataread.reader.doc_tree import Node
+from youtube_strataread.reader.keys import key_reader
 
 CHAR_TYPE_DELAY = 0.02  # seconds between characters when "typing"
 _ANSI_BOLD = "\x1b[1m"

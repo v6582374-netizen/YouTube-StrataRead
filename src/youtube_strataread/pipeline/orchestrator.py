@@ -22,12 +22,12 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from bionic_youtube.ai.base import get_provider
-from bionic_youtube.ai.prompts import load_prompt
-from bionic_youtube.config import resolve_provider_config
-from bionic_youtube.downloader import cues_to_lines, download_subtitles, load_cues
-from bionic_youtube.utils.logging import get_logger, stdout
-from bionic_youtube.utils.text import short_hash, slugify
+from youtube_strataread.ai.base import get_provider
+from youtube_strataread.ai.prompts import load_prompt
+from youtube_strataread.config import resolve_provider_config
+from youtube_strataread.downloader import cues_to_lines, download_subtitles, load_cues
+from youtube_strataread.utils.logging import get_logger, stdout
+from youtube_strataread.utils.text import short_hash, slugify
 
 logger = get_logger()
 

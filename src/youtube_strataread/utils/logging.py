@@ -11,7 +11,7 @@ from rich.logging import RichHandler
 _stderr_console = Console(stderr=True)
 _stdout_console = Console()
 
-_logger = logging.getLogger("bionic_youtube")
+_logger = logging.getLogger("youtube_strataread")
 _configured = False
 
 

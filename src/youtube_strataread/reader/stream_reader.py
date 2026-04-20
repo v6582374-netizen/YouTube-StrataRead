@@ -13,9 +13,9 @@ import time
 
 from rich.console import Console
 
-from bionic_youtube.reader.bionic_render import iter_bionic_chars
-from bionic_youtube.reader.doc_tree import Node
-from bionic_youtube.reader.keys import key_reader
+from youtube_strataread.reader.bionic_render import iter_bionic_chars
+from youtube_strataread.reader.doc_tree import Node
+from youtube_strataread.reader.keys import key_reader
 
 SPEED_TIERS = [0.5, 0.75, 1.0, 1.5, 2.0]
 DEFAULT_TIER_INDEX = 2  # ×1

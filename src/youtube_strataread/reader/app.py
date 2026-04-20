@@ -7,12 +7,12 @@ from pathlib import Path
 
 from rich.console import Console
 
-from bionic_youtube.reader import progress_store
-from bionic_youtube.reader.doc_tree import parse_file
-from bionic_youtube.reader.manual_reader import read_leaf_manual
-from bionic_youtube.reader.navigator import Navigator
-from bionic_youtube.reader.stream_reader import read_leaf_stream
-from bionic_youtube.utils.logging import stdout
+from youtube_strataread.reader import progress_store
+from youtube_strataread.reader.doc_tree import parse_file
+from youtube_strataread.reader.manual_reader import read_leaf_manual
+from youtube_strataread.reader.navigator import Navigator
+from youtube_strataread.reader.stream_reader import read_leaf_stream
+from youtube_strataread.utils.logging import stdout
 
 
 def run_reader(*, md_path: Path, mode: str = "manual", cpm: int | None = None) -> None:

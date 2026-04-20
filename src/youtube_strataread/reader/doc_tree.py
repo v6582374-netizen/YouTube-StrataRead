@@ -18,7 +18,7 @@ from pathlib import Path
 
 from markdown_it import MarkdownIt
 
-from bionic_youtube.utils.text import split_sentences
+from youtube_strataread.utils.text import split_sentences
 
 
 @dataclass

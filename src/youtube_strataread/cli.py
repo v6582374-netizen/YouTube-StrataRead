@@ -5,12 +5,12 @@ from pathlib import Path
 
 import typer
 
-from bionic_youtube import config as cfg
-from bionic_youtube.utils.logging import configure, die, stdout
+from youtube_strataread import config as cfg
+from youtube_strataread.utils.logging import configure, die, stdout
 
 app = typer.Typer(
     name="by",
-    help="Bionic-Youtube: fetch YouTube subtitles, outline with AI, read in Bionic style.",
+    help="YouTube StrataRead: fetch YouTube subtitles, outline with AI, read in Bionic style.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -31,7 +31,7 @@ def _root(
     configure(verbose=verbose, no_color=no_color)
     if config_path is not None:
         # monkey-patch to honor --config
-        import bionic_youtube.config as _c
+        import youtube_strataread.config as _c
 
         _c.config_path = lambda: config_path  # type: ignore[assignment]
 
@@ -100,7 +100,7 @@ def config_use(provider: str = typer.Argument(...)) -> None:
 @prompts_app.command("path")
 def prompts_path_cmd() -> None:
     """Print the path of the editable prompt file."""
-    from bionic_youtube.ai.prompts import load_prompt, prompt_path
+    from youtube_strataread.ai.prompts import load_prompt, prompt_path
 
     load_prompt()  # ensure default is materialised
     stdout().print(str(prompt_path()))
@@ -111,7 +111,7 @@ def prompts_reset_cmd(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
 ) -> None:
     """Overwrite prompts.md with the baked-in default (your original prompt)."""
-    from bionic_youtube.ai.prompts import prompt_path, reset_prompt
+    from youtube_strataread.ai.prompts import prompt_path, reset_prompt
 
     target = prompt_path()
     if not yes:
@@ -126,7 +126,7 @@ def prompts_reset_cmd(
 @prompts_app.command("show")
 def prompts_show_cmd() -> None:
     """Print the currently effective prompt."""
-    from bionic_youtube.ai.prompts import load_prompt, prompt_path
+    from youtube_strataread.ai.prompts import load_prompt, prompt_path
 
     body = load_prompt()
     stdout().print(f"[bold]prompt path[/] {prompt_path()}")
@@ -158,8 +158,8 @@ def example_cmd(
     ),
 ) -> None:
     """Open the built-in sample outline in the Bionic reader."""
-    from bionic_youtube.reader.app import run_reader
-    from bionic_youtube.utils.sample import sample_dir, sample_markdown
+    from youtube_strataread.reader.app import run_reader
+    from youtube_strataread.utils.sample import sample_dir, sample_markdown
 
     if show_path:
         stdout().print(str(sample_dir()))
@@ -182,9 +182,9 @@ def fetch_cmd(
     out: Path | None = typer.Option(None, "--out", help="Parent directory (default: cwd)"),
 ) -> None:
     """Download raw SRT subtitles into <cwd>/<slug>/raw.srt."""
-    from bionic_youtube.downloader import download_subtitles
-    from bionic_youtube.downloader.youtube import YouTubeError
-    from bionic_youtube.utils.text import slugify
+    from youtube_strataread.downloader import download_subtitles
+    from youtube_strataread.downloader.youtube import YouTubeError
+    from youtube_strataread.utils.text import slugify
 
     parent = out or Path.cwd()
     parent.mkdir(parents=True, exist_ok=True)
@@ -215,8 +215,8 @@ def process_cmd(
     suffix: bool = typer.Option(False, "--suffix", help="On slug collision, append -2, -3, ..."),
 ) -> None:
     """Fetch SRT and run the 3-step AI pipeline; produces <cwd>/<slug>/{raw.srt,<slug>.md}."""
-    from bionic_youtube.interactive import pick as pick_provider
-    from bionic_youtube.pipeline.orchestrator import run_pipeline
+    from youtube_strataread.interactive import pick as pick_provider
+    from youtube_strataread.pipeline.orchestrator import run_pipeline
 
     prompt_path = None
     if provider is None:
@@ -254,7 +254,7 @@ def read_cmd(
     wpm: int | None = typer.Option(None, "--wpm", help="Alias of --cpm for stream mode"),
 ) -> None:
     """Read a Markdown outline interactively."""
-    from bionic_youtube.reader.app import run_reader
+    from youtube_strataread.reader.app import run_reader
 
     md_path = _resolve_md(target)
     speed = cpm or wpm
@@ -278,9 +278,9 @@ def run_cmd(
     cpm: int | None = typer.Option(None, "--cpm"),
 ) -> None:
     """process + read in one shot."""
-    from bionic_youtube.interactive import pick as pick_provider
-    from bionic_youtube.pipeline.orchestrator import run_pipeline
-    from bionic_youtube.reader.app import run_reader
+    from youtube_strataread.interactive import pick as pick_provider
+    from youtube_strataread.pipeline.orchestrator import run_pipeline
+    from youtube_strataread.reader.app import run_reader
 
     prompt_path = None
     if provider is None:

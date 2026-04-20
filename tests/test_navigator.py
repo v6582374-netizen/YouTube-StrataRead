@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from bionic_youtube.reader.doc_tree import parse_markdown
-from bionic_youtube.reader.navigator import Navigator
+from youtube_strataread.reader.doc_tree import parse_markdown
+from youtube_strataread.reader.navigator import Navigator
 
 SAMPLE_MD = """# 为什么深度学习有效？
 ## 起源

@@ -18,7 +18,7 @@ Design decisions (per user preference "only highest output quality"):
 """
 from __future__ import annotations
 
-from bionic_youtube.ai.base import ChatRequest, LLMError, LLMProvider
+from youtube_strataread.ai.base import ChatRequest, LLMError, LLMProvider
 
 # Tuned for 2h-long podcast transcripts; Sonnet 4.x caps at 64k output.
 _THINKING_BUDGET = 16000

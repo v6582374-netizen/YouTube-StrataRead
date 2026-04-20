@@ -7,7 +7,7 @@ from pathlib import Path
 
 from platformdirs import user_state_dir
 
-from bionic_youtube.config import APP_NAME
+from youtube_strataread.config import APP_NAME
 
 
 @dataclass

@@ -18,8 +18,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from bionic_youtube.reader.doc_tree import Node
-from bionic_youtube.reader.keys import Key, key_reader
+from youtube_strataread.reader.doc_tree import Node
+from youtube_strataread.reader.keys import Key, key_reader
 
 
 @dataclass

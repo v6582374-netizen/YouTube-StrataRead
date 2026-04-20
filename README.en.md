@@ -1,4 +1,4 @@
-# Bionic-Youtube
+# YouTube StrataRead
 
 🌐 [中文](README.md) · English
 
@@ -31,32 +31,32 @@ Only YouTube URLs are supported in this version; local subtitle files are not.
 
 ## 2. Installation
 
-Using [uv](https://docs.astral.sh/uv/) (recommended):
+### Recommended: pipx (global install, no manual venv)
 
 ```bash
-# from the project root
-uv venv --python 3.11 .venv
-uv pip install -e '.[dev]'
-```
-
-Plain pip also works:
-
-```bash
-python3.11 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-```
-
-Make the `by` command available:
-
-```bash
-source .venv/bin/activate
+pipx install youtube-strataread
 by --help
 ```
 
-or call it by absolute path:
+### From GitHub (latest dev version)
 
 ```bash
-./.venv/bin/by --help
+pipx install "git+https://github.com/v6582374-netizen/YouTube-StrataRead.git"
+```
+
+### Local development
+
+```bash
+# using uv
+uv venv --python 3.11 .venv
+uv pip install -e '.[dev]'
+
+# or plain pip
+python3.11 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+
+source .venv/bin/activate
+by --help
 ```
 
 ---
@@ -105,8 +105,8 @@ by config get gemini        # inspect one provider
 1. System **keyring** (macOS Keychain / Linux Secret Service).
 2. Environment variables: `BY_OPENAI_API_KEY`, `BY_ANTHROPIC_API_KEY`,
    `BY_GEMINI_API_KEY`, `BY_COMPAT_API_KEY`.
-3. Config file: `~/Library/Application Support/bionic-youtube/config.toml`
-   (macOS) / `~/.config/bionic-youtube/config.toml` (Linux).
+3. Config file: `~/Library/Application Support/youtube-strataread/config.toml`
+   (macOS) / `~/.config/youtube-strataread/config.toml` (Linux).
 
 ### Deep thinking (on by default for every provider)
 
@@ -239,8 +239,8 @@ Both modes share the same hierarchical picker and both apply Bionic Reading
 Progress is saved at:
 
 ```
-~/Library/Application Support/bionic-youtube/state/progress/<docHash>.json   # macOS
-~/.local/state/bionic-youtube/progress/<docHash>.json                        # Linux
+~/Library/Application Support/youtube-strataread/state/progress/<docHash>.json   # macOS
+~/.local/state/youtube-strataread/progress/<docHash>.json                        # Linux
 ```
 
 ---
@@ -249,14 +249,14 @@ Progress is saved at:
 
 ### 7.1 One prompt, one call
 
-Bionic-Youtube feeds the full transcript to the LLM **once** with a single
+YouTube StrataRead feeds the full transcript to the LLM **once** with a single
 system prompt. The model handles translation, denoising, and hierarchical
 outlining in one shot — no validators, no self-repair, no multi-step
 orchestration.
 
 ### 7.2 Editable and switchable
 
-- Prompts live at `~/Library/Application Support/bionic-youtube/prompts/`
+- Prompts live at `~/Library/Application Support/youtube-strataread/prompts/`
   (override via `BY_PROMPTS_DIR`).
 - The default file `prompts.md` is materialised on first run — its content is
   the author's original analysis blueprint, byte-for-byte.
@@ -296,9 +296,9 @@ Global flags: `-v/--verbose`, `--no-color`, `--config PATH`.
 ## 9. Artefact locations
 
 - **AI output**: `<cwd>/<video-slug>/{raw.srt, <slug>.md}`
-- **Config file**: `~/Library/Application Support/bionic-youtube/config.toml`
-- **Prompts dir**: `~/Library/Application Support/bionic-youtube/prompts/`
-- **Reader progress**: `~/Library/Application Support/bionic-youtube/state/progress/`
+- **Config file**: `~/Library/Application Support/youtube-strataread/config.toml`
+- **Prompts dir**: `~/Library/Application Support/youtube-strataread/prompts/`
+- **Reader progress**: `~/Library/Application Support/youtube-strataread/state/progress/`
 - **Crash log**: `<slug>/.by-crash-<timestamp>.log` (only on AI failure)
 - **Bundled sample**: `by example --path` prints its location
 
@@ -306,8 +306,8 @@ Global flags: `-v/--verbose`, `--no-color`, `--config PATH`.
 
 ## 10. FAQ
 
-**Q: `zsh: command not found: by`** — venv not active.
-`source .venv/bin/activate` or call `./.venv/bin/by`.
+**Q: `zsh: command not found: by`** — not installed or venv not active.
+Recommended: `pipx install youtube-strataread`, or `source .venv/bin/activate`.
 
 **Q: `missing API key for provider 'xxx'`** — run
 `by config set <provider> --key <KEY>` or export

@@ -6,7 +6,7 @@
     compat     — Any OpenAI-compatible third-party relay (user-supplied base_url)
 
 Key resolution order, per provider:
-    1. system keyring  (service=``bionic-youtube``, username=<provider>)
+    1. system keyring  (service=``youtube-strataread``, username=<provider>)
     2. environment variable ``BY_<PROVIDER>_API_KEY``
     3. config.toml ``[providers.<provider>].api_key``
 """
@@ -28,7 +28,7 @@ except Exception:  # pragma: no cover - best effort
     keyring = None  # type: ignore[assignment]
     _KEYRING_AVAILABLE = False
 
-APP_NAME = "bionic-youtube"
+APP_NAME = "youtube-strataread"
 KEYRING_SERVICE = APP_NAME
 
 # ---------------------------------------------------------------------------

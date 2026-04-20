@@ -1,4 +1,4 @@
-# Bionic-Youtube
+# YouTube StrataRead
 
 🌐 中文 · [English](README.en.md)
 
@@ -23,32 +23,32 @@
 
 ## 2. 安装
 
-推荐使用 [uv](https://docs.astral.sh/uv/)：
+### 推荐：pipx（全局安装，无需手动管理虚拟环境）
 
 ```bash
-# 在项目根目录
-uv venv --python 3.11 .venv
-uv pip install -e '.[dev]'
-```
-
-没有 uv 也可以：
-
-```bash
-python3.11 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-```
-
-让 `by` 命令在当前 shell 可用：
-
-```bash
-source .venv/bin/activate
+pipx install youtube-strataread
 by --help
 ```
 
-或直接走绝对路径：
+### 从 GitHub 安装（最新开发版）
 
 ```bash
-./.venv/bin/by --help
+pipx install "git+https://github.com/v6582374-netizen/YouTube-StrataRead.git"
+```
+
+### 本地开发
+
+```bash
+# 使用 uv
+uv venv --python 3.11 .venv
+uv pip install -e '.[dev]'
+
+# 或使用 pip
+python3.11 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+
+source .venv/bin/activate
+by --help
 ```
 
 ---
@@ -97,7 +97,7 @@ by config get gemini        # 查看单个 Provider
 
 1. 系统 **keyring**（macOS Keychain / Linux Secret Service）。
 2. 环境变量 `BY_OPENAI_API_KEY`、`BY_ANTHROPIC_API_KEY`、`BY_GEMINI_API_KEY`、`BY_COMPAT_API_KEY`。
-3. 配置文件 `~/Library/Application Support/bionic-youtube/config.toml`（macOS）/ `~/.config/bionic-youtube/config.toml`（Linux）。
+3. 配置文件 `~/Library/Application Support/youtube-strataread/config.toml`（macOS）/ `~/.config/youtube-strataread/config.toml`（Linux）。
 
 ### 深度思考（全部 Provider 默认开启）
 
@@ -215,8 +215,8 @@ by read <slug>.md --mode stream --cpm 500
 自动保存在：
 
 ```
-~/Library/Application Support/bionic-youtube/state/progress/<docHash>.json   # macOS
-~/.local/state/bionic-youtube/progress/<docHash>.json                        # Linux
+~/Library/Application Support/youtube-strataread/state/progress/<docHash>.json   # macOS
+~/.local/state/youtube-strataread/progress/<docHash>.json                        # Linux
 ```
 
 ---
@@ -225,11 +225,11 @@ by read <slug>.md --mode stream --cpm 500
 
 ### 7.1 单 Prompt、一次到位
 
-Bionic-Youtube 使用**一份** system prompt + 一次 LLM 调用完成全部分析。模型拿到整段字幕后自行完成翻译、去冗、分层标题化。不做分步、不做校验、不做自修复。
+YouTube StrataRead 使用**一份** system prompt + 一次 LLM 调用完成全部分析。模型拿到整段字幕后自行完成翻译、去冗、分层标题化。不做分步、不做校验、不做自修复。
 
 ### 7.2 可编辑、可切换
 
-- prompt 文件位于：`~/Library/Application Support/bionic-youtube/prompts/`（可用 `BY_PROMPTS_DIR` 覆盖）。
+- prompt 文件位于：`~/Library/Application Support/youtube-strataread/prompts/`（可用 `BY_PROMPTS_DIR` 覆盖）。
 - 默认文件是 `prompts.md`，内容就是作者原始写的那份分析思路（首次运行自动生成）。
 - **想新增 prompt 类型**：直接在该目录里放一个新的 `.md`（比如 `podcast.md`、`lecture.md`）——下一次 `by run` 就会自动在菜单里看到它，让你选择。
 
@@ -265,9 +265,9 @@ open "$(dirname $(by prompts path))"   # 用 Finder 打开目录
 ## 9. 产物位置一览
 
 - **AI 产物**：`<当前目录>/<视频-slug>/{raw.srt, <slug>.md}`
-- **配置文件**：`~/Library/Application Support/bionic-youtube/config.toml`
-- **Prompt 目录**：`~/Library/Application Support/bionic-youtube/prompts/`
-- **阅读进度**：`~/Library/Application Support/bionic-youtube/state/progress/`
+- **配置文件**：`~/Library/Application Support/youtube-strataread/config.toml`
+- **Prompt 目录**：`~/Library/Application Support/youtube-strataread/prompts/`
+- **阅读进度**：`~/Library/Application Support/youtube-strataread/state/progress/`
 - **崩溃日志**：`<slug>/.by-crash-<timestamp>.log`（仅当 AI 处理失败时）
 - **内置样例**：`by example --path` 直接打印位置
 
@@ -275,7 +275,7 @@ open "$(dirname $(by prompts path))"   # 用 Finder 打开目录
 
 ## 10. FAQ
 
-**Q: `zsh: command not found: by`** — 虚拟环境未激活。`source .venv/bin/activate` 或用 `./.venv/bin/by`。
+**Q: `zsh: command not found: by`** — 未安装或虚拟环境未激活。推荐 `pipx install youtube-strataread`，或 `source .venv/bin/activate`。
 
 **Q: `missing API key for provider 'xxx'`** — 运行 `by config set <provider> --key <KEY>`，或设置 `BY_<PROVIDER>_API_KEY` 环境变量。
 

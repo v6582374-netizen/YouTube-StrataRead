@@ -1,4 +1,4 @@
-from bionic_youtube.utils.text import slugify, split_sentences
+from youtube_strataread.utils.text import slugify, split_sentences
 
 
 def test_slugify_basic():

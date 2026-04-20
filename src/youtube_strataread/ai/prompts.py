@@ -6,7 +6,7 @@ single call and trust the model to produce the final Markdown in one pass.
 
 On first run the default is materialised to::
 
-    <config_dir>/bionic-youtube/prompts/prompts.md
+    <config_dir>/youtube-strataread/prompts/prompts.md
 
 Edit that file in any text editor; the next ``by process`` / ``by run`` picks
 it up automatically. ``BY_PROMPTS_DIR`` overrides the location.
@@ -19,7 +19,7 @@ from pathlib import Path
 
 from platformdirs import user_config_dir
 
-from bionic_youtube.config import APP_NAME
+from youtube_strataread.config import APP_NAME
 
 PROMPT_FILENAME = "prompts.md"
 
@@ -47,7 +47,7 @@ DEFAULT_PROMPT = """针对这份字幕文件，按照如下的思路处理。
 输出：一份骨架丰满且形式优雅的 md 文件，只包含正文内容，不要写入任何说明性的文字。
 """
 
-README_TEXT = """# Bionic-Youtube 可编辑 Prompt
+README_TEXT = """# YouTube StrataRead 可编辑 Prompt
 
 本目录下的 `prompts.md` 是 AI 流水线使用的**唯一** system prompt。
 每次 `by process` / `by run` 都会重新读取该文件，修改立即生效，不需要重启或重装。
@@ -83,7 +83,7 @@ def _ensure_defaults(force: bool = False) -> None:
 def _migrate_legacy(d: Path) -> None:
     """Rename the old 3-file layout (translate/clean/outline.md) out of the way.
 
-    These files were materialised by earlier versions of Bionic-Youtube. Under
+    These files were materialised by earlier versions of YouTube StrataRead. Under
     the single-prompt mode they are no longer consulted; we rename them with a
     ``.legacy`` suffix so the user can still see whatever customisations they
     had.

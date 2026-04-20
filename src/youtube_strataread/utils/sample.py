@@ -1,4 +1,4 @@
-"""Locate the bundled example outline (shipped under ``bionic_youtube/examples``)."""
+"""Locate the bundled example outline (shipped under ``youtube_strataread/examples``)."""
 from __future__ import annotations
 
 from importlib import resources
@@ -9,7 +9,7 @@ def sample_dir() -> Path:
     """Return the on-disk directory containing the shipped sample."""
     # ``importlib.resources.files`` resolves to a real path for editable /
     # wheel installs. ``sample`` is a subfolder of the ``examples`` package.
-    return Path(str(resources.files("bionic_youtube.examples") / "sample"))
+    return Path(str(resources.files("youtube_strataread.examples") / "sample"))
 
 
 def sample_markdown() -> Path:

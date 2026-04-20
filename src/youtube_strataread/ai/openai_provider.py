@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from bionic_youtube.ai.base import ChatRequest, LLMError, LLMProvider
+from youtube_strataread.ai.base import ChatRequest, LLMError, LLMProvider
 
 # Heuristic pattern for models that accept ``reasoning_effort``.
 # Covers OpenAI's o-series, GPT-5 reasoning variants, DeepSeek-Reasoner,

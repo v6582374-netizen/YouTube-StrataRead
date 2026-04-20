@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from bionic_youtube import config
-from bionic_youtube.utils.sample import sample_dir, sample_markdown
+from youtube_strataread import config
+from youtube_strataread.utils.sample import sample_dir, sample_markdown
 
 
 def test_supported_providers() -> None:

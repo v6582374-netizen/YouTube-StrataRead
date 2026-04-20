@@ -1,5 +1,5 @@
-from bionic_youtube.reader.bionic_render import render_str
-from bionic_youtube.reader.doc_tree import parse_markdown
+from youtube_strataread.reader.bionic_render import render_str
+from youtube_strataread.reader.doc_tree import parse_markdown
 
 SAMPLE_MD = """# 为什么深度学习有效？
 一些前言。

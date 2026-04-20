@@ -12,7 +12,7 @@ arrive — long thinking + long answer on a 2h podcast can take minutes.
 """
 from __future__ import annotations
 
-from bionic_youtube.ai.base import ChatRequest, LLMError, LLMProvider
+from youtube_strataread.ai.base import ChatRequest, LLMError, LLMProvider
 
 _THINKING_BUDGET = -1  # -1 = dynamic/auto on Gemini 2.5
 

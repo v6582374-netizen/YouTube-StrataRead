@@ -16,7 +16,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from bionic_youtube.config import ProviderConfig
+from youtube_strataread.config import ProviderConfig
 
 
 class LLMError(RuntimeError):
@@ -92,12 +92,12 @@ def get_provider(pc: ProviderConfig) -> LLMProvider:
       automatically sets ``reasoning_effort="high"`` for reasoning-class models).
     """
     if pc.api_flavor == "anthropic":
-        from bionic_youtube.ai.anthropic_provider import AnthropicProvider
+        from youtube_strataread.ai.anthropic_provider import AnthropicProvider
         return AnthropicProvider(pc)
     if pc.api_flavor == "gemini":
-        from bionic_youtube.ai.gemini_provider import GeminiProvider
+        from youtube_strataread.ai.gemini_provider import GeminiProvider
         return GeminiProvider(pc)
     if pc.api_flavor == "openai":
-        from bionic_youtube.ai.openai_provider import OpenAICompatibleProvider
+        from youtube_strataread.ai.openai_provider import OpenAICompatibleProvider
         return OpenAICompatibleProvider(pc)
     raise LLMError(f"unknown api_flavor '{pc.api_flavor}' for provider '{pc.name}'")

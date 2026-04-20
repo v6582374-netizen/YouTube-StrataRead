@@ -19,9 +19,9 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from bionic_youtube.ai.prompts import list_prompts as _list_prompts
-from bionic_youtube.ai.prompts import prompt_path as _default_prompt_path
-from bionic_youtube.config import (
+from youtube_strataread.ai.prompts import list_prompts as _list_prompts
+from youtube_strataread.ai.prompts import prompt_path as _default_prompt_path
+from youtube_strataread.config import (
     DEFAULT_MODELS,
     DEFAULT_PROVIDER,
     SUPPORTED_PROVIDERS,

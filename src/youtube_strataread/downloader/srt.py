@@ -12,7 +12,7 @@ from pathlib import Path
 
 import srt as srtlib
 
-from bionic_youtube.utils.text import strip_bom
+from youtube_strataread.utils.text import strip_bom
 
 _HTML_TAG = re.compile(r"<[^>]+>")
 _NOISE_MARKERS = re.compile(r"\[[^\]]+\]|\([^)]+\)")  # [Music], (applause)

@@ -1,4 +1,4 @@
-from bionic_youtube.downloader.srt import cues_to_lines, load_cues
+from youtube_strataread.downloader.srt import cues_to_lines, load_cues
 
 SAMPLE = """1
 00:00:01,000 --> 00:00:03,000

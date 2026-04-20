@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bionic_youtube.ai import prompts as prompts_mod
+from youtube_strataread.ai import prompts as prompts_mod
 
 
 def test_materialises_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

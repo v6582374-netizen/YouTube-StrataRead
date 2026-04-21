@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -43,8 +44,14 @@ def run_reader(*, md_path: Path, mode: str = "manual", cpm: int | None = None) -
         status_bar=status_bar,
     )
     status_bar.setup()
+    session.setup()
 
-    nav = Navigator(root=root, console=console, completed=completed)
+    nav = Navigator(
+        root=root,
+        console=console,
+        completed=completed,
+        menu_screen=lambda: _menu_screen(status_bar, session),
+    )
     cpm_value = cpm or 300
     gen = nav.loop()
     try:
@@ -84,6 +91,33 @@ def _read_leaf(leaf, console: Console, mode: str, cpm: int, session: ReadingSess
 def _total_chars(root: Node) -> int:
     total = 0
     for node in root.walk():
-        if node.is_leaf and node.body:
+        if node.level > 0:
+            total += len(_heading_text(node))
+        if node.body:
             total += len(node.body)
     return total
+
+
+def _heading_text(node: Node) -> str:
+    hashes = "#" * max(node.level, 1)
+    return f"{hashes} {node.title}".rstrip()
+
+
+@contextlib.contextmanager
+def _menu_screen(status_bar: StatusBar | NullStatusBar, session: ReadingSession):
+    try:
+        tty_ok = sys.stdout.isatty()
+    except Exception:
+        tty_ok = False
+    if not tty_ok:
+        yield
+        return
+    sys.stdout.write("\x1b[?1049h\x1b[2J\x1b[H")
+    sys.stdout.flush()
+    try:
+        yield
+    finally:
+        sys.stdout.write("\x1b[?1049l")
+        sys.stdout.flush()
+        status_bar.refresh()
+        session.restore_cursor()

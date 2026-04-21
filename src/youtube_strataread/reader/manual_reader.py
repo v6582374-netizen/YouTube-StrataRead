@@ -20,7 +20,7 @@ def read_leaf_manual(leaf: Node, console: Console, session: ReadingSession) -> s
 
     sentences = leaf.sentences or ([leaf.body] if leaf.body else [])
     if not sentences:
-        _show_placeholder(session)
+        session.emit_static_text("（本小节暂无正文。按 Esc 返回。）")
         return _wait_for_back()
 
     idx = 0
@@ -34,43 +34,40 @@ def read_leaf_manual(leaf: Node, console: Console, session: ReadingSession) -> s
                 continue
             action = _classify(key)
             if action == "quit":
-                session.finish_leaf()
+                session.finish_leaf(completed=False)
                 return "quit"
             if action == "back":
-                session.finish_leaf()
+                session.finish_leaf(completed=False)
                 return "back"
             if action == "next":
                 if idx + 1 >= len(sentences):
-                    session.finish_leaf()
+                    session.finish_leaf(completed=True)
                     return "done"
                 idx += 1
                 if idx > max_seen_idx:
                     _show_sentence(session, sentences[idx], idx, animate=True, count_for_progress=True)
                     max_seen_idx = idx
                 else:
-                    _rebuild_view(session, sentences[: idx + 1])
+                    _show_sentence(session, sentences[idx], idx, animate=False, count_for_progress=False)
             elif action == "prev":
                 if idx == 0:
                     continue
                 idx -= 1
-                _rebuild_view(session, sentences[: idx + 1])
+                _show_sentence(session, sentences[idx], idx, animate=False, count_for_progress=False)
             elif action == "jump_end":
                 if idx + 1 >= len(sentences):
                     continue
-                if max_seen_idx < len(sentences) - 1:
-                    _rebuild_view(session, sentences[: max_seen_idx + 1])
-                    for reveal_idx in range(max_seen_idx + 1, len(sentences)):
-                        _show_sentence(
-                            session,
-                            sentences[reveal_idx],
-                            reveal_idx,
-                            animate=False,
-                            count_for_progress=True,
-                        )
-                    max_seen_idx = len(sentences) - 1
-                else:
-                    _rebuild_view(session, sentences)
-                idx = len(sentences) - 1
+                while idx + 1 < len(sentences):
+                    idx += 1
+                    count_for_progress = idx > max_seen_idx
+                    _show_sentence(
+                        session,
+                        sentences[idx],
+                        idx,
+                        animate=False,
+                        count_for_progress=count_for_progress,
+                    )
+                    max_seen_idx = max(max_seen_idx, idx)
 
 
 def _show_sentence(
@@ -92,18 +89,6 @@ def _show_sentence(
     session.end_sentence()
 
 
-def _rebuild_view(session: ReadingSession, sentences: list[str]) -> None:
-    session.reset_view()
-    for sent_idx, sentence in enumerate(sentences):
-        _show_sentence(
-            session,
-            sentence,
-            sent_idx,
-            animate=False,
-            count_for_progress=False,
-        )
-
-
 def _classify(key: Key) -> str:
     k = key.key
     if k in ("q", "ctrl-c"):
@@ -117,13 +102,6 @@ def _classify(key: Key) -> str:
     if k == "space":
         return "jump_end"
     return "noop"
-
-
-def _show_placeholder(session: ReadingSession) -> None:
-    message = "（本小节暂无正文。按 Esc 返回。）"
-    session.begin_sentence(0, message)
-    session.write_chars([(ch, False) for ch in message], count_for_progress=False)
-    session.end_sentence()
 
 
 def _wait_for_back() -> str:

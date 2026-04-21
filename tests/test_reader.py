@@ -53,3 +53,17 @@ def test_bionic_render_cjk_first_half():
 def test_bionic_render_leaves_punct():
     s = render_str("Hello, world!")
     assert ", " in s and "!" in s
+
+
+def test_parse_markdown_preserves_thematic_breaks_in_non_leaf_body():
+    root = parse_markdown(
+        "# Chapter\n"
+        "Intro paragraph.\n\n"
+        "---\n\n"
+        "After break.\n\n"
+        "## Leaf\n"
+        "Body.\n"
+    )
+
+    chapter = root.children[0]
+    assert chapter.body == "Intro paragraph.\n\n---\n\nAfter break."

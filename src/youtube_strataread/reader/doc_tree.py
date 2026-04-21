@@ -82,6 +82,10 @@ def parse_markdown(md_text: str) -> Node:
                 pending_paragraphs.append(inline.content.strip())
             i += 3
             continue
+        if t.type == "hr":
+            pending_paragraphs.append("---")
+            i += 1
+            continue
         if t.type in {"bullet_list_open", "ordered_list_open"}:
             # Treat each list_item's inline content as a paragraph-line.
             # Simplified: walk until the matching close token.

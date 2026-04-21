@@ -12,6 +12,9 @@ caller can drive the mode-specific body reader.
 """
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 
 from rich.console import Console
@@ -27,6 +30,7 @@ class Navigator:
     root: Node
     console: Console
     completed: set[str] = field(default_factory=set)
+    menu_screen: Callable[[], AbstractContextManager[None]] | None = None
     _current: Node | None = None
     _cursor: int = 0
 
@@ -54,26 +58,18 @@ class Navigator:
         """
         with key_reader() as read:
             while True:
-                assert self._current is not None
-                current = self._current
-                self._render(current)
-                key = read()
-                if key is None:
-                    continue
-                action = self._handle(key, current)
-                if action == "quit":
+                leaf = self._choose_leaf(read)
+                if leaf is None:
                     return
-                if action == "leaf":
-                    leaf = current.children[self._cursor]
-                    # Hand control to the auto-advance sub-coroutine. It will
-                    # keep yielding successive leaves until the user presses
-                    # back or quits.
-                    status = yield from self._read_sequence(leaf)
-                    if status == "quit":
-                        return
-                    # after "back" or "all leaves done" we loop back to the
-                    # menu state (``self._current`` was already repositioned
-                    # inside ``_read_sequence``).
+                # Hand control to the auto-advance sub-coroutine. It will
+                # keep yielding successive leaves until the user presses back
+                # or quits.
+                status = yield from self._read_sequence(leaf)
+                if status == "quit":
+                    return
+                # after "back" or "all leaves done" we loop back to the
+                # menu state (``self._current`` was already repositioned
+                # inside ``_read_sequence``).
 
     def _read_sequence(self, first_leaf: Node):
         """Yield ``first_leaf`` and every subsequent leaf in DFS order.
@@ -174,6 +170,21 @@ class Navigator:
         self._cursor = 0
         return "noop"
 
+    def _choose_leaf(self, read) -> Node | None:
+        with self._menu_context():
+            while True:
+                assert self._current is not None
+                current = self._current
+                self._render(current)
+                key = read()
+                if key is None:
+                    continue
+                action = self._handle(key, current)
+                if action == "quit":
+                    return None
+                if action == "leaf":
+                    return current.children[self._cursor]
+
     def _render(self, current: Node) -> None:
         self.console.clear()
         crumbs = _crumbs(self.root, current)
@@ -198,6 +209,11 @@ class Navigator:
         self.console.print(
             "[dim]↑/↓ 或数字选择, Enter/Tab 进入, Esc/b 返回, h 回根, q 退出[/]"
         )
+
+    def _menu_context(self) -> AbstractContextManager[None]:
+        if self.menu_screen is None:
+            return contextlib.nullcontext()
+        return self.menu_screen()
 
 
 def _find_parent(root: Node, target: Node) -> Node | None:

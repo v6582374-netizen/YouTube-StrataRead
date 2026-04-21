@@ -26,17 +26,17 @@ def read_leaf_stream(
 
     sentences = leaf.sentences or ([leaf.body] if leaf.body else [])
     if not sentences:
-        _show_placeholder(session)
+        session.emit_static_text("（本小节暂无正文。按 Esc 返回。）")
         with key_reader() as read:
             while True:
                 key = read()
                 if key is None:
                     continue
                 if key.key in ("escape", "b"):
-                    session.finish_leaf()
+                    session.finish_leaf(completed=False)
                     return "back"
                 if key.key in ("q", "ctrl-c"):
-                    session.finish_leaf()
+                    session.finish_leaf(completed=False)
                     return "quit"
 
     base_delay = max(60.0 / cpm, 0.01)
@@ -70,7 +70,7 @@ def read_leaf_stream(
                         tier_idx = max(tier_idx - 1, 0)
                 if done_action is not None:
                     session.end_sentence()
-                    session.finish_leaf()
+                    session.finish_leaf(completed=False)
                     return done_action
                 if skipped:
                     break
@@ -81,11 +81,11 @@ def read_leaf_stream(
                     action = _handle_event(event)
                     if action == "quit":
                         session.end_sentence()
-                        session.finish_leaf()
+                        session.finish_leaf(completed=False)
                         return "quit"
                     if action == "back":
                         session.end_sentence()
-                        session.finish_leaf()
+                        session.finish_leaf(completed=False)
                         return "back"
                     if action == "pause":
                         paused = False
@@ -96,7 +96,7 @@ def read_leaf_stream(
                 session.write_char(ch, is_bold)
                 time.sleep(base_delay / SPEED_TIERS[tier_idx])
             session.end_sentence()
-        session.finish_leaf()
+        session.finish_leaf(completed=True)
     return "done"
 
 
@@ -115,10 +115,3 @@ def _handle_event(key: Key) -> str:
     if k == "-":
         return "speed_down"
     return "noop"
-
-
-def _show_placeholder(session: ReadingSession) -> None:
-    message = "（本小节暂无正文。按 Esc 返回。）"
-    session.begin_sentence(0, message)
-    session.write_chars([(ch, False) for ch in message], count_for_progress=False)
-    session.end_sentence()

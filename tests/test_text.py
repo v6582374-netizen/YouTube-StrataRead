@@ -31,3 +31,38 @@ def test_split_sentences_english():
     txt = "Hello there. How are you? I'm fine!"
     sents = split_sentences(txt)
     assert sents == ["Hello there.", "How are you?", "I'm fine!"]
+
+
+def test_split_sentences_comma_and_semicolon_cjk():
+    # Chinese comma / semicolon should terminate a clause; 、/：/“” should not.
+    txt = "今天天气，真好；我有苹果、香蕉和橙子。"
+    sents = split_sentences(txt)
+    assert sents == ["今天天气，", "真好；", "我有苹果、香蕉和橙子。"]
+
+
+def test_split_sentences_does_not_split_on_enumeration_or_colon():
+    txt = "他说：我喜欢苹果、香蕉和葡萄。"
+    sents = split_sentences(txt)
+    assert sents == ["他说：我喜欢苹果、香蕉和葡萄。"]
+
+
+def test_split_sentences_glues_closing_quote():
+    txt = "他说：“你好。”然后走了。"
+    sents = split_sentences(txt)
+    # The inner 。 absorbs the trailing ” so the quoted clause stays together.
+    assert sents == ["他说：“你好。”", "然后走了。"]
+
+
+def test_split_sentences_english_comma_semicolon():
+    txt = "Hello, world; goodbye."
+    sents = split_sentences(txt)
+    assert sents == ["Hello,", "world;", "goodbye."]
+
+
+def test_split_sentences_preserves_abbreviations_and_decimals():
+    txt = "We live in the U.S.A. Pi is 3.14, roughly."
+    sents = split_sentences(txt)
+    # U.S.A. should NOT split mid-abbreviation; the closing '.' followed by a
+    # space does. The decimal 3.14 stays intact; final comma+period form the
+    # boundary.
+    assert sents == ["We live in the U.S.A.", "Pi is 3.14,", "roughly."]

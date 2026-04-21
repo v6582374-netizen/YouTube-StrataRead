@@ -8,7 +8,20 @@ import unicodedata
 _PUNCT_TO_DASH = re.compile(r"[\s\u3000]+")
 _UNSAFE_CHARS = re.compile(r"[^\w\-\u4e00-\u9fff]", re.UNICODE)
 _MULTI_DASH = re.compile(r"-{2,}")
-_SENTENCE_SPLIT = re.compile(r"(?<=[。！？!?…])|(?<=[\.\?\!])\s+")
+
+# Sentence-terminator taxonomy for the interactive reader.
+# * HARD terminators always end a sentence (both halfwidth and fullwidth
+#   Chinese punctuation count here).
+# * SOFT terminator (English '.') only ends a sentence when followed by
+#   whitespace / EOL so that "U.S.A.", "3.14" etc. stay intact.
+# * CLOSING punctuation that trails a terminator stays glued to the
+#   preceding clause (e.g. the closing quote after “你好。”).
+# Enumeration comma 、, colons, brackets and quote-open/close characters are
+# intentionally NOT terminators — they keep sub-clauses stitched together.
+_HARD_TERMINATORS = frozenset("，。；！？…,;!?")
+_SOFT_TERMINATOR = "."
+_ALL_TERMINATORS = _HARD_TERMINATORS | frozenset(_SOFT_TERMINATOR)
+_CLOSING = frozenset("”’》」』〕〗〙〉)]}\"'»›")
 
 
 def slugify(title: str, max_len: int = 64) -> str:
@@ -46,12 +59,55 @@ def strip_bom(text: str) -> str:
 
 
 def split_sentences(paragraph: str) -> list[str]:
-    """Split a paragraph into sentences, preserving CJK/English punctuation.
+    """Split a paragraph into clause-sized sentences for the reader.
 
-    Keeps the terminator attached to the preceding sentence.
+    Rules:
+    * Hard terminators ``，。；！？…,;!?`` always end a sentence.
+    * The soft terminator ``.`` only ends a sentence when followed by
+      whitespace or end-of-string (keeps ``U.S.A.``, ``3.14`` intact).
+    * Consecutive terminators (``?!``, ``。。``) are coalesced onto the same
+      boundary.
+    * Closing punctuation (”。 ”, ``)`` etc.) glues to the preceding clause.
+    * Enumeration commas ``、``, colons ``：:`` and quote openers keep
+      sub-clauses joined.
     """
     text = paragraph.strip()
     if not text:
         return []
-    raw = _SENTENCE_SPLIT.split(text)
-    return [s.strip() for s in raw if s and s.strip()]
+    out: list[str] = []
+    buf: list[str] = []
+    n = len(text)
+    i = 0
+    while i < n:
+        ch = text[i]
+        buf.append(ch)
+        if ch in _ALL_TERMINATORS:
+            j = i + 1
+            # Glue trailing closing punctuation to this clause.
+            while j < n and text[j] in _CLOSING:
+                buf.append(text[j])
+                j += 1
+            # Absorb runs of additional terminators ("?!", "。。").
+            while j < n and text[j] in _ALL_TERMINATORS:
+                buf.append(text[j])
+                j += 1
+            should_split = True
+            if ch == _SOFT_TERMINATOR and j < n and not text[j].isspace():
+                # e.g. "U.S.A." — keep going without splitting.
+                should_split = False
+            if should_split:
+                sent = "".join(buf).strip()
+                if sent:
+                    out.append(sent)
+                buf = []
+                i = j
+                while i < n and text[i].isspace():
+                    i += 1
+                continue
+            i = j
+            continue
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        out.append(tail)
+    return out

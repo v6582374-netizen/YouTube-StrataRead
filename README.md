@@ -6,7 +6,7 @@
 
 1. **抓取**：一条命令从 YouTube 下载原始 SRT 字幕。
 2. **整理**：调用你自己的大模型 API（BYOK），用**一份可自定义的 prompt** 一次性完成翻译 + 去冗 + 分层标题化，生成只含正文的 Markdown。**全部 provider 默认启用深度思考**。
-3. **阅读**：在终端以 Bionic Reading（词首字母加粗）风格逐句阅读；读完一个叶子自动跳到下一个，父标题自动打钩。
+3. **阅读**：在终端以 Bionic Reading（词首字母加粗）风格逐句阅读；读完一个叶子自动跳到下一个，父标题自动打钩，并实时显示底部总进度条。
 
 支持四类 Provider：**OpenAI**、**Anthropic (Claude)**、**Google Gemini**、**Compat（任意 OpenAI 兼容的第三方中转）**。仅支持 YouTube URL，本版本暂不支持本地字幕文件。
 
@@ -63,7 +63,7 @@ by example --mode stream    # 自动流式阅读
 by example --path           # 打印样例路径
 ```
 
-样例是一份预处理好的采访节目 Markdown（来自一个 YouTube 视频），展示完整的分层结构和 Bionic Reading 效果。
+样例是一份预处理好的采访节目 Markdown（来自一个 YouTube 视频），展示完整的分层结构、Bionic Reading 效果，以及新的高亮/进度交互。
 
 ---
 
@@ -170,6 +170,14 @@ by read <slug>.md --mode stream --cpm 500
 
 两种模式都使用同一套「层级下钻选择器」，并都带 Bionic Reading（词首字母加粗）渲染。
 
+### 6.0 本次阅读器增强
+
+- 底部常驻总进度条：按整篇文档的可见字符数实时推进。
+- 鼠标悬停句子会变灰，左键点击可切换高亮。
+- 键盘 `h` 可作为无鼠标环境下的高亮快捷键。
+- 退出阅读器时，如存在高亮，会在当前文档目录自动生成 `highlights.md` 摘录文件。
+- 中英/CJK 断句规则更细，逗号、分号、引号等场景阅读节奏更自然。
+
 ### 6.1 层级选择（共享）
 
 ```
@@ -201,13 +209,19 @@ by read <slug>.md --mode stream --cpm 500
 - `Tab`：显示下一句（逐字符浮现 + Bionic 粗体）。
 - `Shift+Tab`：回看上一句。
 - `Space`：跳到本小节末句。
+- `h`：高亮当前悬停句子。
+- 鼠标移动：悬停句子。
+- 鼠标左键：切换句子高亮。
 
 ### 6.4 Mode B：自动流式输出
 
 - `Space`：暂停 / 继续。
 - `+ / -`：调速（×0.5 / ×0.75 / ×1 / ×1.5 / ×2）。
-- `Tab`：立即跳到下一句。
+- `Tab`：立即跳到当前句末并进入下一句。
 - `Esc`：终止回上级。
+- `h`：高亮当前悬停句子。
+- 鼠标移动：悬停句子。
+- 鼠标左键：切换句子高亮。
 - `--cpm N` / `--wpm N`：自定义速度（默认 300 CPM）。
 
 ### 6.5 阅读进度
@@ -218,6 +232,16 @@ by read <slug>.md --mode stream --cpm 500
 ~/Library/Application Support/youtube-strataread/state/progress/<docHash>.json   # macOS
 ~/.local/state/youtube-strataread/progress/<docHash>.json                        # Linux
 ```
+
+### 6.6 高亮摘录
+
+如果你在阅读过程中点亮了任意句子，退出阅读器后会在当前 Markdown 所在目录生成：
+
+```text
+highlights.md
+```
+
+文件会按章节分组，按你的点击顺序整理高亮句子，方便后续回顾或二次摘录。
 
 ---
 

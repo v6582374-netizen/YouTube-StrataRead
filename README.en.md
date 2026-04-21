@@ -71,8 +71,8 @@ by example --path           # print the sample location on disk
 ```
 
 The sample is a pre-processed interview outline bundled inside the package —
-ideal for evaluating the reader UX, including the new highlight and progress
-interactions, without touching any cloud API.
+ideal for evaluating the reader UX, including the new bottom-anchored layout
+and breadcrumb/progress footer, without touching any cloud API.
 
 ---
 
@@ -193,10 +193,9 @@ Both modes share the same hierarchical picker and both apply Bionic Reading
 
 ### 6.0 What's new in the reader
 
-- A sticky bottom progress bar tracks total visible characters across the full document.
-- Hovering a sentence with the mouse turns it grey; left-click toggles a highlight.
-- Keyboard `h` acts as a highlight shortcut when you are not using a mouse.
-- When highlights exist, the reader exports them to `highlights.md` beside the source markdown on exit.
+- A sticky footer shows the current chapter breadcrumb on the left and whole-document progress on the right.
+- The body is bottom-anchored: the active sentence always hugs the footer and older sentences are pushed upward.
+- The active sentence is rendered in champagne; once you move on, the previous sentence returns to the terminal's default foreground.
 - Sentence splitting is more natural for English and CJK punctuation, including commas, semicolons, and closing quotes.
 
 ### 6.1 Shared hierarchical selector
@@ -235,9 +234,6 @@ Both modes share the same hierarchical picker and both apply Bionic Reading
 - `Tab` — reveal the next sentence (typed out char-by-char + Bionic bold).
 - `Shift+Tab` — re-show the previous sentence.
 - `Space` — jump to the last sentence of the current leaf.
-- `h` — toggle highlight on the hovered sentence.
-- mouse move — hover a sentence.
-- mouse left-click — toggle sentence highlight.
 
 ### 6.4 Mode B — auto stream
 
@@ -245,9 +241,6 @@ Both modes share the same hierarchical picker and both apply Bionic Reading
 - `+` / `-` — speed tier (×0.5 / ×0.75 / ×1 / ×1.5 / ×2).
 - `Tab` — skip to the end of the current sentence and move on.
 - `Esc` — terminate and go back up.
-- `h` — toggle highlight on the hovered sentence.
-- mouse move — hover a sentence.
-- mouse left-click — toggle sentence highlight.
 - `--cpm N` / `--wpm N` — override the base speed (default 300 CPM).
 
 ### 6.5 Progress persistence
@@ -259,17 +252,10 @@ Progress is saved at:
 ~/.local/state/youtube-strataread/progress/<docHash>.json                        # Linux
 ```
 
-### 6.6 Highlight export
+### 6.6 Footer breadcrumb
 
-If you highlighted any sentences while reading, the reader writes this file
-next to the current markdown when you exit:
-
-```text
-highlights.md
-```
-
-The file is grouped by chapter and keeps your click order, so it doubles as a
-quick review sheet or excerpt list.
+- The footer keeps the current leaf's full breadcrumb visible, for example `Parent / Current`.
+- When the terminal is narrow, truncation happens from the left so the current section stays visible.
 
 ---
 

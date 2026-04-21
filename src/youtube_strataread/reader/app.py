@@ -9,7 +9,6 @@ from rich.console import Console
 
 from youtube_strataread.reader import progress_store
 from youtube_strataread.reader.doc_tree import Node, parse_file
-from youtube_strataread.reader.highlights import write_highlights
 from youtube_strataread.reader.manual_reader import read_leaf_manual
 from youtube_strataread.reader.navigator import Navigator
 from youtube_strataread.reader.session import ReadingSession
@@ -40,8 +39,6 @@ def run_reader(*, md_path: Path, mode: str = "manual", cpm: int | None = None) -
         status_bar = NullStatusBar()
     session = ReadingSession(
         root=root,
-        folder=md_path.parent,
-        doc_title=_doc_title(root, md_path),
         total_chars=max(total_chars, 1),
         status_bar=status_bar,
     )
@@ -76,9 +73,6 @@ def run_reader(*, md_path: Path, mode: str = "manual", cpm: int | None = None) -
                 timestamp=datetime.utcnow().isoformat(),
             ),
         )
-        path = write_highlights(session)
-        if path is not None:
-            stdout().print(f"[green]高亮已保存至[/] {path}")
 
 
 def _read_leaf(leaf, console: Console, mode: str, cpm: int, session: ReadingSession) -> str:
@@ -93,11 +87,3 @@ def _total_chars(root: Node) -> int:
         if node.is_leaf and node.body:
             total += len(node.body)
     return total
-
-
-def _doc_title(root: Node, md_path: Path) -> str:
-    """Prefer the first top-level heading, fall back to the file stem."""
-    for child in root.children:
-        if child.title:
-            return child.title
-    return md_path.stem

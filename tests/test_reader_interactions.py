@@ -184,3 +184,29 @@ def test_status_bar_progress_line_never_overflows_narrow_width(monkeypatch) -> N
     line = _strip_ansi(bar._progress_line())
 
     assert len(line) <= bar.width
+
+
+def test_status_bar_uses_classic_progress_bar_style(monkeypatch) -> None:
+    monkeypatch.setattr(StatusBar, "_detect_tty", staticmethod(lambda: True))
+    monkeypatch.setattr(StatusBar, "_detect_size", staticmethod(lambda: (30, 24)))
+
+    bar = StatusBar(total_chars=100)
+    bar.done_chars = 42
+
+    line = _strip_ansi(bar._progress_line())
+
+    assert line.startswith("[")
+    assert "]" in line
+    assert "%" in line
+    assert "░" in line
+
+
+def test_status_bar_wraps_breadcrumb_instead_of_truncating(monkeypatch) -> None:
+    monkeypatch.setattr(StatusBar, "_detect_tty", staticmethod(lambda: True))
+    monkeypatch.setattr(StatusBar, "_detect_size", staticmethod(lambda: (12, 24)))
+
+    bar = StatusBar(total_chars=100)
+    bar.set_context("Parent / Current / ExtremelyLongLeafTitle")
+
+    assert len(bar._context_lines) > 1
+    assert "..." not in "".join(bar._context_lines)

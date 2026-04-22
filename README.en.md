@@ -193,11 +193,10 @@ Both modes share the same hierarchical picker and both apply Bionic Reading
 
 ### 6.0 What's new in the reader
 
-- The bottom of the terminal is now a three-row reserved area: aurora progress bar on the last row, breadcrumb above it, and one fixed spacer row above both.
-- The body is bottom-anchored above that reserved area: the active sentence always hugs the spacer row and older content is pushed upward.
+- The bottom of the terminal now uses a classic progress bar again: progress on the last row, breadcrumb above it, and one fixed spacer row above both.
+- The body stays bottom-anchored above that reserved area and relies on the terminal scrolling region itself instead of complex redraw logic.
 - Body output is now append-only. Auto-advance, jump-reading, revisits, and re-reading all keep stacking visible text upward instead of clearing prior content.
 - Entering a new section writes the Markdown heading itself into the body stream, so sequential reading gradually reconstructs more of the original md structure.
-- The active sentence is rendered in champagne; once you move on, the previous sentence returns to the terminal's default foreground.
 - Sentence splitting is more natural for English and CJK punctuation, including commas, semicolons, and closing quotes.
 
 ### 6.1 Shared hierarchical selector
@@ -258,8 +257,8 @@ Progress is saved at:
 
 ### 6.6 Footer breadcrumb
 
-- The breadcrumb has its own dedicated row and shows the current leaf path, for example `Parent / Current`.
-- When the terminal is narrow, truncation happens from the left so the current section stays visible.
+- The breadcrumb sits above the progress bar and wraps to the current terminal width instead of truncating with ellipses.
+- When the terminal is resized, subsequent output continues wrapping to the new width.
 - The progress bar sits on a separate row, so narrow windows do not force the breadcrumb and progress to compete for width.
 
 ---

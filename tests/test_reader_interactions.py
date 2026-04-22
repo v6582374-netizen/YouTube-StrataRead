@@ -212,6 +212,26 @@ def test_status_bar_wraps_breadcrumb_instead_of_truncating(monkeypatch) -> None:
     assert "..." not in "".join(bar._context_lines)
 
 
+def test_status_bar_keeps_content_height_stable_across_chapter_context_switches(monkeypatch) -> None:
+    monkeypatch.setattr(StatusBar, "_detect_tty", staticmethod(lambda: True))
+    monkeypatch.setattr(StatusBar, "_detect_size", staticmethod(lambda: (18, 24)))
+
+    contexts = [
+        "Part / Short",
+        "Part / Section / Extremely Long Leaf Title That Must Wrap",
+    ]
+    bar = StatusBar(total_chars=100, contexts=contexts)
+
+    baseline = bar.content_height
+    bar.set_context(contexts[0])
+    first = bar.content_height
+    bar.set_context(contexts[1])
+    second = bar.content_height
+
+    assert baseline == first == second
+    assert bar._reserved_context_rows >= len(bar._context_lines)
+
+
 def test_interactive_session_does_not_reposition_cursor_while_appending(capsys) -> None:
     session, _, leaf_a, _ = _make_session(width=12, content_height=4)
     session._interactive = True

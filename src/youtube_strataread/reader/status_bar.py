@@ -66,7 +66,7 @@ def _wrap_text(text: str, width: int) -> list[str]:
 class StatusBar:
     """Sticky footer with a spacer row, wrapped breadcrumb rows, and progress."""
 
-    def __init__(self, total_chars: int) -> None:
+    def __init__(self, total_chars: int, *, contexts: list[str] | None = None) -> None:
         self.total_chars = max(total_chars, 1)
         self.done_chars = 0
         self._active = False
@@ -75,7 +75,10 @@ class StatusBar:
         self._width, self._height = self._detect_size()
         self._context = ""
         self._context_lines = [""]
+        self._reserved_context_rows = 1
         self._footer_height = 3
+        self._contexts = [text.strip() for text in (contexts or []) if text.strip()]
+        self._sync_layout()
 
     def setup(self) -> None:
         if not self._enabled:
@@ -145,13 +148,14 @@ class StatusBar:
         sys.stdout.write(f"\x1b[{self._spacer_row};1H")
         sys.stdout.write(_CLEAR_LINE)
 
-        for idx, line in enumerate(self._context_lines):
+        for idx in range(self._reserved_context_rows):
             row = self._breadcrumb_start_row + idx
             sys.stdout.write(f"\x1b[{row};1H")
             sys.stdout.write(_CLEAR_LINE)
-            sys.stdout.write(_DIM_CYAN)
-            sys.stdout.write(line)
-            sys.stdout.write(_RESET)
+            if idx < len(self._context_lines):
+                sys.stdout.write(_DIM_CYAN)
+                sys.stdout.write(self._context_lines[idx])
+                sys.stdout.write(_RESET)
 
         sys.stdout.write(f"\x1b[{self._progress_row};1H")
         sys.stdout.write(_CLEAR_LINE)
@@ -201,19 +205,25 @@ class StatusBar:
             return
 
         context_lines = _wrap_text(self._context, self._width)
-        max_context_rows = max(self._height - 3, 1)
-        if len(context_lines) > max_context_rows:
-            context_lines = context_lines[-max_context_rows:]
-        footer_height = len(context_lines) + 2
+        max_context_rows = max(self._height - 2, 1)
+        reserved_context_rows = min(self._max_context_rows(self._width), max_context_rows)
+        if len(context_lines) > reserved_context_rows:
+            context_lines = context_lines[-reserved_context_rows:]
+        footer_height = reserved_context_rows + 2
 
         layout_changed = (
-            context_lines != self._context_lines
+            reserved_context_rows != self._reserved_context_rows
             or footer_height != self._footer_height
         )
         self._context_lines = context_lines
+        self._reserved_context_rows = reserved_context_rows
         self._footer_height = footer_height
         if self._active and layout_changed:
             self._apply_scroll_region(move_cursor=False)
+
+    def _max_context_rows(self, width: int) -> int:
+        contexts = self._contexts or [self._context]
+        return max(len(_wrap_text(text, width)) for text in contexts) or 1
 
     def _apply_scroll_region(self, *, move_cursor: bool) -> None:
         sys.stdout.write(f"\x1b[1;{self.content_height}r")

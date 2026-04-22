@@ -34,8 +34,9 @@ def run_reader(*, md_path: Path, mode: str = "manual", cpm: int | None = None) -
 
     # Pre-compute the total visible character budget for the progress bar.
     total_chars = _total_chars(root)
+    contexts = _breadcrumb_contexts(root)
     try:
-        status_bar: StatusBar | NullStatusBar = StatusBar(total_chars)
+        status_bar: StatusBar | NullStatusBar = StatusBar(total_chars, contexts=contexts)
     except Exception:
         status_bar = NullStatusBar()
     session = ReadingSession(
@@ -101,6 +102,22 @@ def _total_chars(root: Node) -> int:
 def _heading_text(node: Node) -> str:
     hashes = "#" * max(node.level, 1)
     return f"{hashes} {node.title}".rstrip()
+
+
+def _breadcrumb_contexts(root: Node) -> list[str]:
+    contexts: list[str] = []
+
+    def walk(node: Node, titles: list[str]) -> None:
+        next_titles = titles
+        if node.level > 0 and node.title:
+            next_titles = [*titles, node.title]
+        if node.is_leaf and next_titles:
+            contexts.append(" / ".join(next_titles))
+        for child in node.children:
+            walk(child, next_titles)
+
+    walk(root, [])
+    return contexts
 
 
 @contextlib.contextmanager

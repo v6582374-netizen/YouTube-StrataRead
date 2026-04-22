@@ -210,3 +210,19 @@ def test_status_bar_wraps_breadcrumb_instead_of_truncating(monkeypatch) -> None:
 
     assert len(bar._context_lines) > 1
     assert "..." not in "".join(bar._context_lines)
+
+
+def test_interactive_session_does_not_reposition_cursor_while_appending(capsys) -> None:
+    session, _, leaf_a, _ = _make_session(width=12, content_height=4)
+    session._interactive = True
+    session.setup()
+    capsys.readouterr()
+
+    session.begin_leaf(leaf_a)
+    _show_sentence(session, "ABCDEFGHIJKL", 0)
+    _show_sentence(session, "Beta.", 1)
+
+    output = capsys.readouterr().out
+
+    assert re.search(r"\x1b\[\d+;\d+H", output) is None
+    assert output.index("ABCDEFGHIJKL") < output.index("Beta.")

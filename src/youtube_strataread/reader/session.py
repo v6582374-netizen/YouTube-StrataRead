@@ -108,10 +108,7 @@ class ReadingSession:
         out.flush()
 
     def restore_cursor(self) -> None:
-        if not self._interactive or not self._started:
-            return
-        sys.stdout.write(f"\x1b[{self.content_height};{self.col}H")
-        sys.stdout.flush()
+        return
 
     def breadcrumb_for(self, leaf: Node) -> str:
         titles = [node.title for node in _node_path(self.root, leaf) if node.level > 0 and node.title]
@@ -122,12 +119,10 @@ class ReadingSession:
             self.setup()
         self.current_leaf = leaf
         self.status_bar.set_context(self.breadcrumb_for(leaf))
-        self.restore_cursor()
         for node in self._nodes_to_emit(leaf):
             self._emit_node(node)
         self.previous_leaf = leaf
         self.status_bar.refresh()
-        self.restore_cursor()
 
     def finish_leaf(self, *, completed: bool) -> None:
         if not completed or self.current_leaf is None:
@@ -249,7 +244,6 @@ class ReadingSession:
             return
         self.done_chars = min(self.done_chars + delta, self.total_chars)
         self.status_bar.update(delta)
-        self.restore_cursor()
 
     def _newline(self) -> None:
         sys.stdout.write("\n")

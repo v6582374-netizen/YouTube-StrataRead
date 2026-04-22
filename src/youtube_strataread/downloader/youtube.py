@@ -7,9 +7,11 @@ Given a URL we:
 """
 from __future__ import annotations
 
+import json
 import re
 import tempfile
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 _URL_PATTERNS = [
@@ -24,6 +26,7 @@ _PREFERRED_LANGS_OFFICIAL = ["zh-Hans", "zh-CN", "zh", "en", "en-US", "en-GB"]
 # YouTube tends to rate-limit translated auto-captions (e.g. zh-Hans),
 # so we grab the source and let Step1 translate locally.
 _PREFERRED_LANGS_AUTO = ["en", "en-US", "en-GB", "zh-Hans", "zh-CN", "zh"]
+_LIVE_CHAT_LANG = "live_chat"
 
 
 class YouTubeError(RuntimeError):
@@ -87,7 +90,7 @@ def download_subtitles(url: str, preferred_lang: str | None = None) -> SubtitleR
     lang, is_auto = _pick_language(subs, auto, preferred_lang)
     if lang is None:
         raise YouTubeError(
-            "no subtitles (official or auto-generated) were available for this video"
+            "no subtitles (official, auto-generated, or live_chat fallback) were available for this video"
         )
 
     # --- phase 2: download just that one language --------------------------
@@ -111,11 +114,23 @@ def download_subtitles(url: str, preferred_lang: str | None = None) -> SubtitleR
             raise YouTubeError(str(e)) from e
 
         srt_path = _locate_srt(tmp, video_id, lang)
-        if srt_path is None:
+        if srt_path is not None:
+            srt_text = srt_path.read_text(encoding="utf-8")
+        elif lang == _LIVE_CHAT_LANG:
+            live_chat_path = _locate_live_chat_file(tmp, video_id)
+            if live_chat_path is None:
+                raise YouTubeError(
+                    "yt-dlp reported live_chat but did not produce any readable chat transcript file"
+                )
+            srt_text = _live_chat_to_srt(live_chat_path)
+            if not srt_text.strip():
+                raise YouTubeError(
+                    "yt-dlp downloaded live_chat but it did not contain any readable chat messages"
+                )
+        else:
             raise YouTubeError(
                 f"yt-dlp reported subtitle language '{lang}' but the .srt file is missing"
             )
-        srt_text = srt_path.read_text(encoding="utf-8")
         return SubtitleResult(
             video_id=video_id,
             title=title,
@@ -139,6 +154,10 @@ def _pick_language(
     preferred: str | None,
 ) -> tuple[str | None, bool]:
     """Return (lang_code, is_auto)."""
+    has_live_chat_subs = _LIVE_CHAT_LANG in subs
+    has_live_chat_auto = _LIVE_CHAT_LANG in auto
+    subs = {lang: tracks for lang, tracks in subs.items() if lang != _LIVE_CHAT_LANG}
+    auto = {lang: tracks for lang, tracks in auto.items() if lang != _LIVE_CHAT_LANG}
     # Official subs first, with CJK-biased preference.
     for candidate in _build_lang_pref(preferred, is_auto=False):
         if candidate in subs:
@@ -151,6 +170,10 @@ def _pick_language(
             return candidate, True
     if auto:
         return next(iter(auto)), True
+    if has_live_chat_auto:
+        return _LIVE_CHAT_LANG, True
+    if has_live_chat_subs:
+        return _LIVE_CHAT_LANG, False
     return None, False
 
 
@@ -166,3 +189,160 @@ def _locate_srt(tmp: Path, video_id: str, lang: str) -> Path | None:
     for p in tmp.glob("*.srt"):
         return p
     return None
+
+
+def _locate_live_chat_file(tmp: Path, video_id: str) -> Path | None:
+    for pattern in (
+        f"{video_id}*.live_chat*.json*",
+        f"{video_id}*.json*",
+        "*.live_chat*.json*",
+        "*.json*",
+    ):
+        for path in sorted(tmp.glob(pattern)):
+            if not path.is_file():
+                continue
+            if path.suffix in {".part", ".ytdl"}:
+                continue
+            if path.name.endswith((".part", ".ytdl")):
+                continue
+            return path
+    return None
+
+
+def _live_chat_to_srt(path: Path) -> str:
+    messages: list[tuple[int, str]] = []
+    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        offset_ms = _offset_ms(payload)
+        for action in _iter_chat_actions(payload):
+            text = _chat_action_text(action)
+            if text:
+                messages.append((offset_ms, text))
+
+    if not messages:
+        return ""
+
+    parts: list[str] = []
+    for idx, (start_ms, text) in enumerate(messages, start=1):
+        next_ms = messages[idx][0] if idx < len(messages) else None
+        end_ms = _cue_end_ms(start_ms, next_ms)
+        parts.append(
+            f"{idx}\n"
+            f"{_format_srt_timestamp(start_ms)} --> {_format_srt_timestamp(end_ms)}\n"
+            f"{text}\n"
+        )
+    return "\n".join(parts)
+
+
+def _iter_chat_actions(payload: dict) -> list[dict]:
+    wrapper = payload.get("replayChatItemAction")
+    if isinstance(wrapper, dict):
+        actions = wrapper.get("actions")
+        if isinstance(actions, list):
+            return [action for action in actions if isinstance(action, dict)]
+    return [payload]
+
+
+def _offset_ms(payload: dict) -> int:
+    raw = payload.get("videoOffsetTimeMsec")
+    try:
+        return max(int(str(raw)), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _chat_action_text(action: dict) -> str | None:
+    renderer = _chat_renderer(action)
+    if renderer is None:
+        return None
+
+    text = (
+        _runs_text(renderer.get("message"))
+        or _runs_text(renderer.get("headerSubtext"))
+        or _runs_text(renderer.get("primaryText"))
+        or _runs_text(renderer.get("purchaseAmountText"))
+    )
+    if not text:
+        return None
+
+    author = _runs_text(renderer.get("authorName"))
+    if author:
+        return f"{author}: {text}"
+    return text
+
+
+def _chat_renderer(action: dict) -> dict | None:
+    candidates: list[dict | None] = []
+
+    add_chat = action.get("addChatItemAction")
+    if isinstance(add_chat, dict):
+        candidates.append(_renderer_from_item(add_chat.get("item")))
+
+    add_ticker = action.get("addLiveChatTickerItemAction")
+    if isinstance(add_ticker, dict):
+        candidates.append(_renderer_from_item(add_ticker.get("item")))
+
+    add_banner = action.get("addBannerToLiveChatCommand")
+    if isinstance(add_banner, dict):
+        banner = add_banner.get("bannerRenderer")
+        if isinstance(banner, dict):
+            candidates.append(_renderer_from_item(banner.get("contents")))
+
+    for renderer in candidates:
+        if renderer is not None:
+            return renderer
+    return None
+
+
+def _renderer_from_item(item: object) -> dict | None:
+    if not isinstance(item, dict):
+        return None
+    for key in (
+        "liveChatTextMessageRenderer",
+        "liveChatPaidMessageRenderer",
+        "liveChatMembershipItemRenderer",
+    ):
+        renderer = item.get(key)
+        if isinstance(renderer, dict):
+            return renderer
+    return None
+
+
+def _runs_text(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    simple = value.get("simpleText")
+    if isinstance(simple, str):
+        return simple.strip()
+    runs = value.get("runs")
+    if not isinstance(runs, list):
+        return ""
+    out: list[str] = []
+    for part in runs:
+        if not isinstance(part, dict):
+            continue
+        text = part.get("text")
+        if isinstance(text, str):
+            out.append(text)
+    return "".join(out).strip()
+
+
+def _cue_end_ms(start_ms: int, next_ms: int | None) -> int:
+    if next_ms is None or next_ms <= start_ms:
+        return start_ms + 2000
+    return min(next_ms, start_ms + 4000)
+
+
+def _format_srt_timestamp(ms: int) -> str:
+    td = timedelta(milliseconds=max(ms, 0))
+    total_ms = int(td.total_seconds() * 1000)
+    hours, rem = divmod(total_ms, 3_600_000)
+    minutes, rem = divmod(rem, 60_000)
+    seconds, millis = divmod(rem, 1000)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"

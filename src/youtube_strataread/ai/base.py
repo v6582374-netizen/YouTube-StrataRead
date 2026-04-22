@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -21,6 +21,10 @@ from youtube_strataread.config import ProviderConfig
 
 class LLMError(RuntimeError):
     """Raised when an LLM call fails irrecoverably."""
+
+
+class NonRetryableLLMError(LLMError):
+    """Raised for failures that should bypass the outer retry loop."""
 
 
 @dataclass
@@ -34,6 +38,9 @@ class ChatRequest:
     # strings). Providers that stream internally should call this on every
     # delta so the CLI can drive a progress bar.
     on_stream: Callable[[str], None] | None = field(default=None, repr=False)
+    # Optional callback for user-visible pipeline status changes that are not
+    # tied to visible output chunks, such as switching to a fallback strategy.
+    on_status: Callable[[str], None] | None = field(default=None, repr=False)
 
 
 class LLMProvider(ABC):
@@ -52,7 +59,10 @@ class LLMProvider(ABC):
 
     @retry(
         reraise=True,
-        retry=retry_if_exception_type(LLMError),
+        retry=retry_if_exception(
+            lambda exc: isinstance(exc, LLMError)
+            and not isinstance(exc, NonRetryableLLMError)
+        ),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1.5, min=1, max=20),
     )
@@ -65,6 +75,7 @@ class LLMProvider(ABC):
         max_tokens: int | None = None,
         model: str | None = None,
         on_stream: Callable[[str], None] | None = None,
+        on_status: Callable[[str], None] | None = None,
     ) -> str:
         req = ChatRequest(
             system=system,
@@ -73,10 +84,11 @@ class LLMProvider(ABC):
             temperature=temperature,
             max_tokens=max_tokens,
             on_stream=on_stream,
+            on_status=on_status,
         )
         try:
             return self._chat_impl(req)
-        except LLMError:
+        except (LLMError, NonRetryableLLMError):
             raise
         except Exception as e:  # noqa: BLE001 - normalise to LLMError for retry
             raise LLMError(str(e)) from e

@@ -1,4 +1,9 @@
 """AI provider abstraction and built-in prompts."""
-from youtube_strataread.ai.base import LLMError, LLMProvider, get_provider
+from youtube_strataread.ai.base import (
+    LLMError,
+    LLMProvider,
+    NonRetryableLLMError,
+    get_provider,
+)
 
-__all__ = ["LLMProvider", "LLMError", "get_provider"]
+__all__ = ["LLMProvider", "LLMError", "NonRetryableLLMError", "get_provider"]

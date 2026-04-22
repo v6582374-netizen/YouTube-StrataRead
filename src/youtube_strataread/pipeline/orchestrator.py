@@ -102,7 +102,7 @@ def run_pipeline(
                 finished_style="green",
                 pulse_style="magenta",
             ),
-            TextColumn("[yellow]{task.fields[chars]:>7,}[/] [dim]chars[/]"),
+            TextColumn("[yellow]{task.fields[status]}[/]"),
             TextColumn("[dim]|[/]"),
             TimeElapsedColumn(),
             transient=False,
@@ -111,21 +111,25 @@ def run_pipeline(
             task = progress.add_task(
                 "Analyzing transcript (translate · denoise · outline)...",
                 total=None,
-                chars=0,
+                status="thinking...",
             )
             received = {"n": 0}
 
             def _on_stream(chunk: str) -> None:
                 received["n"] += len(chunk)
-                progress.update(task, chars=received["n"])
+                progress.update(task, status=_status_text(received["n"]))
+
+            def _on_status(status: str) -> None:
+                progress.update(task, status=status)
 
             md = llm.chat(
                 system=system_prompt,
                 user=transcript,
                 temperature=0.3,
                 on_stream=_on_stream,
+                on_status=_on_status,
             )
-            progress.update(task, total=1, completed=1, chars=received["n"])
+            progress.update(task, total=1, completed=1, status=_status_text(received["n"]))
 
         md = md.strip() + "\n"
         md_path = out_dir / f"{out_dir.name}.md"
@@ -176,3 +180,7 @@ def _resolve_out_dir(
         f"output folder already exists: {target}. "
         f"Re-run with --overwrite or --suffix to decide."
     )
+
+
+def _status_text(chars: int) -> str:
+    return f"{chars:,} chars"

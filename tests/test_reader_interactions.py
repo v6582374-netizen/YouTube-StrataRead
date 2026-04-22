@@ -1,4 +1,4 @@
-"""Unit coverage for the append-only reader session and footer geometry."""
+"""Unit coverage for bottom-anchored reader geometry and footer safety."""
 from __future__ import annotations
 
 import io
@@ -35,6 +35,9 @@ class DummyStatusBar:
 
     def refresh(self) -> None:
         return
+
+    def sync(self) -> bool:
+        return False
 
     def set_context(self, text: str) -> None:
         self.context = text
@@ -92,6 +95,22 @@ def _make_compact_tree() -> tuple[Node, Node]:
     return root, leaf
 
 
+def _make_overflow_tree() -> tuple[Node, Node]:
+    root = Node(level=0, title="(root)", path="root")
+    chapter = Node(level=1, title="Part", path="1")
+    sentences = [f"S{i}." for i in range(1, 10)]
+    leaf = Node(
+        level=2,
+        title="Leaf",
+        path="1.1",
+        body=" ".join(sentences),
+        sentences=sentences,
+    )
+    chapter.children.append(leaf)
+    root.children.append(chapter)
+    return root, leaf
+
+
 def _make_session(*, width: int = 20, content_height: int = 4) -> tuple[ReadingSession, DummyStatusBar, Node, Node]:
     root, leaf_a, leaf_b = _make_tree()
     bar = DummyStatusBar(width=width, content_height=content_height)
@@ -100,19 +119,26 @@ def _make_session(*, width: int = 20, content_height: int = 4) -> tuple[ReadingS
     return session, bar, leaf_a, leaf_b
 
 
-def _make_interactive_capture(monkeypatch, *, width: int = 20, height: int = 10):
+def _make_interactive_capture(
+    monkeypatch,
+    *,
+    root: Node,
+    total_chars: int,
+    contexts: list[str],
+    width: int,
+    height: int,
+):
     monkeypatch.setattr(StatusBar, "_detect_tty", staticmethod(lambda: True))
     monkeypatch.setattr(StatusBar, "_detect_size", staticmethod(lambda: (width, height)))
 
     buffer = TTYBuffer()
     monkeypatch.setattr(sys, "stdout", buffer)
 
-    root, leaf = _make_compact_tree()
-    bar = StatusBar(total_chars=200, contexts=["Part / Leaf"])
-    session = ReadingSession(root=root, total_chars=200, status_bar=bar)
+    bar = StatusBar(total_chars=total_chars, contexts=contexts)
+    session = ReadingSession(root=root, total_chars=total_chars, status_bar=bar)
     bar.setup()
     session.setup()
-    return session, leaf, buffer
+    return session, bar, buffer
 
 
 def _screen_from_output(output: str, *, width: int, height: int) -> pyte.Screen:
@@ -142,23 +168,18 @@ def test_session_sets_footer_breadcrumb_to_full_path(capsys) -> None:
     assert bar.context == "Part / Section / Leaf A"
 
 
-def test_begin_leaf_appends_markdown_headings_and_preserves_history(capsys) -> None:
-    session, _, leaf_a, leaf_b = _make_session()
+def test_begin_leaf_emits_non_leaf_body_without_heading_text(capsys) -> None:
+    session, _, leaf_a, _ = _make_session()
 
     session.begin_leaf(leaf_a)
-    _show_sentence(session, "Alpha.", 0)
-    session.begin_leaf(leaf_b)
-    _show_sentence(session, "Gamma.", 0)
 
     output = _strip_ansi(capsys.readouterr().out)
 
-    assert "# Part" in output
-    assert "## Section" in output
-    assert "### Leaf A" in output
-    assert "### Leaf B" in output
-    assert output.count("# Part") == 1
-    assert output.count("## Section") == 1
-    assert output.index("Alpha.") < output.index("### Leaf B")
+    assert "Chapter intro." in output
+    assert "Section intro." in output
+    assert "# Part" not in output
+    assert "## Section" not in output
+    assert "Leaf A" not in output
 
 
 def test_non_leaf_body_progress_counts_full_multiblock_text_once(capsys) -> None:
@@ -175,12 +196,11 @@ def test_non_leaf_body_progress_counts_full_multiblock_text_once(capsys) -> None
 
     output = _strip_ansi(capsys.readouterr().out)
 
-    expected = len("# Part") + len(chapter.body) + len("## Leaf")
-    assert session.done_chars == expected
+    assert session.done_chars == len(chapter.body)
     assert "---" in output
 
 
-def test_reenter_same_leaf_reprints_full_path_context(capsys) -> None:
+def test_reenter_same_leaf_replays_body_after_divider_without_repeating_intro(capsys) -> None:
     session, _, leaf_a, _ = _make_session()
 
     session.begin_leaf(leaf_a)
@@ -190,9 +210,10 @@ def test_reenter_same_leaf_reprints_full_path_context(capsys) -> None:
 
     output = _strip_ansi(capsys.readouterr().out)
 
-    assert output.count("# Part") == 2
-    assert output.count("## Section") == 2
-    assert output.count("### Leaf A") == 2
+    assert output.count("Chapter intro.") == 1
+    assert output.count("Section intro.") == 1
+    assert output.count("Alpha.") == 2
+    assert "────" in output
 
 
 def test_partial_leaf_does_not_top_up_progress_until_completed(capsys) -> None:
@@ -283,50 +304,84 @@ def test_status_bar_keeps_content_height_stable_across_chapter_context_switches(
     assert bar._reserved_context_rows >= len(bar._context_lines)
 
 
-def test_interactive_session_setup_starts_at_top_left(monkeypatch) -> None:
-    _, _, buffer = _make_interactive_capture(monkeypatch, width=20, height=10)
-
-    screen = _screen_from_output(buffer.getvalue(), width=20, height=10)
-
-    assert (screen.cursor.y, screen.cursor.x) == (0, 0)
-
-
-def test_interactive_session_newlines_return_to_first_column(monkeypatch) -> None:
-    session, leaf, buffer = _make_interactive_capture(monkeypatch, width=20, height=10)
-
-    session.begin_leaf(leaf)
-    _show_sentence(session, "Alpha.", 0)
-
-    screen = _screen_from_output(buffer.getvalue(), width=20, height=10)
-
-    assert any(row.startswith("Alpha.") for row in screen.display[:-2])
-
-
-def test_interactive_session_keeps_footer_rows_separate_from_body(monkeypatch) -> None:
-    session, leaf, buffer = _make_interactive_capture(monkeypatch, width=20, height=10)
+def test_interactive_sentence_stays_two_rows_above_footer(monkeypatch) -> None:
+    root, leaf = _make_compact_tree()
+    session, bar, buffer = _make_interactive_capture(
+        monkeypatch,
+        root=root,
+        total_chars=200,
+        contexts=["Part / Leaf"],
+        width=20,
+        height=10,
+    )
 
     session.begin_leaf(leaf)
     _show_sentence(session, "Alpha.", 0)
 
     screen = _screen_from_output(buffer.getvalue(), width=20, height=10)
+    rows = screen.display
+    anchor_row = max(bar.content_height - 2, 1)
 
-    assert screen.display[-2].startswith("Part / Leaf")
-    assert screen.display[-1].startswith("[")
-    assert all("Part / Leaf" not in row for row in screen.display[:-2])
-    assert all("Alpha." not in row for row in screen.display[-2:])
+    assert rows[anchor_row - 1].startswith("Alpha.")
+    assert rows[anchor_row].strip() == ""
+    assert rows[anchor_row + 1].strip() == ""
+    assert rows[bar.content_height].strip() == ""
+    assert rows[bar.content_height + 1].startswith("Part / Leaf")
+    assert rows[bar.content_height + 2].startswith("[")
 
 
-def test_interactive_session_does_not_reposition_cursor_while_appending(capsys) -> None:
-    session, _, leaf_a, _ = _make_session(width=12, content_height=4)
-    session._interactive = True
-    session.setup()
-    capsys.readouterr()
+def test_interactive_overflow_keeps_latest_sentences_above_footer(monkeypatch) -> None:
+    root, leaf = _make_overflow_tree()
+    session, bar, buffer = _make_interactive_capture(
+        monkeypatch,
+        root=root,
+        total_chars=200,
+        contexts=["Part / Leaf"],
+        width=18,
+        height=10,
+    )
+
+    session.begin_leaf(leaf)
+    for idx, sentence in enumerate(leaf.sentences):
+        _show_sentence(session, sentence, idx)
+
+    screen = _screen_from_output(buffer.getvalue(), width=18, height=10)
+    rows = screen.display
+    anchor_row = max(bar.content_height - 2, 1)
+    visible_body = [row.rstrip() for row in rows[:anchor_row]]
+
+    assert visible_body == ["S5.", "S6.", "S7.", "S8.", "S9."]
+    assert rows[anchor_row].strip() == ""
+    assert rows[anchor_row + 1].strip() == ""
+    assert all(f"S{i}." not in row for i in range(1, 10) for row in rows[bar.content_height :])
+
+
+def test_interactive_cross_leaf_history_accumulates_with_divider_and_no_titles(monkeypatch) -> None:
+    root, leaf_a, leaf_b = _make_tree()
+    session, bar, buffer = _make_interactive_capture(
+        monkeypatch,
+        root=root,
+        total_chars=500,
+        contexts=["Part / Section / Leaf A", "Part / Section / Leaf B"],
+        width=30,
+        height=14,
+    )
 
     session.begin_leaf(leaf_a)
-    _show_sentence(session, "ABCDEFGHIJKL", 0)
-    _show_sentence(session, "Beta.", 1)
+    _show_sentence(session, "Alpha.", 0)
+    session.begin_leaf(leaf_b)
+    _show_sentence(session, "Gamma.", 0)
 
-    output = capsys.readouterr().out
+    screen = _screen_from_output(buffer.getvalue(), width=30, height=14)
+    rendered = "\n".join(row.rstrip() for row in screen.display)
 
-    assert re.search(r"\x1b\[\d+;\d+H", output) is None
-    assert output.index("ABCDEFGHIJKL") < output.index("Beta.")
+    assert "Chapter intro." in rendered
+    assert "Section intro." in rendered
+    assert "Alpha." in rendered
+    assert "Gamma." in rendered
+    assert "────" in rendered
+    assert "# Part" not in rendered
+    assert "## Section" not in rendered
+    assert "Leaf A" not in "\n".join(screen.display[: bar.content_height])
+    assert "Leaf B" not in "\n".join(screen.display[: bar.content_height])
+    assert screen.display[bar.content_height + 1].startswith("Part / Section / Leaf B")

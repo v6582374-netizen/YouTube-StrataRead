@@ -92,16 +92,9 @@ def _read_leaf(leaf, console: Console, mode: str, cpm: int, session: ReadingSess
 def _total_chars(root: Node) -> int:
     total = 0
     for node in root.walk():
-        if node.level > 0:
-            total += len(_heading_text(node))
         if node.body:
             total += len(node.body)
     return total
-
-
-def _heading_text(node: Node) -> str:
-    hashes = "#" * max(node.level, 1)
-    return f"{hashes} {node.title}".rstrip()
 
 
 def _breadcrumb_contexts(root: Node) -> list[str]:

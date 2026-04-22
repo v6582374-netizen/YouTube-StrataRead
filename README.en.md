@@ -194,9 +194,9 @@ Both modes share the same hierarchical picker and both apply Bionic Reading
 ### 6.0 What's new in the reader
 
 - The bottom of the terminal now uses a classic progress bar again: progress on the last row, breadcrumb above it, and one fixed spacer row above both.
-- The body stays bottom-anchored above that reserved area and relies on the terminal scrolling region itself instead of complex redraw logic.
-- Body output is now append-only. Auto-advance, jump-reading, revisits, and re-reading all keep stacking visible text upward instead of clearing prior content.
-- Entering a new section writes the Markdown heading itself into the body stream, so sequential reading gradually reconstructs more of the original md structure.
+- The body now uses a bottom-anchored sentence stack: the newest sentence stays two rows above the footer and older sentences are pushed upward without overlapping it.
+- Body history still accumulates across sections. Auto-advance, revisits, and re-reading keep stacking visible body text upward, with a lightweight divider between leaf replays/transitions.
+- Markdown headings are no longer written into body history; the breadcrumb footer is the section label.
 - Sentence splitting is more natural for English and CJK punctuation, including commas, semicolons, and closing quotes.
 
 ### 6.1 Shared hierarchical selector

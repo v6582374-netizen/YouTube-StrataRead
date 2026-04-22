@@ -119,6 +119,9 @@ class StatusBar:
     def refresh(self) -> None:
         self._render(force=True)
 
+    def sync(self) -> bool:
+        return self._sync_layout()
+
     def set_context(self, text: str) -> None:
         self._context = text.strip()
         self._render(force=True)
@@ -196,13 +199,13 @@ class StatusBar:
         bar = "█" * filled + "░" * (bar_width - filled)
         return f"[{bar}] {pct_text}"
 
-    def _sync_layout(self) -> None:
+    def _sync_layout(self) -> bool:
         width, height = self._detect_size()
         self._width = width
         self._height = height
         if self._height < 4:
             self._enabled = False
-            return
+            return False
 
         context_lines = _wrap_text(self._context, self._width)
         max_context_rows = max(self._height - 2, 1)
@@ -220,6 +223,7 @@ class StatusBar:
         self._footer_height = footer_height
         if self._active and layout_changed:
             self._apply_scroll_region(move_cursor=False)
+        return layout_changed
 
     def _max_context_rows(self, width: int) -> int:
         contexts = self._contexts or [self._context]
@@ -266,6 +270,9 @@ class NullStatusBar:
 
     def refresh(self) -> None:
         return
+
+    def sync(self) -> bool:
+        return False
 
     def set_context(self, text: str) -> None:
         return

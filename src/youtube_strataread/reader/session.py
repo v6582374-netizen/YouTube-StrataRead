@@ -1,4 +1,4 @@
-"""Append-only reading session with terminal scrolling-region output."""
+"""Reader session with bottom-anchored sentence stacking above a sticky footer."""
 from __future__ import annotations
 
 import sys
@@ -8,8 +8,13 @@ from youtube_strataread.reader.bionic_render import iter_bionic_chars
 from youtube_strataread.reader.doc_tree import Node
 from youtube_strataread.reader.status_bar import NullStatusBar, StatusBar
 
+Piece = tuple[str, bool]
+
+_ANSI_RESET = "\x1b[0m"
 _ANSI_BOLD_ON = "\x1b[1m"
 _ANSI_BOLD_OFF = "\x1b[22m"
+_ANSI_DEFAULT_FG = "\x1b[39m"
+_ANSI_GOLD = "\x1b[38;2;247;231;172m"
 _CLEAR_LINE = "\x1b[2K"
 
 
@@ -57,15 +62,33 @@ def _node_path(root: Node, target: Node) -> list[Node]:
     return [target]
 
 
-def _heading_text(node: Node) -> str:
-    hashes = "#" * max(node.level, 1)
-    return f"{hashes} {node.title}".rstrip()
-
-
 def _body_blocks(node: Node) -> list[str]:
     if not node.body:
         return []
     return [part for part in node.body.split("\n\n") if part.strip()]
+
+
+def _line_pieces(text: str, *, bionic: bool) -> list[Piece]:
+    return list(iter_bionic_chars(text)) if bionic else [(ch, False) for ch in text]
+
+
+@dataclass
+class HistoryBlock:
+    kind: str
+    lines: list[list[Piece]] = field(default_factory=list)
+
+
+@dataclass
+class ActiveSentence:
+    key: str
+    pieces: list[Piece] = field(default_factory=list)
+    displayed_chars: int = 0
+
+
+@dataclass
+class RenderLine:
+    pieces: list[Piece]
+    active: bool = False
 
 
 @dataclass
@@ -77,11 +100,10 @@ class ReadingSession:
     current_leaf: Node | None = None
     previous_leaf: Node | None = None
     done_chars: int = 0
-    col: int = 1
     _interactive: bool = field(default_factory=_stdout_is_tty, init=False)
     _started: bool = False
-    _current_sentence_key: str | None = None
-    _current_sentence_displayed: int = 0
+    _history_blocks: list[HistoryBlock] = field(default_factory=list)
+    _current_sentence: ActiveSentence | None = None
     _seen_block_keys: set[str] = field(default_factory=set)
     _seen_sentence_chars: dict[str, int] = field(default_factory=dict)
     _leaf_progress_chars: dict[str, int] = field(default_factory=dict)
@@ -95,20 +117,23 @@ class ReadingSession:
     def content_height(self) -> int:
         return max(self.status_bar.content_height, 1)
 
+    @property
+    def body_anchor_row(self) -> int:
+        return max(self.content_height - 2, 1)
+
+    @property
+    def viewport_height(self) -> int:
+        return self.body_anchor_row
+
     def setup(self) -> None:
-        self.col = 1
         self._started = True
-        if not self._interactive:
-            return
-        out = sys.stdout
-        for row in range(1, self.content_height + 1):
-            out.write(f"\x1b[{row};1H")
-            out.write(_CLEAR_LINE)
-        out.write("\x1b[1;1H")
-        out.flush()
+        if self._interactive:
+            self.render()
 
     def restore_cursor(self) -> None:
-        return
+        if not self._interactive or not self._started:
+            return
+        self.render()
 
     def breadcrumb_for(self, leaf: Node) -> str:
         titles = [node.title for node in _node_path(self.root, leaf) if node.level > 0 and node.title]
@@ -117,12 +142,17 @@ class ReadingSession:
     def begin_leaf(self, leaf: Node) -> None:
         if not self._started:
             self.setup()
+        self._settle_active_sentence()
         self.current_leaf = leaf
         self.status_bar.set_context(self.breadcrumb_for(leaf))
+        if self._history_blocks:
+            self._record_divider()
         for node in self._nodes_to_emit(leaf):
-            self._emit_node(node)
+            self._append_node_body(node)
         self.previous_leaf = leaf
         self.status_bar.refresh()
+        if self._interactive:
+            self.render()
 
     def finish_leaf(self, *, completed: bool) -> None:
         if not completed or self.current_leaf is None:
@@ -143,14 +173,18 @@ class ReadingSession:
             raise RuntimeError("begin_leaf must run first")
         if not self._started:
             self.setup()
-        self._current_sentence_key = f"sentence:{self.current_leaf.path}:{sent_idx}"
-        self._current_sentence_displayed = 0
+        self._settle_active_sentence()
+        self._current_sentence = ActiveSentence(key=f"sentence:{self.current_leaf.path}:{sent_idx}")
         del text
+        if self._interactive:
+            self.render()
 
     def end_sentence(self) -> None:
-        self._current_sentence_key = None
-        self._current_sentence_displayed = 0
-        self._newline()
+        self._settle_active_sentence()
+        if self._interactive:
+            self.render()
+        else:
+            self._newline_plain()
 
     def write_char(self, ch: str, is_bold: bool, *, count_for_progress: bool = True) -> None:
         self.write_chars([(ch, is_bold)], count_for_progress=count_for_progress)
@@ -161,17 +195,22 @@ class ReadingSession:
         *,
         count_for_progress: bool = True,
     ) -> None:
-        if self._current_sentence_key is None:
+        if self._current_sentence is None:
             raise RuntimeError("begin_sentence must run before write_chars")
-        key = self._current_sentence_key
+        run = self._current_sentence
         for ch, is_bold in pieces:
+            run.pieces.append((ch, is_bold))
             if ch == "\n":
-                self._newline()
+                if not self._interactive:
+                    self._newline_plain()
                 continue
-            self._write_piece(ch, is_bold)
+            if not self._interactive:
+                self._write_piece(ch, is_bold)
             if count_for_progress:
-                self._maybe_tick_sentence_progress(key)
-            self._current_sentence_displayed += 1
+                self._maybe_tick_sentence_progress(run.key, run.displayed_chars)
+            run.displayed_chars += 1
+        if self._interactive:
+            self.render()
 
     def emit_static_text(
         self,
@@ -183,49 +222,148 @@ class ReadingSession:
         if not text:
             self.emit_blank_line()
             return
-        lines = text.split("\n")
-        for line in lines:
-            if line == "":
-                self.emit_blank_line()
-                continue
-            if self.col != 1:
-                self._newline()
-            pieces = list(iter_bionic_chars(line)) if bionic else [(ch, False) for ch in line]
-            for ch, is_bold in pieces:
-                self._write_piece(ch, is_bold)
-            self._newline()
+        self._record_static_text(text, bionic=bionic)
         self._tick_progress_once(progress_key, len(text))
+        if self._interactive:
+            self.render()
 
     def emit_blank_line(self) -> None:
         if not self._started:
             self.setup()
-        if self.col != 1:
-            self._newline()
-        self._newline()
+        self._record_blank_line()
+        if self._interactive:
+            self.render()
+
+    def render(self) -> None:
+        if not self._interactive or not self._started:
+            return
+        layout_changed = self.status_bar.sync()
+        if layout_changed:
+            self.status_bar.refresh()
+
+        rows = self._collect_render_lines()
+        visible = rows[-self.viewport_height :]
+        start_row = self.body_anchor_row - len(visible) + 1
+        out = sys.stdout
+        for row in range(1, self.content_height + 1):
+            out.write(f"\x1b[{row};1H")
+            out.write(_CLEAR_LINE)
+        for offset, line in enumerate(visible):
+            out.write(f"\x1b[{start_row + offset};1H")
+            self._write_styled_line(out, line)
+        out.write(f"\x1b[{self.body_anchor_row};1H")
+        out.flush()
 
     def _nodes_to_emit(self, leaf: Node) -> list[Node]:
         current = [node for node in _node_path(self.root, leaf) if node.level > 0]
-        if self.previous_leaf is None or self.previous_leaf.path == leaf.path:
-            return current
+        if self.previous_leaf is None:
+            return [node for node in current if not node.is_leaf]
+        if self.previous_leaf.path == leaf.path:
+            return []
+
         previous = [node for node in _node_path(self.root, self.previous_leaf) if node.level > 0]
         lcp = 0
         while lcp < min(len(previous), len(current)) and previous[lcp].path == current[lcp].path:
             lcp += 1
-        return current[lcp:]
+        return [node for node in current[lcp:] if not node.is_leaf]
 
-    def _emit_node(self, node: Node) -> None:
-        self.emit_static_text(_heading_text(node), progress_key=f"heading:{node.path}")
-        self.emit_blank_line()
-        if node.is_leaf:
+    def _append_node_body(self, node: Node) -> None:
+        if node.is_leaf or not node.body:
             return
         for block in _body_blocks(node):
-            self.emit_static_text(block, bionic=block.strip() != "---")
-            self.emit_blank_line()
+            self._record_static_text(block, bionic=block.strip() != "---")
+            self._record_blank_line()
         self._tick_progress_once(f"body:{node.path}", len(node.body))
 
-    def _maybe_tick_sentence_progress(self, key: str) -> None:
+    def _record_static_text(self, text: str, *, bionic: bool) -> None:
+        lines = text.split("\n")
+        for line in lines:
+            if line == "":
+                self._record_blank_line()
+                continue
+            self._history_blocks.append(HistoryBlock(kind="text", lines=[_line_pieces(line, bionic=bionic)]))
+
+        if self._interactive:
+            return
+
+        for line in lines:
+            if line == "":
+                self._newline_plain()
+                continue
+            for ch, is_bold in _line_pieces(line, bionic=bionic):
+                self._write_piece(ch, is_bold)
+            self._newline_plain()
+
+    def _record_blank_line(self) -> None:
+        self._history_blocks.append(HistoryBlock(kind="blank"))
+        if not self._interactive:
+            self._newline_plain()
+
+    def _record_divider(self) -> None:
+        self._history_blocks.append(HistoryBlock(kind="divider"))
+        if not self._interactive:
+            sys.stdout.write("─" * self.content_width)
+            self._newline_plain()
+
+    def _settle_active_sentence(self) -> None:
+        if self._current_sentence is None:
+            return
+        if self._current_sentence.pieces:
+            self._history_blocks.append(
+                HistoryBlock(kind="text", lines=[self._current_sentence.pieces.copy()])
+            )
+        self._current_sentence = None
+
+    def _collect_render_lines(self) -> list[RenderLine]:
+        lines: list[RenderLine] = []
+        for block in self._history_blocks:
+            lines.extend(self._render_lines_for_block(block))
+        if self._current_sentence is not None:
+            lines.extend(self._wrap_pieces(self._current_sentence.pieces, active=True))
+        return lines
+
+    def _render_lines_for_block(self, block: HistoryBlock) -> list[RenderLine]:
+        if block.kind == "blank":
+            return [RenderLine([])]
+        if block.kind == "divider":
+            pieces = [("─", False)] * self.content_width
+            return [RenderLine(pieces)]
+
+        lines: list[RenderLine] = []
+        for raw in block.lines:
+            lines.extend(self._wrap_pieces(raw))
+        return lines or [RenderLine([])]
+
+    def _wrap_pieces(self, pieces: list[Piece], *, active: bool = False) -> list[RenderLine]:
+        if not pieces:
+            return [RenderLine([], active=active)]
+
+        lines: list[RenderLine] = []
+        current: list[Piece] = []
+        current_width = 0
+        saw_any = False
+        for ch, is_bold in pieces:
+            if ch == "\n":
+                lines.append(RenderLine(pieces=current, active=active))
+                current = []
+                current_width = 0
+                saw_any = True
+                continue
+            cell_width = _char_width(ch)
+            if cell_width > 0 and current and current_width + cell_width > self.content_width:
+                lines.append(RenderLine(pieces=current, active=active))
+                current = []
+                current_width = 0
+            current.append((ch, is_bold))
+            current_width += cell_width
+            saw_any = True
+        if current or not saw_any:
+            lines.append(RenderLine(pieces=current, active=active))
+        return lines
+
+    def _maybe_tick_sentence_progress(self, key: str, displayed_chars: int) -> None:
         seen = self._seen_sentence_chars.get(key, 0)
-        if self._current_sentence_displayed < seen:
+        if displayed_chars < seen:
             return
         self._seen_sentence_chars[key] = seen + 1
         self._tick_progress(1)
@@ -245,23 +383,36 @@ class ReadingSession:
         self.done_chars = min(self.done_chars + delta, self.total_chars)
         self.status_bar.update(delta)
 
-    def _newline(self) -> None:
-        # Real terminals keep the current column on LF, so interactive output
-        # must return to column 1 before advancing to the next line.
-        sys.stdout.write("\r\n" if self._interactive else "\n")
-        sys.stdout.flush()
-        self.col = 1
+    @staticmethod
+    def _write_styled_line(out, line: RenderLine) -> None:
+        if not line.pieces:
+            return
+        out.write(_ANSI_GOLD if line.active else _ANSI_DEFAULT_FG)
+        bold_on = False
+        for ch, is_bold in line.pieces:
+            if is_bold and not bold_on:
+                out.write(_ANSI_BOLD_ON)
+                bold_on = True
+            elif not is_bold and bold_on:
+                out.write(_ANSI_BOLD_OFF)
+                bold_on = False
+            out.write(ch)
+        if bold_on:
+            out.write(_ANSI_BOLD_OFF)
+        out.write(_ANSI_RESET)
 
-    def _write_piece(self, ch: str, is_bold: bool) -> None:
-        cell_width = _char_width(ch)
-        if cell_width > 0 and self.col > 1 and self.col + cell_width - 1 > self.content_width:
-            self._newline()
+    @staticmethod
+    def _write_piece(ch: str, is_bold: bool) -> None:
         if is_bold:
             sys.stdout.write(_ANSI_BOLD_ON + ch + _ANSI_BOLD_OFF)
         else:
             sys.stdout.write(ch)
         sys.stdout.flush()
-        self.col += cell_width
+
+    @staticmethod
+    def _newline_plain() -> None:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
 
-__all__ = ["ReadingSession"]
+__all__ = ["ReadingSession", "RenderLine"]

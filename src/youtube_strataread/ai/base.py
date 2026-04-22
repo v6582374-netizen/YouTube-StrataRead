@@ -1,8 +1,4 @@
-"""Provider abstraction for LLM chat calls.
-
-Supports DeepSeek / OpenAI (shared openai SDK) and Anthropic.
-Handles retries and common error normalisation.
-"""
+"""Provider abstraction for LLM chat calls."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -49,9 +45,12 @@ class LLMProvider(ABC):
     def __init__(self, pc: ProviderConfig) -> None:
         self.pc = pc
         if not pc.api_key:
+            hint = f"by config set {pc.name} --key <API_KEY>"
+            if pc.name == "compat" and pc.profile_name:
+                hint = f"by config compat set {pc.profile_name} --key <API_KEY>"
             raise LLMError(
                 f"missing API key for provider '{pc.name}'. "
-                f"Run: by config set {pc.name} --key <API_KEY>"
+                f"Run: {hint}"
             )
 
     @abstractmethod
@@ -100,6 +99,11 @@ def get_provider(pc: ProviderConfig) -> LLMProvider:
     * ``"anthropic"`` → :class:`AnthropicProvider` (native Messages API with
       extended thinking enabled).
     * ``"gemini"``   → :class:`GeminiProvider` (Google GenAI with thinking_config).
+    * ``"deepseek"`` → :class:`DeepSeekProvider` (native reasoning model /
+      thinking mode, hidden ``reasoning_content``).
+    * ``"minimax"``  → :class:`MiniMaxProvider` (native reasoning stream via
+      ``reasoning_split``).
+    * ``"glm"``      → :class:`GLMProvider` (thinking mode via ``extra_body``).
     * ``"openai"``   → :class:`OpenAICompatibleProvider` (Chat Completions;
       automatically sets ``reasoning_effort="high"`` for reasoning-class models).
     """
@@ -109,6 +113,15 @@ def get_provider(pc: ProviderConfig) -> LLMProvider:
     if pc.api_flavor == "gemini":
         from youtube_strataread.ai.gemini_provider import GeminiProvider
         return GeminiProvider(pc)
+    if pc.api_flavor == "deepseek":
+        from youtube_strataread.ai.deepseek_provider import DeepSeekProvider
+        return DeepSeekProvider(pc)
+    if pc.api_flavor == "minimax":
+        from youtube_strataread.ai.minimax_provider import MiniMaxProvider
+        return MiniMaxProvider(pc)
+    if pc.api_flavor == "glm":
+        from youtube_strataread.ai.glm_provider import GLMProvider
+        return GLMProvider(pc)
     if pc.api_flavor == "openai":
         from youtube_strataread.ai.openai_provider import OpenAICompatibleProvider
         return OpenAICompatibleProvider(pc)

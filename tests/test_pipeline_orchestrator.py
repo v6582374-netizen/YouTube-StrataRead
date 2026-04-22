@@ -89,12 +89,13 @@ def _setup_pipeline(monkeypatch, *, llm: object) -> None:
     monkeypatch.setattr(
         orchestrator,
         "resolve_provider_config",
-        lambda provider: ProviderConfig(
+        lambda provider, compat_profile=None: ProviderConfig(
             name=provider or "compat",
             model="claude-sonnet-4-6",
             base_url="https://relay.example/v1",
             api_key="test-key",
             api_flavor="openai",
+            profile_name=compat_profile,
         ),
     )
     monkeypatch.setattr(orchestrator, "get_provider", lambda pc: llm)

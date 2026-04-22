@@ -130,3 +130,53 @@ def test_run_cmd_passes_cookie_options(monkeypatch, tmp_path) -> None:
     assert seen["lang"] == "en"
     assert seen["reader_mode"] == "stream"
     assert seen["reader_cpm"] == 900
+
+
+def test_run_cmd_passes_compat_profile(monkeypatch, tmp_path) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run_pipeline(**kwargs) -> PipelineResult:
+        seen.update(kwargs)
+        out_dir = tmp_path / "demo"
+        out_dir.mkdir()
+        md_path = out_dir / "demo.md"
+        md_path.write_text("# Demo\n", encoding="utf-8")
+        srt_path = out_dir / "raw.srt"
+        srt_path.write_text("", encoding="utf-8")
+        return PipelineResult(
+            video_id="vid123",
+            title="Demo",
+            slug="demo",
+            out_dir=out_dir,
+            srt_path=srt_path,
+            markdown_path=md_path,
+        )
+
+    def fake_run_reader(*, md_path: Path, mode: str, cpm: int | None) -> None:
+        seen["reader_mode"] = mode
+
+    import youtube_strataread.pipeline.orchestrator as orchestrator
+    import youtube_strataread.reader.app as reader_app
+
+    monkeypatch.setattr(orchestrator, "run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(reader_app, "run_reader", fake_run_reader)
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "https://youtu.be/abcdefghijk",
+            "--provider",
+            "compat",
+            "--compat-profile",
+            "shenma",
+            "--model",
+            "claude-sonnet-4-5",
+            "--out",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert seen["provider"] == "compat"
+    assert seen["compat_profile"] == "shenma"

@@ -78,9 +78,15 @@ class OpenAICompatibleProvider(LLMProvider):
     def __init__(self, pc) -> None:  # type: ignore[no-untyped-def]
         super().__init__(pc)
         if pc.name == "compat" and not pc.base_url:
+            if pc.profile_name and pc.profile_name != "default":
+                hint = (
+                    "by config compat set "
+                    f"{pc.profile_name} --base-url https://your-relay/v1 --key <API_KEY>"
+                )
+            else:
+                hint = "by config set compat --base-url https://your-relay/v1 --key <API_KEY>"
             raise LLMError(
-                "compat provider needs a base_url. Run: "
-                "by config set compat --base-url https://your-relay/v1 --key <API_KEY>"
+                f"compat provider needs a base_url. Run: {hint}"
             )
         try:
             from openai import OpenAI

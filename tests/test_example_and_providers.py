@@ -5,7 +5,15 @@ from youtube_strataread.utils.sample import sample_dir, sample_markdown
 
 
 def test_supported_providers() -> None:
-    assert config.SUPPORTED_PROVIDERS == ("openai", "anthropic", "gemini", "compat")
+    assert config.SUPPORTED_PROVIDERS == (
+        "openai",
+        "anthropic",
+        "gemini",
+        "compat",
+        "deepseek",
+        "minimax",
+        "glm",
+    )
 
 
 def test_default_provider_is_anthropic() -> None:
@@ -21,6 +29,11 @@ def test_resolve_provider_config_sets_flavor() -> None:
     pc = config.resolve_provider_config("gemini")
     assert pc.name == "gemini"
     assert pc.api_flavor == "gemini"
+
+
+def test_resolve_compat_provider_config_sets_profile_label() -> None:
+    pc = config.ProviderConfig(name="compat", model="demo", profile_name="relay")
+    assert pc.label == "compat:relay"
 
 
 def test_bundled_sample_is_accessible() -> None:

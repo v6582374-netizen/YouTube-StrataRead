@@ -47,6 +47,7 @@ def run_pipeline(
     url: str,
     parent: Path,
     provider: str | None = None,
+    compat_profile: str | None = None,
     model_override: str | None = None,
     lang: str | None = None,
     cookies_from_browser: str | None = None,
@@ -58,12 +59,12 @@ def run_pipeline(
     parent = parent.resolve()
     parent.mkdir(parents=True, exist_ok=True)
 
-    pc = resolve_provider_config(provider)
+    pc = resolve_provider_config(provider, compat_profile=compat_profile)
     if model_override:
         pc.model = model_override
     llm = get_provider(pc)
 
-    stdout().print(f"[bold]provider[/] {pc.name} [dim](model={pc.model})[/]")
+    stdout().print(f"[bold]provider[/] {pc.label} [dim](model={pc.model})[/]")
     stdout().print(f"[bold]parent[/] {parent}")
     if prompt_path is not None:
         stdout().print(f"[bold]prompt[/] {prompt_path}")

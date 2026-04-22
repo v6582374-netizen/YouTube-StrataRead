@@ -8,7 +8,7 @@
 2. **整理**：调用你自己的大模型 API（BYOK），用**一份可自定义的 prompt** 一次性完成翻译 + 去冗 + 分层标题化，生成只含正文的 Markdown。**全部 provider 默认启用深度思考**。
 3. **阅读**：在终端以 Bionic Reading（词首字母加粗）风格逐句阅读；读完一个叶子自动跳到下一个，父标题自动打钩，并实时显示底部总进度条。
 
-支持四类 Provider：**OpenAI**、**Anthropic (Claude)**、**Google Gemini**、**Compat（任意 OpenAI 兼容的第三方中转）**。仅支持 YouTube URL，本版本暂不支持本地字幕文件。
+支持七类 Provider：**OpenAI**、**Anthropic (Claude)**、**Google Gemini**、**DeepSeek**、**MiniMax**、**GLM**，以及 **Compat（任意 OpenAI 兼容的第三方中转，可配置无限个命名 profile）**。仅支持 YouTube URL，本版本暂不支持本地字幕文件。
 
 ---
 
@@ -69,13 +69,16 @@ by example --path           # 打印样例路径
 
 ## 4. 配置 Provider
 
-### 四种 Provider
+### 七种 Provider + Compat Profiles
 
 | Provider    | 说明                                     | 需要配置               |
 | ----------- | ---------------------------------------- | ---------------------- |
 | `openai`    | OpenAI 官方 API                           | `--key`                |
 | `anthropic` | Anthropic Claude                         | `--key`                |
 | `gemini`    | Google Gemini                            | `--key`                |
+| `deepseek`  | DeepSeek 原生 API                        | `--key`                |
+| `minimax`   | MiniMax 原生 API                         | `--key`                |
+| `glm`       | 智谱 GLM 原生 API                        | `--key`                |
 | `compat`    | 任意 OpenAI 兼容的第三方中转 / 代理       | `--key` + `--base-url` |
 
 ### 命令
@@ -84,7 +87,18 @@ by example --path           # 打印样例路径
 by config set openai --key sk-...
 by config set anthropic --key sk-ant-...
 by config set gemini --key AIza...
+by config set deepseek --key sk-...
+by config set minimax --key sk-...
+by config set glm --key sk-...
+
+# compat 默认 profile（兼容旧命令）
 by config set compat --key sk-... --base-url https://your-relay/v1
+
+# compat 命名 profile（推荐）
+by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v1
+by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1
+by config compat use shenma
+by config compat list
 # 可选：改默认模型
 by config set anthropic --key sk-ant-... --model claude-sonnet-4-5-20250929
 
@@ -96,7 +110,7 @@ by config get gemini        # 查看单个 Provider
 ### 密钥存储（优先级从高到低）
 
 1. 系统 **keyring**（macOS Keychain / Linux Secret Service）。
-2. 环境变量 `BY_OPENAI_API_KEY`、`BY_ANTHROPIC_API_KEY`、`BY_GEMINI_API_KEY`、`BY_COMPAT_API_KEY`。
+2. 环境变量 `BY_OPENAI_API_KEY`、`BY_ANTHROPIC_API_KEY`、`BY_GEMINI_API_KEY`、`BY_DEEPSEEK_API_KEY`、`BY_MINIMAX_API_KEY`、`BY_GLM_API_KEY`，以及 compat 的 `BY_COMPAT_<PROFILE>_API_KEY`（默认 profile 兼容 `BY_COMPAT_API_KEY`）。
 3. 配置文件 `~/Library/Application Support/youtube-strataread/config.toml`（macOS）/ `~/.config/youtube-strataread/config.toml`（Linux）。
 
 ### 深度思考（全部 Provider 默认开启）
@@ -106,6 +120,9 @@ by config get gemini        # 查看单个 Provider
 - **OpenAI**：对 o-series / GPT-5 / 任何命中启发式的推理模型，自动传 `reasoning_effort="high"`。
 - **Anthropic**：Claude 系列自动传 `thinking={"type": "enabled", "budget_tokens": 16000}`，`max_tokens=32000`，强制 `temperature=1.0`（官方硬性要求）。
 - **Gemini**：Gemini 2.5 系列自动附加 `thinking_config(thinking_budget=-1)`（动态：模型自主决定思考时长）。
+- **DeepSeek**：默认模型 `deepseek-reasoner`；若切到 `deepseek-chat`，自动附加 `thinking={"type": "enabled"}`，并隐藏 `reasoning_content`，只保留最终正文。
+- **MiniMax**：默认模型 `MiniMax-M2.7`；自动附加 `reasoning_split=true`，把思考过程与正文拆开，只写入正文。
+- **GLM**：默认模型 `glm-5.1`；自动附加 `thinking={"type": "enabled"}`，隐藏 `reasoning_content`，只保留最终正文。
 - **Compat**：按模型名启发式，命中 `o1/o3/o4/gpt-5/deepseek-reasoner/thinking/r1` 即加 `reasoning_effort="high"`；不命中则保持原样。
 
 所有 Provider 都使用**流式**请求，进度条实时显示已接收字符数，不会误以为卡死。
@@ -120,10 +137,11 @@ by config get gemini        # 查看单个 Provider
 by run https://www.youtube.com/watch?v=XXXXXXXXXXX
 ```
 
-会依次弹出三级交互式菜单：
-1. **Provider** — 从 4 种里选。
-2. **Model** — 每家都列出常见模型 + 「自定义」。
-3. **Prompt** — 列出 `prompts/` 目录下所有 `.md` 文件，默认 `prompts.md` 排第一位。
+会依次弹出交互式菜单：
+1. **Provider** — 从 7 种里选。
+2. **Compat Profile** — 仅当你选择 `compat` 时出现。
+3. **Model** — 每家都列出常见模型 + 「自定义」。
+4. **Prompt** — 列出 `prompts/` 目录下所有 `.md` 文件，默认 `prompts.md` 排第一位。
 
 选完后下载字幕 → 跑 AI → 进入阅读器。加 `--mode stream` 走自动流式阅读。
 
@@ -150,7 +168,8 @@ by process https://www.youtube.com/watch?v=XXXXXXXXXXX
 
 常用参数：
 
-- `--provider openai|anthropic|gemini|compat`（会跳过交互）
+- `--provider openai|anthropic|gemini|compat|deepseek|minimax|glm`（会跳过交互）
+- `--compat-profile <名称>`（仅当 `--provider compat` 时使用）
 - `--model <名称>`
 - `--lang en`（指定源字幕语言）
 - `--overwrite` / `--suffix`（目录冲突策略）
@@ -292,9 +311,9 @@ open "$(dirname $(by prompts path))"   # 用 Finder 打开目录
 
 **Q: `zsh: command not found: by`** — 未安装或虚拟环境未激活。推荐 `pipx install youtube-strataread`，或 `source .venv/bin/activate`。
 
-**Q: `missing API key for provider 'xxx'`** — 运行 `by config set <provider> --key <KEY>`，或设置 `BY_<PROVIDER>_API_KEY` 环境变量。
+**Q: `missing API key for provider 'xxx'`** — 固定 provider 运行 `by config set <provider> --key <KEY>`，compat profile 运行 `by config compat set <name> --key <KEY>`；也可以设置对应的环境变量。
 
-**Q: `compat provider needs a base_url`** — 跑 `by config set compat --key ... --base-url https://your-relay/v1`。
+**Q: `compat provider needs a base_url`** — 跑 `by config set compat --key ... --base-url https://your-relay/v1`，或 `by config compat set <name> --key ... --base-url https://your-relay/v1`。
 
 **Q: 视频没有字幕** — 工具会提示 `no subtitles ...` 并优雅退出，不创建产物目录。
 

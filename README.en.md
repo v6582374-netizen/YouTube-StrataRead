@@ -15,8 +15,9 @@ Reading knowledge document.
    to the next; parents get a check mark once all descendants are read, and a
    sticky bottom progress bar tracks the whole document.
 
-Four provider families are supported: **OpenAI**, **Anthropic (Claude)**,
-**Google Gemini**, and **Compat** (any OpenAI-compatible third-party relay).
+Seven provider families are supported: **OpenAI**, **Anthropic (Claude)**,
+**Google Gemini**, **DeepSeek**, **MiniMax**, **GLM**, plus **Compat**
+(any OpenAI-compatible third-party relay, with unlimited named profiles).
 Only YouTube URLs are supported in this version; local subtitle files are not.
 
 ---
@@ -78,13 +79,16 @@ and breadcrumb/progress footer, without touching any cloud API.
 
 ## 4. Configure a provider
 
-### The four flavours
+### Seven fixed providers + compat profiles
 
 | Provider    | Purpose                                      | Required config          |
 | ----------- | -------------------------------------------- | ------------------------ |
 | `openai`    | OpenAI's own API                             | `--key`                  |
 | `anthropic` | Anthropic Claude                             | `--key`                  |
 | `gemini`    | Google Gemini                                | `--key`                  |
+| `deepseek`  | DeepSeek native API                          | `--key`                  |
+| `minimax`   | MiniMax native API                           | `--key`                  |
+| `glm`       | GLM native API                               | `--key`                  |
 | `compat`    | Any OpenAI-compatible third-party relay      | `--key` + `--base-url`   |
 
 ### Commands
@@ -93,7 +97,18 @@ and breadcrumb/progress footer, without touching any cloud API.
 by config set openai --key sk-...
 by config set anthropic --key sk-ant-...
 by config set gemini --key AIza...
+by config set deepseek --key sk-...
+by config set minimax --key sk-...
+by config set glm --key sk-...
+
+# default compat profile (backwards-compatible)
 by config set compat --key sk-... --base-url https://your-relay/v1
+
+# named compat profiles
+by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v1
+by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1
+by config compat use shenma
+by config compat list
 # optional: override the default model
 by config set anthropic --key sk-ant-... --model claude-sonnet-4-5-20250929
 
@@ -106,7 +121,9 @@ by config get gemini        # inspect one provider
 
 1. System **keyring** (macOS Keychain / Linux Secret Service).
 2. Environment variables: `BY_OPENAI_API_KEY`, `BY_ANTHROPIC_API_KEY`,
-   `BY_GEMINI_API_KEY`, `BY_COMPAT_API_KEY`.
+   `BY_GEMINI_API_KEY`, `BY_DEEPSEEK_API_KEY`, `BY_MINIMAX_API_KEY`,
+   `BY_GLM_API_KEY`, plus compat `BY_COMPAT_<PROFILE>_API_KEY`
+   (the default profile also accepts legacy `BY_COMPAT_API_KEY`).
 3. Config file: `~/Library/Application Support/youtube-strataread/config.toml`
    (macOS) / `~/.config/youtube-strataread/config.toml` (Linux).
 
@@ -121,6 +138,13 @@ Each provider is wired to its own "think hard" path:
   `max_tokens=32000` and a forced `temperature=1.0` (Anthropic requirement).
 - **Gemini** — Gemini 2.5 models include
   `thinking_config(thinking_budget=-1)` (dynamic budget; the model decides).
+- **DeepSeek** — defaults to `deepseek-reasoner`; if you switch to
+  `deepseek-chat`, we automatically add `thinking={"type": "enabled"}` and
+  hide `reasoning_content` from the final Markdown.
+- **MiniMax** — defaults to `MiniMax-M2.7`; we automatically enable
+  `reasoning_split=true` and keep only the visible answer.
+- **GLM** — defaults to `glm-5.1`; we automatically enable
+  `thinking={"type": "enabled"}` and hide `reasoning_content`.
 - **Compat** — if the model name matches `o1/o3/o4/gpt-5/deepseek-reasoner/
   thinking/r1`, `reasoning_effort="high"` is forwarded; otherwise we leave
   things alone so strict relays don't 400.
@@ -138,10 +162,11 @@ and you can see deltas arrive instead of staring at a frozen spinner.
 by run https://www.youtube.com/watch?v=XXXXXXXXXXX
 ```
 
-Three interactive menus appear in order:
-1. **Provider** — pick one of the four.
-2. **Model** — a per-provider catalog plus a "custom..." entry.
-3. **Prompt** — every `.md` file under the prompts directory (default
+Interactive menus appear in order:
+1. **Provider** — pick one of the seven.
+2. **Compat Profile** — only appears when `compat` is chosen.
+3. **Model** — a per-provider catalog plus a "custom..." entry.
+4. **Prompt** — every `.md` file under the prompts directory (default
    `prompts.md` pinned first).
 
 After that: SRT download → AI → reader. Pass `--mode stream` for auto
@@ -170,7 +195,9 @@ Layout:
 
 Useful flags:
 
-- `--provider openai|anthropic|gemini|compat` (skips the interactive picker)
+- `--provider openai|anthropic|gemini|compat|deepseek|minimax|glm`
+  (skips the interactive picker)
+- `--compat-profile <name>` (only with `--provider compat`)
 - `--model <name>`
 - `--lang en` (preferred source subtitle language)
 - `--overwrite` / `--suffix` (folder collision strategy)
@@ -303,6 +330,8 @@ open "$(dirname $(by prompts path))"   # open the directory in Finder
 | `by run <URL>`                                      | `process` + `read` in one shot               |
 | `by read <MD-or-slug>`                              | Open the reader                              |
 | `by config set <provider> --key X [--base-url Y]`   | Save key / base_url / model for a provider   |
+| `by config compat set <name> --key X --base-url Y`  | Save a named compat relay profile            |
+| `by config compat list \| get \| use`               | Inspect / select compat profiles             |
 | `by config use <provider>`                          | Change the default provider                  |
 | `by config show`                                    | Inspect every provider                       |
 | `by prompts path \| show \| reset`                  | Manage the prompt file                       |
@@ -327,12 +356,14 @@ Global flags: `-v/--verbose`, `--no-color`, `--config PATH`.
 **Q: `zsh: command not found: by`** — not installed or venv not active.
 Recommended: `pipx install youtube-strataread`, or `source .venv/bin/activate`.
 
-**Q: `missing API key for provider 'xxx'`** — run
-`by config set <provider> --key <KEY>` or export
-`BY_<PROVIDER>_API_KEY`.
+**Q: `missing API key for provider 'xxx'`** — for fixed providers, run
+`by config set <provider> --key <KEY>` or export `BY_<PROVIDER>_API_KEY`.
+For compat profiles, run `by config compat set <name> --key <KEY>` or export
+`BY_COMPAT_<PROFILE>_API_KEY`.
 
 **Q: `compat provider needs a base_url`** — run
-`by config set compat --key ... --base-url https://your-relay/v1`.
+`by config set compat --key ... --base-url https://your-relay/v1`, or
+`by config compat set <name> --key ... --base-url https://your-relay/v1`.
 
 **Q: The video has no subtitles** — the tool prints
 `no subtitles ...` and exits cleanly; no output directory is created.

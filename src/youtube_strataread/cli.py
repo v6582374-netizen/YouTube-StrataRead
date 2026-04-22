@@ -17,6 +17,8 @@ app = typer.Typer(
 
 config_app = typer.Typer(help="Manage providers and API keys.", no_args_is_help=True)
 app.add_typer(config_app, name="config")
+compat_config_app = typer.Typer(help="Manage named compat relay profiles.", no_args_is_help=True)
+config_app.add_typer(compat_config_app, name="compat")
 
 prompts_app = typer.Typer(help="Manage the editable AI prompts.", no_args_is_help=True)
 app.add_typer(prompts_app, name="prompts")
@@ -41,7 +43,10 @@ def _root(
 # ---------------------------------------------------------------------------
 @config_app.command("set")
 def config_set(
-    provider: str = typer.Argument(..., help="openai | anthropic | gemini | compat"),
+    provider: str = typer.Argument(
+        ...,
+        help="openai | anthropic | gemini | compat | deepseek | minimax | glm",
+    ),
     key: str = typer.Option(..., "--key", prompt=True, hide_input=True),
     base_url: str | None = typer.Option(
         None,
@@ -67,8 +72,9 @@ def config_set(
     if model:
         extras.append(f"model={model}")
     extra_str = f" [{', '.join(extras)}]" if extras else ""
+    label = f"compat:{cfg.DEFAULT_COMPAT_PROFILE}" if provider == "compat" else provider
     stdout().print(
-        f"[green]ok[/] saved key for [bold]{provider}[/] via {backend}{extra_str}"
+        f"[green]ok[/] saved key for [bold]{label}[/] via {backend}{extra_str}"
     )
 
 
@@ -79,7 +85,7 @@ def config_get(provider: str = typer.Argument(...)) -> None:
     except ValueError as e:
         die(str(e))
     stdout().print(
-        f"provider=[bold]{pc.name}[/] model={pc.model} base_url={pc.base_url or '-'} "
+        f"provider=[bold]{pc.label}[/] model={pc.model} base_url={pc.base_url or '-'} "
         f"key={cfg.mask_key(pc.api_key)}"
     )
 
@@ -92,6 +98,78 @@ def config_use(provider: str = typer.Argument(...)) -> None:
     except ValueError as e:
         die(str(e))
     stdout().print(f"[green]ok[/] default provider = [bold]{provider}[/]")
+
+
+@compat_config_app.command("set")
+def compat_config_set(
+    profile: str = typer.Argument(..., help="Compat profile name"),
+    key: str = typer.Option(..., "--key", prompt=True, hide_input=True),
+    base_url: str | None = typer.Option(
+        None,
+        "--base-url",
+        help="OpenAI-compatible relay endpoint, usually ending in /v1.",
+    ),
+    model: str | None = typer.Option(
+        None,
+        "--model",
+        help="Override default model for this compat profile.",
+    ),
+) -> None:
+    try:
+        backend = cfg.set_compat_key(profile, key)
+        if base_url:
+            cfg.set_compat_base_url(profile, base_url)
+        if model:
+            cfg.set_compat_model(profile, model)
+    except ValueError as e:
+        die(str(e))
+    extras = []
+    if base_url:
+        extras.append(f"base_url={base_url}")
+    if model:
+        extras.append(f"model={model}")
+    extra_str = f" [{', '.join(extras)}]" if extras else ""
+    stdout().print(
+        f"[green]ok[/] saved key for [bold]compat:{profile}[/] via {backend}{extra_str}"
+    )
+
+
+@compat_config_app.command("get")
+def compat_config_get(profile: str = typer.Argument(..., help="Compat profile name")) -> None:
+    try:
+        pc = cfg.resolve_provider_config("compat", compat_profile=profile)
+    except ValueError as e:
+        die(str(e))
+    stdout().print(
+        f"provider=[bold]{pc.label}[/] model={pc.model} base_url={pc.base_url or '-'} "
+        f"key={cfg.mask_key(pc.api_key)}"
+    )
+
+
+@compat_config_app.command("list")
+def compat_config_list() -> None:
+    app_cfg = cfg.load()
+    profiles = cfg.list_compat_profiles()
+    stdout().print(f"default compat profile: [bold]{app_cfg.default_compat_profile}[/]")
+    if not profiles:
+        stdout().print("[dim]no compat profiles configured[/]")
+        return
+    for profile in profiles:
+        pc = cfg.resolve_provider_config("compat", compat_profile=profile)
+        marker = " *" if profile == app_cfg.default_compat_profile else ""
+        stdout().print(
+            f"  {profile}{marker}: model={pc.model} base_url={pc.base_url or '-'} "
+            f"key={cfg.mask_key(pc.api_key)}"
+        )
+
+
+@compat_config_app.command("use")
+def compat_config_use(profile: str = typer.Argument(..., help="Compat profile name")) -> None:
+    try:
+        cfg.set_default_compat_profile(profile)
+    except ValueError as e:
+        die(str(e))
+    stdout().print(f"[green]ok[/] default compat profile = [bold]{profile}[/]")
 
 
 # ---------------------------------------------------------------------------
@@ -139,10 +217,24 @@ def config_show() -> None:
     c = cfg.load()
     stdout().print(f"config file: {c.path}")
     stdout().print(f"default provider: [bold]{c.default_provider}[/]")
-    for name in cfg.SUPPORTED_PROVIDERS:
+    stdout().print(f"default compat profile: [bold]{c.default_compat_profile}[/]")
+    for name in cfg.FIXED_PROVIDERS:
         pc = cfg.resolve_provider_config(name)
         stdout().print(
-            f"  {name}: model={pc.model} base_url={pc.base_url or '-'} key={cfg.mask_key(pc.api_key)}"
+            f"  {pc.label}: model={pc.model} base_url={pc.base_url or '-'} "
+            f"key={cfg.mask_key(pc.api_key)}"
+        )
+    compat_profiles = cfg.list_compat_profiles()
+    if not compat_profiles:
+        stdout().print("  compat: profiles=0")
+        return
+    stdout().print(f"  compat: profiles={len(compat_profiles)}")
+    for profile in compat_profiles:
+        pc = cfg.resolve_provider_config("compat", compat_profile=profile)
+        marker = " *" if profile == c.default_compat_profile else ""
+        stdout().print(
+            f"    {pc.label}{marker}: model={pc.model} base_url={pc.base_url or '-'} "
+            f"key={cfg.mask_key(pc.api_key)}"
         )
 
 
@@ -227,6 +319,11 @@ def fetch_cmd(
 def process_cmd(
     url: str = typer.Argument(..., help="YouTube video URL"),
     provider: str | None = typer.Option(None, "--provider"),
+    compat_profile: str | None = typer.Option(
+        None,
+        "--compat-profile",
+        help="Named compat profile when using --provider compat.",
+    ),
     model: str | None = typer.Option(None, "--model"),
     lang: str | None = typer.Option(None, "--lang", help="Preferred source subtitle language"),
     out: Path | None = typer.Option(None, "--out", help="Parent directory (default: cwd)"),
@@ -251,10 +348,17 @@ def process_cmd(
     from youtube_strataread.interactive import pick as pick_provider
     from youtube_strataread.pipeline.orchestrator import run_pipeline
 
+    if compat_profile and provider not in {None, "compat"}:
+        die("--compat-profile only applies to --provider compat")
+
     prompt_path = None
     if provider is None:
-        sel = pick_provider()
+        try:
+            sel = pick_provider()
+        except Exception as e:  # noqa: BLE001
+            die(str(e))
         provider = sel.provider
+        compat_profile = sel.compat_profile
         if model is None:
             model = sel.model
         prompt_path = sel.prompt_path
@@ -265,6 +369,7 @@ def process_cmd(
             url=url,
             parent=parent,
             provider=provider,
+            compat_profile=compat_profile,
             model_override=model,
             lang=lang,
             cookies_from_browser=cookies_from_browser,
@@ -307,6 +412,11 @@ def run_cmd(
     url: str = typer.Argument(...),
     mode: str = typer.Option("manual", "--mode"),
     provider: str | None = typer.Option(None, "--provider"),
+    compat_profile: str | None = typer.Option(
+        None,
+        "--compat-profile",
+        help="Named compat profile when using --provider compat.",
+    ),
     model: str | None = typer.Option(None, "--model"),
     lang: str | None = typer.Option(None, "--lang"),
     out: Path | None = typer.Option(None, "--out"),
@@ -331,10 +441,17 @@ def run_cmd(
     from youtube_strataread.pipeline.orchestrator import run_pipeline
     from youtube_strataread.reader.app import run_reader
 
+    if compat_profile and provider not in {None, "compat"}:
+        die("--compat-profile only applies to --provider compat")
+
     prompt_path = None
     if provider is None:
-        sel = pick_provider()
+        try:
+            sel = pick_provider()
+        except Exception as e:  # noqa: BLE001
+            die(str(e))
         provider = sel.provider
+        compat_profile = sel.compat_profile
         if model is None:
             model = sel.model
         prompt_path = sel.prompt_path
@@ -344,6 +461,7 @@ def run_cmd(
         url=url,
         parent=parent,
         provider=provider,
+        compat_profile=compat_profile,
         model_override=model,
         lang=lang,
         cookies_from_browser=cookies_from_browser,

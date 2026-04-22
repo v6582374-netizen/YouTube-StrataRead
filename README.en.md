@@ -103,10 +103,11 @@ by config set glm --key sk-...
 
 # default compat profile (backwards-compatible)
 by config set compat --key sk-... --base-url https://your-relay/v1
+by config set compat --key sk-... --base-url https://your-relay/v1 --temperature off
 
 # named compat profiles
-by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v1
-by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1
+by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v1 --temperature on
+by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1 --temperature off
 by config compat use shenma
 by config compat list
 # optional: override the default model
@@ -147,7 +148,9 @@ Each provider is wired to its own "think hard" path:
   `thinking={"type": "enabled"}` and hide `reasoning_content`.
 - **Compat** — if the model name matches `o1/o3/o4/gpt-5/deepseek-reasoner/
   thinking/r1`, `reasoning_effort="high"` is forwarded; otherwise we leave
-  things alone so strict relays don't 400.
+  things alone so strict relays don't 400. Compat profiles now default to
+  **not sending** `temperature`; explicitly enable it with `--temperature on`
+  only when the relay/model needs it.
 
 Every provider streams the response, so the progress bar ticks in real time
 and you can see deltas arrive instead of staring at a frozen spinner.
@@ -364,6 +367,11 @@ For compat profiles, run `by config compat set <name> --key <KEY>` or export
 **Q: `compat provider needs a base_url`** — run
 `by config set compat --key ... --base-url https://your-relay/v1`, or
 `by config compat set <name> --key ... --base-url https://your-relay/v1`.
+
+**Q: Why does compat default to no `temperature`?** — some third-party relay
+backends reject `temperature` for Claude / Opus / reasoning-class models. To
+maximize compatibility, compat profiles default to `temperature=off`; enable
+it explicitly with `--temperature on` only when needed.
 
 **Q: The video has no subtitles** — the tool prints
 `no subtitles ...` and exits cleanly; no output directory is created.

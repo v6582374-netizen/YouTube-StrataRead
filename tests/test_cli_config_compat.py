@@ -30,6 +30,8 @@ def test_config_compat_set_and_list(monkeypatch, tmp_path: Path) -> None:
             "https://api.whatai.cc/v1",
             "--model",
             "claude-sonnet-4-5",
+            "--temperature",
+            "off",
         ],
     )
 
@@ -44,6 +46,42 @@ def test_config_compat_set_and_list(monkeypatch, tmp_path: Path) -> None:
     assert "default compat profile" in list_result.stdout
     assert "shenma" in list_result.stdout
     assert "https://api.whatai.cc/v1" in list_result.stdout
+    assert "temperature=off" in list_result.stdout
+
+
+def test_config_compat_can_enable_temperature(monkeypatch, tmp_path: Path) -> None:
+    import youtube_strataread.config as config
+
+    monkeypatch.setattr(config, "_KEYRING_AVAILABLE", False)
+    target = tmp_path / "config.toml"
+
+    result = runner.invoke(
+        app,
+        [
+            "--config",
+            str(target),
+            "config",
+            "compat",
+            "set",
+            "aigocode",
+            "--key",
+            "secret-key",
+            "--base-url",
+            "https://api.aigocode.com/v1",
+            "--temperature",
+            "on",
+        ],
+    )
+
+    assert result.exit_code == 0
+
+    get_result = runner.invoke(
+        app,
+        ["--config", str(target), "config", "compat", "get", "aigocode"],
+    )
+
+    assert get_result.exit_code == 0
+    assert "temperature=on" in get_result.stdout
 
 
 def test_config_show_displays_multiple_compat_profiles(monkeypatch, tmp_path: Path) -> None:
@@ -58,11 +96,13 @@ def test_config_show_displays_multiple_compat_profiles(monkeypatch, tmp_path: Pa
             "base_url": "https://api.aigocode.com/v1",
             "model": "claude-opus-4-7",
             "api_key": "secret-1",
+            "use_temperature": "true",
         },
         "shenma": {
             "base_url": "https://api.whatai.cc/v1",
             "model": "claude-sonnet-4-5",
             "api_key": "secret-2",
+            "use_temperature": "false",
         },
     }
     cfg.default_compat_profile = "shenma"
@@ -78,3 +118,5 @@ def test_config_show_displays_multiple_compat_profiles(monkeypatch, tmp_path: Pa
     assert "compat: profiles=2" in result.stdout
     assert "compat:shenma *" in result.stdout
     assert "compat:aigocode" in result.stdout
+    assert "temperature=on" in result.stdout
+    assert "temperature=off" in result.stdout

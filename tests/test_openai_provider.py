@@ -147,11 +147,30 @@ def test_build_params_uses_request_model_for_reasoning_effort() -> None:
     assert "temperature" not in client.calls[0]["params"]
 
 
+def test_compat_omits_temperature_by_default() -> None:
+    client = FakeOpenAIClient([_stream_response("ok")])
+    provider = _make_provider(client, compat=True, use_temperature=False)
+
+    provider._chat_impl(_request(model="claude-opus-4-7"))
+
+    assert "temperature" not in client.calls[0]["params"]
+
+
+def test_compat_can_explicitly_send_temperature() -> None:
+    client = FakeOpenAIClient([_stream_response("ok")])
+    provider = _make_provider(client, compat=True, use_temperature=True)
+
+    provider._chat_impl(_request(model="claude-opus-4-7"))
+
+    assert client.calls[0]["params"]["temperature"] == 0.3
+
+
 def _make_provider(
     client: FakeOpenAIClient,
     *,
     compat: bool,
     model: str = "claude-sonnet-4-6",
+    use_temperature: bool = True,
 ) -> OpenAICompatibleProvider:
     provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
     provider.pc = ProviderConfig(
@@ -159,6 +178,7 @@ def _make_provider(
         model=model,
         base_url="https://relay.example/v1" if compat else None,
         api_key="test-key",
+        use_temperature=use_temperature,
         api_flavor="openai",
     )
     provider._client = client

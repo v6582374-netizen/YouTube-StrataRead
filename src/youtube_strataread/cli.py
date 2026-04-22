@@ -56,6 +56,11 @@ def config_set(
     model: str | None = typer.Option(
         None, "--model", help="Override default model for this provider."
     ),
+    compat_temperature: str | None = typer.Option(
+        None,
+        "--temperature",
+        help="For provider=compat only: on | off (default off for compat profiles).",
+    ),
 ) -> None:
     """Save credentials (and optionally base_url / model) for a provider."""
     try:
@@ -64,6 +69,13 @@ def config_set(
             cfg.set_base_url(provider, base_url)
         if model:
             cfg.set_model(provider, model)
+        if compat_temperature is not None:
+            if provider != "compat":
+                raise ValueError("--temperature only applies to provider 'compat'")
+            cfg.set_compat_temperature(
+                cfg.DEFAULT_COMPAT_PROFILE,
+                _parse_on_off(compat_temperature, option_name="--temperature"),
+            )
     except ValueError as e:
         die(str(e))
     extras = []
@@ -71,6 +83,10 @@ def config_set(
         extras.append(f"base_url={base_url}")
     if model:
         extras.append(f"model={model}")
+    if compat_temperature is not None:
+        extras.append(
+            f"temperature={'on' if _parse_on_off(compat_temperature, option_name='--temperature') else 'off'}"
+        )
     extra_str = f" [{', '.join(extras)}]" if extras else ""
     label = f"compat:{cfg.DEFAULT_COMPAT_PROFILE}" if provider == "compat" else provider
     stdout().print(
@@ -114,6 +130,11 @@ def compat_config_set(
         "--model",
         help="Override default model for this compat profile.",
     ),
+    temperature: str | None = typer.Option(
+        None,
+        "--temperature",
+        help="Whether this compat profile should send temperature: on | off.",
+    ),
 ) -> None:
     try:
         backend = cfg.set_compat_key(profile, key)
@@ -121,6 +142,11 @@ def compat_config_set(
             cfg.set_compat_base_url(profile, base_url)
         if model:
             cfg.set_compat_model(profile, model)
+        if temperature is not None:
+            cfg.set_compat_temperature(
+                profile,
+                _parse_on_off(temperature, option_name="--temperature"),
+            )
     except ValueError as e:
         die(str(e))
     extras = []
@@ -128,6 +154,10 @@ def compat_config_set(
         extras.append(f"base_url={base_url}")
     if model:
         extras.append(f"model={model}")
+    if temperature is not None:
+        extras.append(
+            f"temperature={'on' if _parse_on_off(temperature, option_name='--temperature') else 'off'}"
+        )
     extra_str = f" [{', '.join(extras)}]" if extras else ""
     stdout().print(
         f"[green]ok[/] saved key for [bold]compat:{profile}[/] via {backend}{extra_str}"
@@ -142,7 +172,7 @@ def compat_config_get(profile: str = typer.Argument(..., help="Compat profile na
         die(str(e))
     stdout().print(
         f"provider=[bold]{pc.label}[/] model={pc.model} base_url={pc.base_url or '-'} "
-        f"key={cfg.mask_key(pc.api_key)}"
+        f"temperature={'on' if pc.use_temperature else 'off'} key={cfg.mask_key(pc.api_key)}"
     )
 
 
@@ -159,6 +189,7 @@ def compat_config_list() -> None:
         marker = " *" if profile == app_cfg.default_compat_profile else ""
         stdout().print(
             f"  {profile}{marker}: model={pc.model} base_url={pc.base_url or '-'} "
+            f"temperature={'on' if pc.use_temperature else 'off'} "
             f"key={cfg.mask_key(pc.api_key)}"
         )
 
@@ -222,6 +253,7 @@ def config_show() -> None:
         pc = cfg.resolve_provider_config(name)
         stdout().print(
             f"  {pc.label}: model={pc.model} base_url={pc.base_url or '-'} "
+            f"temperature={'on' if pc.use_temperature else 'off'} "
             f"key={cfg.mask_key(pc.api_key)}"
         )
     compat_profiles = cfg.list_compat_profiles()
@@ -234,6 +266,7 @@ def config_show() -> None:
         marker = " *" if profile == c.default_compat_profile else ""
         stdout().print(
             f"    {pc.label}{marker}: model={pc.model} base_url={pc.base_url or '-'} "
+            f"temperature={'on' if pc.use_temperature else 'off'} "
             f"key={cfg.mask_key(pc.api_key)}"
         )
 
@@ -492,6 +525,15 @@ def _resolve_md(target: Path) -> Path:
             die(f"no .md file found in folder {target}")
         return mds[0]
     return target
+
+
+def _parse_on_off(value: str, *, option_name: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"on", "true", "1", "yes"}:
+        return True
+    if normalized in {"off", "false", "0", "no"}:
+        return False
+    raise ValueError(f"{option_name} must be 'on' or 'off'")
 
 
 if __name__ == "__main__":

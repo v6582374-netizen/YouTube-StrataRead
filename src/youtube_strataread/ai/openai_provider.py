@@ -143,7 +143,8 @@ class OpenAICompatibleProvider(LLMProvider):
             params["reasoning_effort"] = "high"
             # Reasoning models ignore temperature; omit it to be safe.
         else:
-            params["temperature"] = req.temperature
+            if self.pc.use_temperature:
+                params["temperature"] = req.temperature
             if req.max_tokens is not None:
                 params["max_tokens"] = req.max_tokens
         return params

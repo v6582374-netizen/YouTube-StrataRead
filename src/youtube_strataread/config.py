@@ -92,6 +92,7 @@ class ProviderConfig:
     model: str
     base_url: str | None = None
     api_key: str | None = None
+    use_temperature: bool = True
     # Which wire protocol to use when hitting the endpoint.
     #   "openai"    -> Chat Completions compatible (openai, compat)
     #   "anthropic" -> Messages API (anthropic)
@@ -274,6 +275,14 @@ def set_compat_model(profile: str, model: str) -> None:
     save(cfg)
 
 
+def set_compat_temperature(profile: str, enabled: bool) -> None:
+    _require_profile_name(profile)
+    cfg = load()
+    cfg.compat_profiles.setdefault(profile, {})
+    cfg.compat_profiles[profile]["use_temperature"] = _bool_to_string(enabled)
+    save(cfg)
+
+
 def set_default_compat_profile(profile: str) -> None:
     _require_profile_name(profile)
     cfg = load()
@@ -349,6 +358,7 @@ def resolve_provider_config(
             model=model,
             base_url=base_url,
             api_key=resolve_compat_key(profile_name),
+            use_temperature=_config_bool(data.get("use_temperature"), default=False),
             api_flavor=_FLAVOR_BY_PROVIDER[name],
             profile_name=profile_name,
             label=f"{name}:{profile_name}",
@@ -362,6 +372,7 @@ def resolve_provider_config(
         model=model,
         base_url=base_url,
         api_key=_resolve_fixed_key(name),
+        use_temperature=True,
         api_flavor=_FLAVOR_BY_PROVIDER[name],
         label=name,
     )
@@ -438,3 +449,13 @@ def _compat_env_name(profile: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9]+", "_", profile).strip("_").upper()
     slug = slug or DEFAULT_COMPAT_PROFILE.upper()
     return f"BY_COMPAT_{slug}_API_KEY"
+
+
+def _config_bool(value: str | None, *, default: bool) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _bool_to_string(value: bool) -> str:
+    return "true" if value else "false"

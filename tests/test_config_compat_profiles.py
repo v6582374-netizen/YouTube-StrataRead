@@ -41,6 +41,7 @@ def test_resolve_provider_config_uses_named_compat_profile(
             "base_url": "https://api.aigocode.com/v1",
             "model": "claude-opus-4-7",
             "api_key": "secret-1",
+            "use_temperature": "true",
         },
         "shenma": {
             "base_url": "https://api.whatai.cc/v1",
@@ -60,6 +61,7 @@ def test_resolve_provider_config_uses_named_compat_profile(
     assert pc.base_url == "https://api.aigocode.com/v1"
     assert pc.model == "claude-opus-4-7"
     assert pc.api_key == "secret-1"
+    assert pc.use_temperature is True
 
 
 def test_resolve_compat_key_prefers_profile_env(monkeypatch, tmp_path: Path) -> None:
@@ -95,6 +97,26 @@ def test_list_compat_profiles_puts_default_first(monkeypatch, tmp_path: Path) ->
     config.save(cfg)
 
     assert config.list_compat_profiles() == ["shenma", "aigocode", "zhipu"]
+
+
+def test_resolve_compat_profile_defaults_temperature_to_off(monkeypatch, tmp_path: Path) -> None:
+    target = tmp_path / "config.toml"
+    _patch_config_path(monkeypatch, target)
+    monkeypatch.setattr(config, "_KEYRING_AVAILABLE", False)
+
+    cfg = config.AppConfig(path=target)
+    cfg.compat_profiles = {
+        "shenma": {
+            "base_url": "https://api.whatai.cc/v1",
+            "model": "claude-opus-4-7",
+            "api_key": "secret-2",
+        }
+    }
+    config.save(cfg)
+
+    pc = config.resolve_provider_config("compat", compat_profile="shenma")
+
+    assert pc.use_temperature is False
 
 
 def _patch_config_path(monkeypatch, target: Path) -> None:

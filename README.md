@@ -93,10 +93,11 @@ by config set glm --key sk-...
 
 # compat 默认 profile（兼容旧命令）
 by config set compat --key sk-... --base-url https://your-relay/v1
+by config set compat --key sk-... --base-url https://your-relay/v1 --temperature off
 
 # compat 命名 profile（推荐）
-by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v1
-by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1
+by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v1 --temperature on
+by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1 --temperature off
 by config compat use shenma
 by config compat list
 # 可选：改默认模型
@@ -123,7 +124,7 @@ by config get gemini        # 查看单个 Provider
 - **DeepSeek**：默认模型 `deepseek-reasoner`；若切到 `deepseek-chat`，自动附加 `thinking={"type": "enabled"}`，并隐藏 `reasoning_content`，只保留最终正文。
 - **MiniMax**：默认模型 `MiniMax-M2.7`；自动附加 `reasoning_split=true`，把思考过程与正文拆开，只写入正文。
 - **GLM**：默认模型 `glm-5.1`；自动附加 `thinking={"type": "enabled"}`，隐藏 `reasoning_content`，只保留最终正文。
-- **Compat**：按模型名启发式，命中 `o1/o3/o4/gpt-5/deepseek-reasoner/thinking/r1` 即加 `reasoning_effort="high"`；不命中则保持原样。
+- **Compat**：按模型名启发式，命中 `o1/o3/o4/gpt-5/deepseek-reasoner/thinking/r1` 即加 `reasoning_effort="high"`；不命中则保持原样。Compat profile 现在默认 **不发送** `temperature`，如确实需要再显式设 `--temperature on`。
 
 所有 Provider 都使用**流式**请求，进度条实时显示已接收字符数，不会误以为卡死。
 
@@ -314,6 +315,8 @@ open "$(dirname $(by prompts path))"   # 用 Finder 打开目录
 **Q: `missing API key for provider 'xxx'`** — 固定 provider 运行 `by config set <provider> --key <KEY>`，compat profile 运行 `by config compat set <name> --key <KEY>`；也可以设置对应的环境变量。
 
 **Q: `compat provider needs a base_url`** — 跑 `by config set compat --key ... --base-url https://your-relay/v1`，或 `by config compat set <name> --key ... --base-url https://your-relay/v1`。
+
+**Q: 为什么 compat 默认不发 `temperature`？** — 某些第三方中转上的 Claude / Opus / 推理模型会拒绝 `temperature`。为了兼容性，compat profile 默认 `temperature=off`；只有明确需要时再用 `--temperature on` 打开。
 
 **Q: 视频没有字幕** — 工具会提示 `no subtitles ...` 并优雅退出，不创建产物目录。
 

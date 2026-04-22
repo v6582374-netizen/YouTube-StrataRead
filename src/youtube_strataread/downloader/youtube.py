@@ -81,6 +81,7 @@ def download_subtitles(
         cookiefile=cookiefile,
         quiet=True,
         no_warnings=True,
+        ignore_no_formats_error=True,
         skip_download=True,
         listsubtitles=False,
     )
@@ -109,6 +110,7 @@ def download_subtitles(
             cookiefile=cookiefile,
             quiet=True,
             no_warnings=True,
+            ignore_no_formats_error=True,
             skip_download=True,
             writesubtitles=not is_auto,
             writeautomaticsub=is_auto,

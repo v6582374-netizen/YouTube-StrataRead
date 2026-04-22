@@ -197,3 +197,27 @@ def test_download_subtitles_surfaces_cookie_hint_on_bot_check(monkeypatch) -> No
 
     with pytest.raises(YouTubeError, match="--cookies-from-browser safari"):
         download_subtitles("https://youtu.be/abcdefghijk")
+
+
+def test_download_subtitles_ignores_missing_video_formats_during_subtitle_flow(monkeypatch) -> None:
+    info = {
+        "id": "vid321",
+        "title": "Subtitle only",
+        "subtitles": {"en": [{}]},
+        "automatic_captions": {},
+    }
+    seen_opts: list[dict] = []
+    _install_fake_ytdlp(
+        monkeypatch,
+        info=info,
+        files_by_lang={
+            "en": [("vid321.en.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello world\n")],
+        },
+        seen_opts=seen_opts,
+    )
+
+    result = download_subtitles("https://youtu.be/abcdefghijk", cookies_from_browser="brave")
+
+    assert result.language == "en"
+    assert len(seen_opts) == 2
+    assert all(opts["ignore_no_formats_error"] is True for opts in seen_opts)

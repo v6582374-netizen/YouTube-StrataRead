@@ -1,7 +1,11 @@
 """Unit coverage for the append-only reader session and footer geometry."""
 from __future__ import annotations
 
+import io
 import re
+import sys
+
+import pyte
 
 from youtube_strataread.reader.doc_tree import Node
 from youtube_strataread.reader.session import ReadingSession
@@ -36,8 +40,17 @@ class DummyStatusBar:
         self.context = text
 
 
+class TTYBuffer(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+    def flush(self) -> None:
+        return
+
+
 def _strip_ansi(text: str) -> str:
-    return _ANSI_RE.sub("", text)
+    plain = _ANSI_RE.sub("", text)
+    return plain.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _make_tree() -> tuple[Node, Node, Node]:
@@ -64,12 +77,50 @@ def _make_tree() -> tuple[Node, Node, Node]:
     return root, leaf_a, leaf_b
 
 
+def _make_compact_tree() -> tuple[Node, Node]:
+    root = Node(level=0, title="(root)", path="root")
+    chapter = Node(level=1, title="Part", path="1", body="Intro.")
+    leaf = Node(
+        level=2,
+        title="Leaf",
+        path="1.1",
+        body="Alpha. Beta.",
+        sentences=["Alpha.", "Beta."],
+    )
+    chapter.children.append(leaf)
+    root.children.append(chapter)
+    return root, leaf
+
+
 def _make_session(*, width: int = 20, content_height: int = 4) -> tuple[ReadingSession, DummyStatusBar, Node, Node]:
     root, leaf_a, leaf_b = _make_tree()
     bar = DummyStatusBar(width=width, content_height=content_height)
     session = ReadingSession(root=root, total_chars=500, status_bar=bar)
     session.setup()
     return session, bar, leaf_a, leaf_b
+
+
+def _make_interactive_capture(monkeypatch, *, width: int = 20, height: int = 10):
+    monkeypatch.setattr(StatusBar, "_detect_tty", staticmethod(lambda: True))
+    monkeypatch.setattr(StatusBar, "_detect_size", staticmethod(lambda: (width, height)))
+
+    buffer = TTYBuffer()
+    monkeypatch.setattr(sys, "stdout", buffer)
+
+    root, leaf = _make_compact_tree()
+    bar = StatusBar(total_chars=200, contexts=["Part / Leaf"])
+    session = ReadingSession(root=root, total_chars=200, status_bar=bar)
+    bar.setup()
+    session.setup()
+    return session, leaf, buffer
+
+
+def _screen_from_output(output: str, *, width: int, height: int) -> pyte.Screen:
+    screen = pyte.Screen(width, height)
+    stream = pyte.Stream()
+    stream.attach(screen)
+    stream.feed(output)
+    return screen
 
 
 def _show_sentence(
@@ -230,6 +281,39 @@ def test_status_bar_keeps_content_height_stable_across_chapter_context_switches(
 
     assert baseline == first == second
     assert bar._reserved_context_rows >= len(bar._context_lines)
+
+
+def test_interactive_session_setup_starts_at_top_left(monkeypatch) -> None:
+    _, _, buffer = _make_interactive_capture(monkeypatch, width=20, height=10)
+
+    screen = _screen_from_output(buffer.getvalue(), width=20, height=10)
+
+    assert (screen.cursor.y, screen.cursor.x) == (0, 0)
+
+
+def test_interactive_session_newlines_return_to_first_column(monkeypatch) -> None:
+    session, leaf, buffer = _make_interactive_capture(monkeypatch, width=20, height=10)
+
+    session.begin_leaf(leaf)
+    _show_sentence(session, "Alpha.", 0)
+
+    screen = _screen_from_output(buffer.getvalue(), width=20, height=10)
+
+    assert any(row.startswith("Alpha.") for row in screen.display[:-2])
+
+
+def test_interactive_session_keeps_footer_rows_separate_from_body(monkeypatch) -> None:
+    session, leaf, buffer = _make_interactive_capture(monkeypatch, width=20, height=10)
+
+    session.begin_leaf(leaf)
+    _show_sentence(session, "Alpha.", 0)
+
+    screen = _screen_from_output(buffer.getvalue(), width=20, height=10)
+
+    assert screen.display[-2].startswith("Part / Leaf")
+    assert screen.display[-1].startswith("[")
+    assert all("Part / Leaf" not in row for row in screen.display[:-2])
+    assert all("Alpha." not in row for row in screen.display[-2:])
 
 
 def test_interactive_session_does_not_reposition_cursor_while_appending(capsys) -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "youtube-strataread"
-version = "0.1.10"
+version = "0.1.11"
 description = "Turn any YouTube video into a layered, deep-readable Bionic Reading document in your terminal."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,6 +41,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
+    "pyte>=0.8",
     "ruff>=0.4",
     "mypy>=1.10",
     "build>=1.0",

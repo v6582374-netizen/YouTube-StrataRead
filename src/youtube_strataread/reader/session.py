@@ -104,7 +104,7 @@ class ReadingSession:
         for row in range(1, self.content_height + 1):
             out.write(f"\x1b[{row};1H")
             out.write(_CLEAR_LINE)
-        out.write(f"\x1b[{self.content_height};1H")
+        out.write("\x1b[1;1H")
         out.flush()
 
     def restore_cursor(self) -> None:
@@ -246,7 +246,9 @@ class ReadingSession:
         self.status_bar.update(delta)
 
     def _newline(self) -> None:
-        sys.stdout.write("\n")
+        # Real terminals keep the current column on LF, so interactive output
+        # must return to column 1 before advancing to the next line.
+        sys.stdout.write("\r\n" if self._interactive else "\n")
         sys.stdout.flush()
         self.col = 1
 

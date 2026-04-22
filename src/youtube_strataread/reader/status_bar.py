@@ -228,7 +228,7 @@ class StatusBar:
     def _apply_scroll_region(self, *, move_cursor: bool) -> None:
         sys.stdout.write(f"\x1b[1;{self.content_height}r")
         if move_cursor:
-            sys.stdout.write(f"\x1b[{self.content_height};1H")
+            sys.stdout.write("\x1b[1;1H")
 
     @staticmethod
     def _detect_tty() -> bool:

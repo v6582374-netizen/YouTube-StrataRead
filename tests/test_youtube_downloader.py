@@ -11,13 +11,22 @@ from youtube_strataread.downloader.srt import load_cues
 from youtube_strataread.downloader.youtube import YouTubeError, download_subtitles
 
 
-def _install_fake_ytdlp(monkeypatch, *, info: dict, files_by_lang: dict[str, list[tuple[str, str]]]) -> None:
+def _install_fake_ytdlp(
+    monkeypatch,
+    *,
+    info: dict,
+    files_by_lang: dict[str, list[tuple[str, str]]],
+    fail_on_probe: str | None = None,
+    seen_opts: list[dict] | None = None,
+) -> None:
     class FakeDownloadError(Exception):
         pass
 
     class FakeYoutubeDL:
         def __init__(self, opts):
             self.opts = opts
+            if seen_opts is not None:
+                seen_opts.append(opts)
 
         def __enter__(self):
             return self
@@ -27,6 +36,8 @@ def _install_fake_ytdlp(monkeypatch, *, info: dict, files_by_lang: dict[str, lis
 
         def extract_info(self, url, download=False):
             if not download:
+                if fail_on_probe is not None:
+                    raise FakeDownloadError(fail_on_probe)
                 return info
             tmp = Path(self.opts["outtmpl"]).parent
             lang = self.opts["subtitleslangs"][0]
@@ -141,4 +152,48 @@ def test_download_subtitles_errors_when_live_chat_has_no_readable_messages(monke
     )
 
     with pytest.raises(YouTubeError, match="did not contain any readable chat messages"):
+        download_subtitles("https://youtu.be/abcdefghijk")
+
+
+def test_download_subtitles_forwards_cookie_auth_to_ytdlp(monkeypatch, tmp_path) -> None:
+    info = {
+        "id": "vid999",
+        "title": "Cookie video",
+        "subtitles": {"en": [{}]},
+        "automatic_captions": {},
+    }
+    seen_opts: list[dict] = []
+    cookiefile = tmp_path / "cookies.txt"
+    cookiefile.write_text("cookies", encoding="utf-8")
+    _install_fake_ytdlp(
+        monkeypatch,
+        info=info,
+        files_by_lang={
+            "en": [("vid999.en.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello world\n")],
+        },
+        seen_opts=seen_opts,
+    )
+
+    result = download_subtitles(
+        "https://youtu.be/abcdefghijk",
+        cookies_from_browser="firefox:Default",
+        cookiefile=cookiefile,
+    )
+
+    assert result.language == "en"
+    assert len(seen_opts) == 2
+    for opts in seen_opts:
+        assert opts["cookiefile"] == str(cookiefile)
+        assert opts["cookiesfrombrowser"] == ("firefox", "Default", None, None)
+
+
+def test_download_subtitles_surfaces_cookie_hint_on_bot_check(monkeypatch) -> None:
+    _install_fake_ytdlp(
+        monkeypatch,
+        info={},
+        files_by_lang={},
+        fail_on_probe="ERROR: [youtube] abc123: Sign in to confirm you're not a bot.",
+    )
+
+    with pytest.raises(YouTubeError, match="--cookies-from-browser safari"):
         download_subtitles("https://youtu.be/abcdefghijk")

@@ -49,7 +49,13 @@ def validate_url(url: str) -> None:
         )
 
 
-def download_subtitles(url: str, preferred_lang: str | None = None) -> SubtitleResult:
+def download_subtitles(
+    url: str,
+    preferred_lang: str | None = None,
+    *,
+    cookies_from_browser: str | None = None,
+    cookiefile: Path | None = None,
+) -> SubtitleResult:
     """Fetch the best-available SRT subtitle for ``url``.
 
     Strategy (to avoid 429 from trying non-existent languages):
@@ -70,17 +76,19 @@ def download_subtitles(url: str, preferred_lang: str | None = None) -> SubtitleR
     from yt_dlp.utils import DownloadError
 
     # --- phase 1: probe ----------------------------------------------------
-    probe_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "listsubtitles": False,
-    }
+    probe_opts = _build_ytdlp_opts(
+        cookies_from_browser=cookies_from_browser,
+        cookiefile=cookiefile,
+        quiet=True,
+        no_warnings=True,
+        skip_download=True,
+        listsubtitles=False,
+    )
     try:
         with YoutubeDL(probe_opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except DownloadError as e:
-        raise YouTubeError(str(e)) from e
+        raise YouTubeError(_format_ytdlp_error(str(e))) from e
 
     video_id = str(info.get("id"))
     title = str(info.get("title") or video_id)
@@ -96,22 +104,24 @@ def download_subtitles(url: str, preferred_lang: str | None = None) -> SubtitleR
     # --- phase 2: download just that one language --------------------------
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        dl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-            "writesubtitles": not is_auto,
-            "writeautomaticsub": is_auto,
-            "subtitlesformat": "srt",
-            "subtitleslangs": [lang],
-            "outtmpl": str(tmp / "%(id)s.%(ext)s"),
-            "convertsubtitles": "srt",
-        }
+        dl_opts = _build_ytdlp_opts(
+            cookies_from_browser=cookies_from_browser,
+            cookiefile=cookiefile,
+            quiet=True,
+            no_warnings=True,
+            skip_download=True,
+            writesubtitles=not is_auto,
+            writeautomaticsub=is_auto,
+            subtitlesformat="srt",
+            subtitleslangs=[lang],
+            outtmpl=str(tmp / "%(id)s.%(ext)s"),
+            convertsubtitles="srt",
+        )
         try:
             with YoutubeDL(dl_opts) as ydl:
                 ydl.extract_info(url, download=True)
         except DownloadError as e:
-            raise YouTubeError(str(e)) from e
+            raise YouTubeError(_format_ytdlp_error(str(e))) from e
 
         srt_path = _locate_srt(tmp, video_id, lang)
         if srt_path is not None:
@@ -138,6 +148,61 @@ def download_subtitles(url: str, preferred_lang: str | None = None) -> SubtitleR
             is_auto=is_auto,
             srt_text=srt_text,
         )
+
+
+def _build_ytdlp_opts(
+    *,
+    cookies_from_browser: str | None,
+    cookiefile: Path | None,
+    **opts: object,
+) -> dict[str, object]:
+    if cookies_from_browser:
+        opts["cookiesfrombrowser"] = _parse_cookies_from_browser(cookies_from_browser)
+    if cookiefile is not None:
+        opts["cookiefile"] = str(cookiefile)
+    return opts
+
+
+def _parse_cookies_from_browser(spec: str) -> tuple[str, str | None, str | None, str | None]:
+    match = re.fullmatch(
+        r"""(?x)
+        (?P<name>[^+:]+)
+        (?:\s*\+\s*(?P<keyring>[^:]+))?
+        (?:\s*:\s*(?!:)(?P<profile>.+?))?
+        (?:\s*::\s*(?P<container>.+))?
+    """,
+        spec.strip(),
+    )
+    if match is None:
+        raise YouTubeError(
+            "invalid --cookies-from-browser value; expected "
+            "'BROWSER[+KEYRING][:PROFILE][::CONTAINER]'"
+        )
+    browser_name, keyring, profile, container = match.group(
+        "name", "keyring", "profile", "container"
+    )
+    return (
+        browser_name.lower(),
+        profile,
+        keyring.upper() if keyring else None,
+        container,
+    )
+
+
+def _format_ytdlp_error(message: str) -> str:
+    if "Sign in to confirm you're not a bot" not in message and (
+        "Sign in to confirm you’re not a bot" not in message
+    ):
+        return message
+    return (
+        f"{message}\n\n"
+        "YouTube blocked the anonymous subtitle probe for this video. "
+        "Retry with a logged-in browser session, for example:\n"
+        "  by fetch <url> --cookies-from-browser safari\n"
+        "  by fetch <url> --cookies /path/to/cookies.txt\n"
+        "The same --cookies-from-browser / --cookies options also work on "
+        "'by process' and 'by run'."
+    )
 
 
 def _build_lang_pref(preferred: str | None, *, is_auto: bool = False) -> list[str]:

@@ -180,6 +180,20 @@ def fetch_cmd(
     url: str = typer.Argument(..., help="YouTube video URL"),
     lang: str | None = typer.Option(None, "--lang", help="Preferred subtitle language code"),
     out: Path | None = typer.Option(None, "--out", help="Parent directory (default: cwd)"),
+    cookies_from_browser: str | None = typer.Option(
+        None,
+        "--cookies-from-browser",
+        help="Load YouTube cookies from a local browser, e.g. safari or chrome:Default",
+    ),
+    cookies: Path | None = typer.Option(
+        None,
+        "--cookies",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        help="Path to a Netscape-format cookies.txt file for YouTube authentication",
+    ),
 ) -> None:
     """Download raw SRT subtitles into <cwd>/<slug>/raw.srt."""
     from youtube_strataread.downloader import download_subtitles
@@ -189,7 +203,12 @@ def fetch_cmd(
     parent = out or Path.cwd()
     parent.mkdir(parents=True, exist_ok=True)
     try:
-        result = download_subtitles(url, preferred_lang=lang)
+        result = download_subtitles(
+            url,
+            preferred_lang=lang,
+            cookies_from_browser=cookies_from_browser,
+            cookiefile=cookies,
+        )
     except YouTubeError as e:
         die(str(e))
     slug = slugify(result.title)
@@ -211,6 +230,20 @@ def process_cmd(
     model: str | None = typer.Option(None, "--model"),
     lang: str | None = typer.Option(None, "--lang", help="Preferred source subtitle language"),
     out: Path | None = typer.Option(None, "--out", help="Parent directory (default: cwd)"),
+    cookies_from_browser: str | None = typer.Option(
+        None,
+        "--cookies-from-browser",
+        help="Load YouTube cookies from a local browser, e.g. safari or chrome:Default",
+    ),
+    cookies: Path | None = typer.Option(
+        None,
+        "--cookies",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        help="Path to a Netscape-format cookies.txt file for YouTube authentication",
+    ),
     overwrite: bool = typer.Option(False, "--overwrite"),
     suffix: bool = typer.Option(False, "--suffix", help="On slug collision, append -2, -3, ..."),
 ) -> None:
@@ -234,6 +267,8 @@ def process_cmd(
             provider=provider,
             model_override=model,
             lang=lang,
+            cookies_from_browser=cookies_from_browser,
+            cookiefile=cookies,
             overwrite=overwrite,
             suffix=suffix,
             prompt_path=prompt_path,
@@ -276,6 +311,20 @@ def run_cmd(
     lang: str | None = typer.Option(None, "--lang"),
     out: Path | None = typer.Option(None, "--out"),
     cpm: int | None = typer.Option(None, "--cpm"),
+    cookies_from_browser: str | None = typer.Option(
+        None,
+        "--cookies-from-browser",
+        help="Load YouTube cookies from a local browser, e.g. safari or chrome:Default",
+    ),
+    cookies: Path | None = typer.Option(
+        None,
+        "--cookies",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        help="Path to a Netscape-format cookies.txt file for YouTube authentication",
+    ),
 ) -> None:
     """process + read in one shot."""
     from youtube_strataread.interactive import pick as pick_provider
@@ -297,6 +346,8 @@ def run_cmd(
         provider=provider,
         model_override=model,
         lang=lang,
+        cookies_from_browser=cookies_from_browser,
+        cookiefile=cookies,
         overwrite=False,
         suffix=True,
         prompt_path=prompt_path,

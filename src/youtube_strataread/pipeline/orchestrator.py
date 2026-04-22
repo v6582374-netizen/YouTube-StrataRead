@@ -49,6 +49,8 @@ def run_pipeline(
     provider: str | None = None,
     model_override: str | None = None,
     lang: str | None = None,
+    cookies_from_browser: str | None = None,
+    cookiefile: Path | None = None,
     overwrite: bool = False,
     suffix: bool = False,
     prompt_path: Path | None = None,
@@ -68,7 +70,12 @@ def run_pipeline(
 
     # 1) download -------------------------------------------------------------
     stdout().print("[cyan]fetching subtitles...[/]")
-    sub = download_subtitles(url, preferred_lang=lang)
+    sub = download_subtitles(
+        url,
+        preferred_lang=lang,
+        cookies_from_browser=cookies_from_browser,
+        cookiefile=cookiefile,
+    )
     slug = slugify(sub.title)
     out_dir = _resolve_out_dir(parent, slug, sub.video_id, overwrite=overwrite, suffix=suffix)
     srt_path = out_dir / "raw.srt"

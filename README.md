@@ -100,6 +100,11 @@ by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v
 by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1 --temperature off
 by config compat use shenma
 by config compat list
+
+# 智谱翻译 Agent 前置层（非中文字幕 → 简体中文）
+by config translation show
+by config translation set --mode auto --agent general_translation --target-lang zh-CN
+
 # 可选：改默认模型
 by config set anthropic --key sk-ant-... --model claude-sonnet-4-5-20250929
 
@@ -127,6 +132,16 @@ by config get gemini        # 查看单个 Provider
 - **Compat**：按模型名启发式，命中 `o1/o3/o4/gpt-5/deepseek-reasoner/thinking/r1` 即加 `reasoning_effort="high"`；不命中则保持原样。Compat profile 现在默认 **不发送** `temperature`，如确实需要再显式设 `--temperature on`。
 
 所有 Provider 都使用**流式**请求，进度条实时显示已接收字符数，不会误以为卡死。
+
+### 智谱翻译 Agent 前置层
+
+当字幕不是中文时，`by process` / `by run` 默认会尝试使用智谱官方 Agent API 先翻译成简体中文，再把译文交给你现有的 prompt 做去冗和分层。默认 Agent 是 `general_translation`，因为它支持 `auto -> zh-CN`；它复用 `glm` 的 API Key（`by config set glm --key ...` 或 `BY_GLM_API_KEY`）。
+
+- `mode=auto`（默认）：有 GLM key 且字幕非中文时调用 Agent；缺 key 或失败会回退到原字幕流程。
+- `mode=force`：必须成功走 Agent，否则命令失败。
+- `mode=off`：完全跳过前置翻译。
+
+成功翻译后会在输出目录额外保存 `translated.txt`。可用 `--translation-mode auto|off|force` 和 `--translation-agent <agent_id>` 做单次覆盖。
 
 ---
 
@@ -173,6 +188,8 @@ by process https://www.youtube.com/watch?v=XXXXXXXXXXX
 - `--compat-profile <名称>`（仅当 `--provider compat` 时使用）
 - `--model <名称>`
 - `--lang en`（指定源字幕语言）
+- `--translation-mode auto|off|force`（控制智谱翻译 Agent 前置层）
+- `--translation-agent general_translation`（单次指定翻译 Agent）
 - `--overwrite` / `--suffix`（目录冲突策略）
 
 ### 5.4 阅读：`by read`

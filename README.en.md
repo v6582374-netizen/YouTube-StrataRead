@@ -110,6 +110,11 @@ by config compat set aigocode --key sk-... --base-url https://api.aigocode.com/v
 by config compat set shenma --key sk-... --base-url https://api.whatai.cc/v1 --temperature off
 by config compat use shenma
 by config compat list
+
+# Zhipu translation Agent preprocessor (non-Chinese subtitles → Simplified Chinese)
+by config translation show
+by config translation set --mode auto --agent general_translation --target-lang zh-CN
+
 # optional: override the default model
 by config set anthropic --key sk-ant-... --model claude-sonnet-4-5-20250929
 
@@ -154,6 +159,23 @@ Each provider is wired to its own "think hard" path:
 
 Every provider streams the response, so the progress bar ticks in real time
 and you can see deltas arrive instead of staring at a frozen spinner.
+
+### Zhipu translation Agent preprocessor
+
+When subtitles are not Chinese, `by process` / `by run` now attempts to translate
+them to Simplified Chinese through Zhipu's official Agent API before handing the
+text to your existing prompt for cleanup and outlining. The default Agent is
+`general_translation` because it supports `auto -> zh-CN`; it reuses the `glm`
+API key (`by config set glm --key ...` or `BY_GLM_API_KEY`).
+
+- `mode=auto` (default): use the Agent when a GLM key is available; fall back to
+  the original transcript if the key is missing or the Agent fails.
+- `mode=force`: require the Agent path; failures stop the command.
+- `mode=off`: skip the preprocessor entirely.
+
+Successful translations are saved as `translated.txt` in the output directory.
+Use `--translation-mode auto|off|force` and `--translation-agent <agent_id>` for
+one-off overrides.
 
 ---
 
@@ -203,6 +225,8 @@ Useful flags:
 - `--compat-profile <name>` (only with `--provider compat`)
 - `--model <name>`
 - `--lang en` (preferred source subtitle language)
+- `--translation-mode auto|off|force` (control the Zhipu translation Agent preprocessor)
+- `--translation-agent general_translation` (override the translation Agent for one run)
 - `--overwrite` / `--suffix` (folder collision strategy)
 
 ### 5.4 Read: `by read`

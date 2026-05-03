@@ -19,6 +19,11 @@ config_app = typer.Typer(help="Manage providers and API keys.", no_args_is_help=
 app.add_typer(config_app, name="config")
 compat_config_app = typer.Typer(help="Manage named compat relay profiles.", no_args_is_help=True)
 config_app.add_typer(compat_config_app, name="compat")
+translation_config_app = typer.Typer(
+    help="Manage the Zhipu translation Agent preprocessor.",
+    no_args_is_help=True,
+)
+config_app.add_typer(translation_config_app, name="translation")
 
 prompts_app = typer.Typer(help="Manage the editable AI prompts.", no_args_is_help=True)
 app.add_typer(prompts_app, name="prompts")
@@ -203,6 +208,59 @@ def compat_config_use(profile: str = typer.Argument(..., help="Compat profile na
     stdout().print(f"[green]ok[/] default compat profile = [bold]{profile}[/]")
 
 
+@translation_config_app.command("set")
+def translation_config_set(
+    mode: str | None = typer.Option(
+        None,
+        "--mode",
+        help="auto | off | force. auto translates non-Chinese subtitles when a GLM key is available.",
+    ),
+    agent: str | None = typer.Option(
+        None,
+        "--agent",
+        help="Zhipu translation Agent id, e.g. general_translation.",
+    ),
+    target_lang: str | None = typer.Option(
+        None,
+        "--target-lang",
+        help="Target language code for supported agents, default zh-CN.",
+    ),
+    chunk_chars: int | None = typer.Option(
+        None,
+        "--chunk-chars",
+        help="Approximate max characters per translation chunk.",
+    ),
+) -> None:
+    try:
+        cfg.set_translation_config(
+            mode=mode,
+            agent_id=agent,
+            target_lang=target_lang,
+            chunk_chars=chunk_chars,
+        )
+    except ValueError as e:
+        die(str(e))
+    tc = cfg.resolve_translation_config()
+    stdout().print(
+        "[green]ok[/] translation "
+        f"mode=[bold]{tc.mode}[/] agent={tc.agent_id} "
+        f"target={tc.target_lang} chunk_chars={tc.chunk_chars}"
+    )
+
+
+@translation_config_app.command("show")
+def translation_config_show() -> None:
+    try:
+        tc = cfg.resolve_translation_config()
+    except ValueError as e:
+        die(str(e))
+    stdout().print(
+        f"translation mode=[bold]{tc.mode}[/] agent={tc.agent_id} "
+        f"source={tc.source_lang} target={tc.target_lang} "
+        f"strategy={tc.strategy} chunk_chars={tc.chunk_chars}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # prompts sub-commands (single-prompt mode)
 # ---------------------------------------------------------------------------
@@ -259,16 +317,21 @@ def config_show() -> None:
     compat_profiles = cfg.list_compat_profiles()
     if not compat_profiles:
         stdout().print("  compat: profiles=0")
-        return
-    stdout().print(f"  compat: profiles={len(compat_profiles)}")
-    for profile in compat_profiles:
-        pc = cfg.resolve_provider_config("compat", compat_profile=profile)
-        marker = " *" if profile == c.default_compat_profile else ""
-        stdout().print(
-            f"    {pc.label}{marker}: model={pc.model} base_url={pc.base_url or '-'} "
-            f"temperature={'on' if pc.use_temperature else 'off'} "
-            f"key={cfg.mask_key(pc.api_key)}"
-        )
+    else:
+        stdout().print(f"  compat: profiles={len(compat_profiles)}")
+        for profile in compat_profiles:
+            pc = cfg.resolve_provider_config("compat", compat_profile=profile)
+            marker = " *" if profile == c.default_compat_profile else ""
+            stdout().print(
+                f"    {pc.label}{marker}: model={pc.model} base_url={pc.base_url or '-'} "
+                f"temperature={'on' if pc.use_temperature else 'off'} "
+                f"key={cfg.mask_key(pc.api_key)}"
+            )
+    tc = cfg.resolve_translation_config()
+    stdout().print(
+        f"  translation: mode={tc.mode} agent={tc.agent_id} "
+        f"target={tc.target_lang} chunk_chars={tc.chunk_chars}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +439,16 @@ def process_cmd(
     ),
     overwrite: bool = typer.Option(False, "--overwrite"),
     suffix: bool = typer.Option(False, "--suffix", help="On slug collision, append -2, -3, ..."),
+    translation_mode: str | None = typer.Option(
+        None,
+        "--translation-mode",
+        help="auto | off | force for the Zhipu translation Agent preprocessor.",
+    ),
+    translation_agent: str | None = typer.Option(
+        None,
+        "--translation-agent",
+        help="Zhipu translation Agent id for this run.",
+    ),
 ) -> None:
     """Fetch SRT and run the 3-step AI pipeline; produces <cwd>/<slug>/{raw.srt,<slug>.md}."""
     from youtube_strataread.interactive import pick as pick_provider
@@ -410,6 +483,8 @@ def process_cmd(
             overwrite=overwrite,
             suffix=suffix,
             prompt_path=prompt_path,
+            translation_mode=translation_mode,
+            translation_agent=translation_agent,
         )
     except Exception as e:  # noqa: BLE001 - surface all errors to CLI
         die(str(e))
@@ -468,6 +543,16 @@ def run_cmd(
         resolve_path=True,
         help="Path to a Netscape-format cookies.txt file for YouTube authentication",
     ),
+    translation_mode: str | None = typer.Option(
+        None,
+        "--translation-mode",
+        help="auto | off | force for the Zhipu translation Agent preprocessor.",
+    ),
+    translation_agent: str | None = typer.Option(
+        None,
+        "--translation-agent",
+        help="Zhipu translation Agent id for this run.",
+    ),
 ) -> None:
     """process + read in one shot."""
     from youtube_strataread.interactive import pick as pick_provider
@@ -502,6 +587,8 @@ def run_cmd(
         overwrite=False,
         suffix=True,
         prompt_path=prompt_path,
+        translation_mode=translation_mode,
+        translation_agent=translation_agent,
     )
     stdout().print(f"[green]ok[/] generated {result.markdown_path}")
     try:

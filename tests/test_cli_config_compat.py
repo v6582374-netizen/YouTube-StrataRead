@@ -120,3 +120,43 @@ def test_config_show_displays_multiple_compat_profiles(monkeypatch, tmp_path: Pa
     assert "compat:aigocode" in result.stdout
     assert "temperature=on" in result.stdout
     assert "temperature=off" in result.stdout
+
+
+def test_config_translation_set_and_show(monkeypatch, tmp_path: Path) -> None:
+    import youtube_strataread.config as config
+
+    target = tmp_path / "config.toml"
+    monkeypatch.setattr(config, "config_path", lambda: target)
+
+    result = runner.invoke(
+        app,
+        [
+            "--config",
+            str(target),
+            "config",
+            "translation",
+            "set",
+            "--mode",
+            "force",
+            "--agent",
+            "social_translation_agent",
+            "--target-lang",
+            "en",
+            "--chunk-chars",
+            "5000",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "mode=force" in result.stdout
+    assert "agent=social_translation_agent" in result.stdout
+
+    show_result = runner.invoke(
+        app,
+        ["--config", str(target), "config", "translation", "show"],
+    )
+
+    assert show_result.exit_code == 0
+    assert "translation mode=force" in show_result.stdout
+    assert "target=en" in show_result.stdout
+    assert "chunk_chars=5000" in show_result.stdout

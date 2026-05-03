@@ -22,9 +22,18 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from youtube_strataread.ai.base import get_provider
+from youtube_strataread.ai.base import LLMError, get_provider
 from youtube_strataread.ai.prompts import load_prompt
-from youtube_strataread.config import resolve_provider_config
+from youtube_strataread.ai.zhipu_agent_translator import (
+    ZhipuAgentTranslator,
+    is_chinese_subtitle_language,
+)
+from youtube_strataread.config import (
+    TranslationConfig,
+    resolve_key,
+    resolve_provider_config,
+    resolve_translation_config,
+)
 from youtube_strataread.downloader import cues_to_lines, download_subtitles, load_cues
 from youtube_strataread.utils.logging import get_logger, stdout
 from youtube_strataread.utils.text import short_hash, slugify
@@ -40,6 +49,7 @@ class PipelineResult:
     out_dir: Path
     srt_path: Path
     markdown_path: Path
+    translated_path: Path | None = None
 
 
 def run_pipeline(
@@ -55,6 +65,8 @@ def run_pipeline(
     overwrite: bool = False,
     suffix: bool = False,
     prompt_path: Path | None = None,
+    translation_mode: str | None = None,
+    translation_agent: str | None = None,
 ) -> PipelineResult:
     parent = parent.resolve()
     parent.mkdir(parents=True, exist_ok=True)
@@ -91,6 +103,16 @@ def run_pipeline(
         if not lines:
             raise RuntimeError("subtitle file was empty after cleanup")
         transcript = "\n".join(lines)
+        translation_cfg = resolve_translation_config(
+            mode_override=translation_mode,
+            agent_override=translation_agent,
+        )
+        transcript, translated_path = _maybe_translate_transcript(
+            transcript=transcript,
+            subtitle_language=sub.language,
+            out_dir=out_dir,
+            config=translation_cfg,
+        )
 
         system_prompt = load_prompt(prompt_path)
 
@@ -142,6 +164,7 @@ def run_pipeline(
             out_dir=out_dir,
             srt_path=srt_path,
             markdown_path=md_path,
+            translated_path=translated_path,
         )
     except Exception:
         crash = out_dir / f".by-crash-{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}.log"
@@ -185,3 +208,99 @@ def _resolve_out_dir(
 
 def _status_text(chars: int) -> str:
     return f"{chars:,} chars"
+
+
+def _maybe_translate_transcript(
+    *,
+    transcript: str,
+    subtitle_language: str,
+    out_dir: Path,
+    config: TranslationConfig,
+) -> tuple[str, Path | None]:
+    if config.mode == "off":
+        return transcript, None
+    if is_chinese_subtitle_language(subtitle_language):
+        return transcript, None
+
+    api_key = resolve_key("glm")
+    if not api_key:
+        message = (
+            "translation Agent skipped: missing GLM API key. "
+            "Run: by config set glm --key <API_KEY>"
+        )
+        if config.mode == "force":
+            raise LLMError(message)
+        stdout().print(f"[yellow]{message}; falling back to the original transcript.[/]")
+        return transcript, None
+
+    stdout().print(
+        f"[cyan]translating transcript via Zhipu Agent...[/] "
+        f"[dim]({config.agent_id} -> {config.target_lang})[/]"
+    )
+    try:
+        translated = _translate_with_progress(
+            transcript=transcript,
+            subtitle_language=subtitle_language,
+            config=config,
+            api_key=api_key,
+        )
+    except LLMError as e:
+        if config.mode == "force":
+            raise
+        stdout().print(
+            f"[yellow]translation Agent failed: {e}; "
+            "falling back to the original transcript.[/]"
+        )
+        return transcript, None
+
+    translated_path = out_dir / "translated.txt"
+    translated_path.write_text(translated.strip() + "\n", encoding="utf-8")
+    stdout().print(f"  saved {translated_path}")
+    return translated, translated_path
+
+
+def _translate_with_progress(
+    *,
+    transcript: str,
+    subtitle_language: str,
+    config: TranslationConfig,
+    api_key: str,
+) -> str:
+    progress = Progress(
+        SpinnerColumn(style="cyan"),
+        TextColumn("[bold cyan]{task.description}[/]"),
+        BarColumn(
+            bar_width=32,
+            complete_style="green",
+            finished_style="green",
+            pulse_style="magenta",
+        ),
+        TextColumn("[yellow]{task.fields[status]}[/]"),
+        TextColumn("[dim]|[/]"),
+        TimeElapsedColumn(),
+        transient=False,
+    )
+    translator = ZhipuAgentTranslator(config, api_key=api_key)
+    with progress:
+        task = progress.add_task(
+            "Translating transcript...",
+            total=None,
+            status="starting...",
+        )
+        received = {"n": 0}
+
+        def _on_stream(chunk: str) -> None:
+            received["n"] += len(chunk)
+            progress.update(task, status=_status_text(received["n"]))
+
+        def _on_status(status: str) -> None:
+            progress.update(task, status=status)
+
+        translated = translator.translate(
+            transcript,
+            subtitle_language=subtitle_language,
+            on_stream=_on_stream,
+            on_status=_on_status,
+        )
+        progress.update(task, total=1, completed=1, status=_status_text(received["n"]))
+    return translated

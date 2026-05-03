@@ -85,6 +85,31 @@ DEFAULT_BASE_URLS: dict[str, str | None] = {
     "glm": "https://open.bigmodel.cn/api/paas/v4/",
 }
 
+TRANSLATION_MODES = ("auto", "off", "force")
+TRANSLATION_AGENT_IDS = (
+    "general_translation",
+    "social_translation_agent",
+    "social_literature_translation_agent",
+    "subtitle_translation_agent",
+)
+TRANSLATION_STRATEGIES = (
+    "general",
+    "paraphrase",
+    "two_step",
+    "three_step",
+    "reflection",
+    "cot",
+)
+DEFAULT_TRANSLATION_MODE = "auto"
+DEFAULT_TRANSLATION_AGENT_ID = "general_translation"
+DEFAULT_TRANSLATION_SOURCE_LANG = "auto"
+DEFAULT_TRANSLATION_TARGET_LANG = "zh-CN"
+DEFAULT_TRANSLATION_STRATEGY = "general"
+DEFAULT_TRANSLATION_CHUNK_CHARS = 12000
+DEFAULT_TRANSLATION_SUGGESTION = (
+    "翻译成自然、准确的简体中文；保留原有顺序；不要总结、解释或添加标题。"
+)
+
 
 @dataclass
 class ProviderConfig:
@@ -113,11 +138,23 @@ class ProviderConfig:
 
 
 @dataclass
+class TranslationConfig:
+    mode: str = DEFAULT_TRANSLATION_MODE
+    agent_id: str = DEFAULT_TRANSLATION_AGENT_ID
+    source_lang: str = DEFAULT_TRANSLATION_SOURCE_LANG
+    target_lang: str = DEFAULT_TRANSLATION_TARGET_LANG
+    strategy: str = DEFAULT_TRANSLATION_STRATEGY
+    chunk_chars: int = DEFAULT_TRANSLATION_CHUNK_CHARS
+    suggestion: str = DEFAULT_TRANSLATION_SUGGESTION
+
+
+@dataclass
 class AppConfig:
     default_provider: str = DEFAULT_PROVIDER
     default_compat_profile: str = DEFAULT_COMPAT_PROFILE
     providers: dict[str, dict[str, str]] = field(default_factory=dict)
     compat_profiles: dict[str, dict[str, str]] = field(default_factory=dict)
+    translation: dict[str, str] = field(default_factory=dict)
     path: Path | None = None
 
 
@@ -159,6 +196,9 @@ def load() -> AppConfig:
     for name, data in compat_profiles_raw.items():
         compat_profiles[str(name)] = {str(k): str(v) for k, v in dict(data).items()}
 
+    translation_raw = raw.get("translation", {}) or {}
+    translation = {str(k): str(v) for k, v in dict(translation_raw).items()}
+
     legacy_compat = providers.pop("compat", None)
     if legacy_compat and DEFAULT_COMPAT_PROFILE not in compat_profiles:
         compat_profiles[DEFAULT_COMPAT_PROFILE] = legacy_compat
@@ -168,6 +208,7 @@ def load() -> AppConfig:
         default_compat_profile=default_compat_profile,
         providers=providers,
         compat_profiles=compat_profiles,
+        translation=translation,
         path=path,
     )
 
@@ -196,6 +237,11 @@ def save(cfg: AppConfig) -> None:
             sub[k] = v
         compat_tbl[name] = sub
     doc["compat_profiles"] = compat_tbl
+
+    translation_tbl = tomlkit.table()
+    for k, v in cfg.translation.items():
+        translation_tbl[k] = v
+    doc["translation"] = translation_tbl
 
     path.write_text(tomlkit.dumps(doc), encoding="utf-8")
     with contextlib.suppress(OSError):
@@ -292,6 +338,32 @@ def set_default_compat_profile(profile: str) -> None:
     save(cfg)
 
 
+def set_translation_config(
+    *,
+    mode: str | None = None,
+    agent_id: str | None = None,
+    target_lang: str | None = None,
+    chunk_chars: int | None = None,
+) -> None:
+    cfg = load()
+    cfg.translation.setdefault("mode", DEFAULT_TRANSLATION_MODE)
+    cfg.translation.setdefault("agent_id", DEFAULT_TRANSLATION_AGENT_ID)
+    cfg.translation.setdefault("target_lang", DEFAULT_TRANSLATION_TARGET_LANG)
+    cfg.translation.setdefault("chunk_chars", str(DEFAULT_TRANSLATION_CHUNK_CHARS))
+    if mode is not None:
+        _require_translation_mode(mode)
+        cfg.translation["mode"] = mode
+    if agent_id is not None:
+        _require_translation_agent(agent_id)
+        cfg.translation["agent_id"] = agent_id
+    if target_lang is not None:
+        cfg.translation["target_lang"] = target_lang
+    if chunk_chars is not None:
+        _require_positive_int(chunk_chars, "chunk_chars")
+        cfg.translation["chunk_chars"] = str(chunk_chars)
+    save(cfg)
+
+
 # ---------------------------------------------------------------------------
 # resolvers
 # ---------------------------------------------------------------------------
@@ -378,6 +450,35 @@ def resolve_provider_config(
     )
 
 
+def resolve_translation_config(
+    *,
+    mode_override: str | None = None,
+    agent_override: str | None = None,
+) -> TranslationConfig:
+    data = load().translation
+    mode = mode_override or data.get("mode") or DEFAULT_TRANSLATION_MODE
+    agent_id = agent_override or data.get("agent_id") or DEFAULT_TRANSLATION_AGENT_ID
+    _require_translation_mode(mode)
+    _require_translation_agent(agent_id)
+    chunk_chars = _parse_positive_int(
+        data.get("chunk_chars"),
+        default=DEFAULT_TRANSLATION_CHUNK_CHARS,
+        field_name="chunk_chars",
+    )
+    strategy = data.get("strategy") or DEFAULT_TRANSLATION_STRATEGY
+    if strategy not in TRANSLATION_STRATEGIES:
+        strategy = DEFAULT_TRANSLATION_STRATEGY
+    return TranslationConfig(
+        mode=mode,
+        agent_id=agent_id,
+        source_lang=data.get("source_lang") or DEFAULT_TRANSLATION_SOURCE_LANG,
+        target_lang=data.get("target_lang") or DEFAULT_TRANSLATION_TARGET_LANG,
+        strategy=strategy,
+        chunk_chars=chunk_chars,
+        suggestion=data.get("suggestion") or DEFAULT_TRANSLATION_SUGGESTION,
+    )
+
+
 def list_compat_profiles() -> list[str]:
     cfg = load()
     names = sorted(cfg.compat_profiles)
@@ -409,6 +510,27 @@ def _require_supported(provider: str) -> None:
 def _require_profile_name(profile: str) -> None:
     if not profile.strip():
         raise ValueError("compat profile name must not be empty")
+
+
+def _require_translation_mode(mode: str) -> None:
+    if mode not in TRANSLATION_MODES:
+        raise ValueError(
+            f"unsupported translation mode '{mode}'. Choose one of: "
+            + ", ".join(TRANSLATION_MODES)
+        )
+
+
+def _require_translation_agent(agent_id: str) -> None:
+    if agent_id not in TRANSLATION_AGENT_IDS:
+        raise ValueError(
+            f"unsupported translation agent '{agent_id}'. Choose one of: "
+            + ", ".join(TRANSLATION_AGENT_IDS)
+        )
+
+
+def _require_positive_int(value: int, field_name: str) -> None:
+    if value <= 0:
+        raise ValueError(f"{field_name} must be greater than 0")
 
 
 def _set_fixed_key(provider: str, api_key: str) -> str:
@@ -455,6 +577,18 @@ def _config_bool(value: str | None, *, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_positive_int(value: str | None, *, default: int, field_name: str) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be greater than 0")
+    return parsed
 
 
 def _bool_to_string(value: bool) -> str:

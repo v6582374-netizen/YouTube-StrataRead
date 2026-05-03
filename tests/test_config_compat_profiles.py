@@ -119,5 +119,37 @@ def test_resolve_compat_profile_defaults_temperature_to_off(monkeypatch, tmp_pat
     assert pc.use_temperature is False
 
 
+def test_resolve_translation_config_defaults(monkeypatch, tmp_path: Path) -> None:
+    target = tmp_path / "config.toml"
+    _patch_config_path(monkeypatch, target)
+
+    tc = config.resolve_translation_config()
+
+    assert tc.mode == "auto"
+    assert tc.agent_id == "general_translation"
+    assert tc.source_lang == "auto"
+    assert tc.target_lang == "zh-CN"
+    assert tc.strategy == "general"
+    assert tc.chunk_chars == 12000
+
+
+def test_set_translation_config_persists_values(monkeypatch, tmp_path: Path) -> None:
+    target = tmp_path / "config.toml"
+    _patch_config_path(monkeypatch, target)
+
+    config.set_translation_config(
+        mode="force",
+        agent_id="social_literature_translation_agent",
+        target_lang="en",
+        chunk_chars=4000,
+    )
+
+    tc = config.resolve_translation_config()
+    assert tc.mode == "force"
+    assert tc.agent_id == "social_literature_translation_agent"
+    assert tc.target_lang == "en"
+    assert tc.chunk_chars == 4000
+
+
 def _patch_config_path(monkeypatch, target: Path) -> None:
     monkeypatch.setattr(config, "config_path", lambda: target)

@@ -27,3 +27,6 @@
 - **Deletion**: An explicit terminal action that permanently removes the entire local video asset, including every manuscript version, transcript and source record.
 - **Markdown handoff**: The workbench does not embed a document reader. Each prepared manuscript is stored as Markdown and can be copied as raw Markdown or opened with the operating system's default application.
 - **Behavioral port**: A clean reimplementation of a verified upstream capability that preserves its externally meaningful protocol behavior, failure semantics, test cases and required attribution without importing its host architecture.
+- **Activity center**: The single local view of active, paused, completed and failed batch work. It summarizes progress, cost and failure causes while each affected library asset shows its own state.
+- **Drain pause**: A user-requested pause that stops the batch from taking new assets after its current asset reaches a stable terminal state.
+- **Sidecar capability**: A typed user-intent boundary through which the desktop host requests work from the Python core without direct access to the workspace database, yt-dlp or Automic Vault.

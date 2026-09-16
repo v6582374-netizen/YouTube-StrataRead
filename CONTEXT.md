@@ -10,7 +10,6 @@
 - **Inbox**: The complete local set of newly prepared manuscripts awaiting a person's review.
 - **Reading queue**: The set of manuscripts the person deliberately moves from the inbox to read later; opening one begins reading and completing it preserves it as read history.
 - **Reading state**: One of inbox, to-read, reading or read; it organizes attention without controlling retention.
- The short, human-approved set of candidates that deserve deeper attention.
 - **Retention**: Every prepared manuscript and its source materials remain locally until the person explicitly deletes them; the system never purges assets by age, unread status or storage policy.
 - **Knowledge asset**: A locally owned record derived from a selected YouTube video, containing the source identity, timed transcript, deep-reading manuscript, generation record and reading state.
 - **Acquisition**: Bringing a selected YouTube video's metadata and transcript into the local library.

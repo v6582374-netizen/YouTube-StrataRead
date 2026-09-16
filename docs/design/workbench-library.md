@@ -9,3 +9,9 @@ Manuscripts are portable Markdown documents. The two primary document actions ar
 The visual language follows normal desktop conventions: neutral system materials, light and dark modes, system typography, restrained blue for selection and action, and no themed color cast. The interface uses translucent structural chrome for hierarchy and immediate press feedback; it respects reduced-motion preferences.
 
 The workbench excludes embedded long-form reading, note-taking, annotation, and cloud synchronization.
+
+## Search and retrieval
+
+Default search covers manuscript title, channel identity and Markdown text. Timed raw transcripts stay outside ordinary search and are included only by an explicit user choice. Results rank by textual relevance and then publication time.
+
+The complete first-release filter set is reading state, channel, publication time and preparation state. Every result card shows channel, publication time, reading state, preparation state and manuscript version. Selecting a result returns the person to that asset in the library and exposes its inspection and Markdown-handoff actions; it never opens an external application automatically.

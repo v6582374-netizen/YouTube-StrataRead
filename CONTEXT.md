@@ -30,3 +30,6 @@
 - **Activity center**: The single local view of active, paused, completed and failed batch work. It summarizes progress, cost and failure causes while each affected library asset shows its own state.
 - **Drain pause**: A user-requested pause that stops the batch from taking new assets after its current asset reaches a stable terminal state.
 - **Sidecar capability**: A typed user-intent boundary through which the desktop host requests work from the Python core without direct access to the workspace database, yt-dlp or Automic Vault.
+- **Default retrieval scope**: Search titles, channel identities and Markdown manuscript text. Timed raw transcripts remain preserved but enter a query only when the person explicitly includes them.
+- **Library facets**: Reading state, channel, publication time and preparation state are the complete first-release filter set.
+- **Search result context**: Every result exposes channel, publication time, reading state, preparation state and manuscript version before it is selected.

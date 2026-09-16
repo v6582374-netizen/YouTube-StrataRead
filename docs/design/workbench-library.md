@@ -15,3 +15,7 @@ The workbench excludes embedded long-form reading, note-taking, annotation, and 
 Default search covers manuscript title, channel identity and Markdown text. Timed raw transcripts stay outside ordinary search and are included only by an explicit user choice. Results rank by textual relevance and then publication time.
 
 The complete first-release filter set is reading state, channel, publication time and preparation state. Every result card shows channel, publication time, reading state, preparation state and manuscript version. Selecting a result returns the person to that asset in the library and exposes its inspection and Markdown-handoff actions; it never opens an external application automatically.
+
+## Activity center
+
+Automatic preparation is visible through a compact status control in the library toolbar. It expands from that control into an anchored translucent panel showing active work, completed work, failure causes, drain-pause state, single-item retry and retry-all-failures. This quiet-pulse pattern makes status available without reserving a permanent dashboard region. Affected assets still show their own preparation state in the library.

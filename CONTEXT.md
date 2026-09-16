@@ -33,3 +33,4 @@
 - **Default retrieval scope**: Search titles, channel identities and Markdown manuscript text. Timed raw transcripts remain preserved but enter a query only when the person explicitly includes them.
 - **Library facets**: Reading state, channel, publication time and preparation state are the complete first-release filter set.
 - **Search result context**: Every result exposes channel, publication time, reading state, preparation state and manuscript version before it is selected.
+- **Quiet pulse activity center**: The selected activity-center pattern. A compact toolbar status control expands into an anchored material panel for batch progress, drain pause and retry actions; affected assets retain their own visible state in the library.

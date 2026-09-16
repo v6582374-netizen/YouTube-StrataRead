@@ -26,3 +26,4 @@
 - **Preparation state**: The operational state of a discovered update: discovered, queued, acquiring, generating, ready, unavailable or failed. An unavailable or failed asset remains visible with its reason; no manuscript is fabricated without a source transcript.
 - **Deletion**: An explicit terminal action that permanently removes the entire local video asset, including every manuscript version, transcript and source record.
 - **Markdown handoff**: The workbench does not embed a document reader. Each prepared manuscript is stored as Markdown and can be copied as raw Markdown or opened with the operating system's default application.
+- **Behavioral port**: A clean reimplementation of a verified upstream capability that preserves its externally meaningful protocol behavior, failure semantics, test cases and required attribution without importing its host architecture.

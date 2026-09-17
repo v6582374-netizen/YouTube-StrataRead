@@ -88,6 +88,34 @@ class PreparationService:
 
 
 @dataclass
+class AutomaticBatch:
+    """A bounded serial batch; its state is also the activity-center progress."""
+
+    preparation: PreparationService
+    limit: int = 100
+    completed: int = 0
+
+    def __post_init__(self) -> None:
+        if self.limit < 1 or self.limit > 100:
+            raise ValueError("batch limit must be between 1 and 100")
+        self._publish()
+
+    def reset(self) -> None:
+        self.completed = 0
+        self._publish()
+
+    def run_one(self) -> bool:
+        if self.completed >= self.limit or not self.preparation.run_next():
+            return False
+        self.completed += 1
+        self._publish()
+        return True
+
+    def _publish(self) -> None:
+        self.preparation.workspace.set_batch_progress(limit=self.limit, completed=self.completed)
+
+
+@dataclass
 class LibraryService:
     workspace: LocalWorkspace
     preparation: PreparationService

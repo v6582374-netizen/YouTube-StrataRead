@@ -34,6 +34,7 @@ type Activity = {
   volume: { transcript_characters: number; manuscript_characters: number };
   cost_estimate: number | null;
   failures: { video_id: string; title: string; state: string; reason: string | null }[];
+  batch: { limit: number; completed: number };
 };
 
 type ConnectionStatus = {
@@ -234,7 +235,7 @@ function App() {
         <button className="connect-button" onClick={() => void inspectConnection()} disabled={busy}>
           {connection?.authorized ? `已连接 · ${connection.subscription_count} 个订阅` : "连接 YouTube"}
         </button>
-        {showActivity && <section className="activity-panel"><strong>批处理活动</strong><p>{activity?.acquiring ? "正在获取字幕" : activity?.generating ? "正在生成稿件" : "等待下一项工作"}</p><dl><dt>排队</dt><dd>{activity?.queued ?? 0}</dd><dt>完成</dt><dd>{activity?.ready ?? 0}</dd><dt>失败</dt><dd>{activity?.failed ?? 0}</dd><dt>不可用</dt><dd>{activity?.unavailable ?? 0}</dd><dt>字幕字符</dt><dd>{activity?.volume.transcript_characters ?? 0}</dd><dt>稿件字符</dt><dd>{activity?.volume.manuscript_characters ?? 0}</dd><dt>成本</dt><dd>{activity?.cost_estimate ?? "未估算"}</dd></dl>{activity?.failures.length ? <p className="activity-failure">{activity.failures[0].title}：{activity.failures[0].reason || activity.failures[0].state}</p> : null}<button disabled={busy} onClick={() => void (async () => { await invoke(activity?.drain_paused ? "activity_resume" : "activity_drain_pause"); await refreshLibrary(); })()}>{activity?.drain_paused ? "恢复批次" : "排空后暂停"}</button><button disabled={busy || !activity?.failed} onClick={() => void (async () => { await invoke("activity_retry_all_failed"); await refreshLibrary(); })()}>重试全部失败项</button></section>}
+        {showActivity && <section className="activity-panel"><strong>批处理活动</strong><p>{activity?.acquiring ? "正在获取字幕" : activity?.generating ? "正在生成稿件" : "等待下一项工作"}</p><dl><dt>批次进度</dt><dd>{activity ? `${activity.batch.completed}/${activity.batch.limit}` : "0/100"}</dd><dt>排队</dt><dd>{activity?.queued ?? 0}</dd><dt>完成</dt><dd>{activity?.ready ?? 0}</dd><dt>失败</dt><dd>{activity?.failed ?? 0}</dd><dt>不可用</dt><dd>{activity?.unavailable ?? 0}</dd><dt>字幕字符</dt><dd>{activity?.volume.transcript_characters ?? 0}</dd><dt>稿件字符</dt><dd>{activity?.volume.manuscript_characters ?? 0}</dd><dt>成本</dt><dd>{activity?.cost_estimate ?? "未估算"}</dd></dl>{activity?.failures.length ? <div className="activity-failures">{activity.failures.map((failure) => <p className="activity-failure" key={failure.video_id}>{failure.title}：{failure.reason || failure.state}{failure.state === "failed" && <button disabled={busy} onClick={() => void (async () => { await invoke("activity_retry", { videoId: failure.video_id }); await refreshLibrary(); })()}>重试此项</button>}</p>)}</div> : null}<button disabled={busy} onClick={() => void (async () => { await invoke(activity?.drain_paused ? "activity_resume" : "activity_drain_pause"); await refreshLibrary(); })()}>{activity?.drain_paused ? "恢复批次" : "排空后暂停"}</button><button disabled={busy || !activity?.failed} onClick={() => void (async () => { await invoke("activity_retry_all_failed"); await refreshLibrary(); })()}>重试全部失败项</button></section>}
       </header>
       <section className="workspace">
         <nav className="sidebar" aria-label="资料库导航">

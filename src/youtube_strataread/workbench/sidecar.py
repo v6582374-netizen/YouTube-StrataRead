@@ -18,6 +18,7 @@ from youtube_strataread.workbench.connection import (
 )
 from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeAtomFeeds
 from youtube_strataread.workbench.library import (
+    AutomaticBatch,
     ConfiguredManuscripts,
     LibraryService,
     PreparationService,
@@ -162,13 +163,15 @@ def _run_batch(
     preparation: PreparationService, discovery: SubscriptionDiscovery, stop: threading.Event
 ) -> None:
     """Keep automatic work quiet and serial; all observable state lives in SQLite."""
+    batch = AutomaticBatch(preparation=preparation)
     next_discovery = 0.0
     while not stop.wait(0.5):
         try:
             if time.monotonic() >= next_discovery:
                 next_discovery = time.monotonic() + 15 * 60
                 discovery.refresh()
-            preparation.run_next()
+                batch.reset()
+            batch.run_one()
         except Exception:
             # A top-level guard keeps one malformed local asset from killing the service.
             time.sleep(0.5)

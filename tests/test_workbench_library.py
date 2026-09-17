@@ -5,7 +5,7 @@ from pathlib import Path
 
 from youtube_strataread.downloader.youtube import SubtitleResult, YouTubeError
 from youtube_strataread.workbench.discovery import Candidate
-from youtube_strataread.workbench.library import LibraryService, PreparationService
+from youtube_strataread.workbench.library import AutomaticBatch, LibraryService, PreparationService
 from youtube_strataread.workbench.workspace import LocalWorkspace
 
 
@@ -126,3 +126,17 @@ def test_unavailable_and_drain_pause_keep_batch_outcomes_visible(tmp_path: Path)
     assert activity["unavailable"] == 1
     assert activity["failures"][0]["reason"] == "no subtitles were available"
     assert library.inspect("one")["generation_records"] == []
+
+
+def test_automatic_batch_bounds_work_and_drains_after_the_current_asset(tmp_path: Path) -> None:
+    workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.add_candidate(candidate("one"))
+    workspace.add_candidate(candidate("two", "Second video"))
+    preparation = ready_service(workspace)
+    batch = AutomaticBatch(preparation=preparation, limit=1)
+
+    assert batch.run_one() is True
+    assert batch.run_one() is False
+    assert workspace.activity()["batch"] == {"limit": 1, "completed": 1}
+    assert workspace.asset("one")["preparation_state"] == "ready"
+    assert workspace.asset("two")["preparation_state"] == "queued"

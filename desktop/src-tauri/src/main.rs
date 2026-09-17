@@ -141,6 +141,12 @@ struct ActivityFailure {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+struct BatchProgress {
+    limit: u32,
+    completed: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct ActivitySnapshot {
     queued: u32,
     acquiring: u32,
@@ -152,6 +158,7 @@ struct ActivitySnapshot {
     volume: ActivityVolume,
     cost_estimate: Option<f64>,
     failures: Vec<ActivityFailure>,
+    batch: BatchProgress,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

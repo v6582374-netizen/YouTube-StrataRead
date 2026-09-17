@@ -410,7 +410,15 @@ class LocalWorkspace:
                 {"video_id": str(row[0]), "title": str(row[1]), "state": str(row[2]), "reason": row[3]}
                 for row in failure_rows
             ],
+            "batch": {
+                "limit": int(self.meta("batch_limit") or 100),
+                "completed": int(self.meta("batch_completed") or 0),
+            },
         }
+
+    def set_batch_progress(self, *, limit: int, completed: int) -> None:
+        self.set_meta("batch_limit", str(limit))
+        self.set_meta("batch_completed", str(completed))
 
     def set_meta(self, key: str, value: str) -> None:
         with sqlite3.connect(self.database_path) as connection:

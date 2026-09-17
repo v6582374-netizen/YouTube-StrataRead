@@ -4,7 +4,29 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+
+from youtube_strataread.downloader.youtube import SubtitleResult
+from youtube_strataread.workbench.discovery import Candidate
+from youtube_strataread.workbench.library import LibraryService, PreparationService
+from youtube_strataread.workbench.sidecar import handle_request
+from youtube_strataread.workbench.workspace import LocalWorkspace
+
+
+@dataclass
+class _Captions:
+    def acquire(self, url: str) -> SubtitleResult:
+        return SubtitleResult(
+            video_id="fixture", title="Fixture", language="zh-Hans", is_auto=False,
+            srt_text="1\n00:00:00,000 --> 00:00:02,000\n一段可追溯的字幕\n",
+        )
+
+
+@dataclass
+class _Manuscripts:
+    def generate(self, transcript: str) -> str:
+        return "# 可交接的 Markdown\n\n正文。\n"
 
 
 def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None:
@@ -121,3 +143,36 @@ def test_frozen_sidecar_rejects_the_test_vault(monkeypatch) -> None:
     monkeypatch.setattr(sidecar, "AutomicVault", lambda: sentinel)
 
     assert sidecar._vault() is sentinel
+
+
+def test_sidecar_library_capabilities_expose_the_prepared_asset_contract(tmp_path: Path) -> None:
+    workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.add_candidate(
+        Candidate(
+            video_id="fixture", channel_id="channel", channel_title="Fixture channel",
+            title="Fixture", url="https://www.youtube.com/watch?v=fixture",
+            published_at="2026-09-17T00:00:00Z", published_ts=1_789_603_200,
+        )
+    )
+    preparation = PreparationService(workspace=workspace, captions=_Captions(), manuscripts=_Manuscripts())
+    library = LibraryService(workspace=workspace, preparation=preparation)
+    assert preparation.run_next() is True
+
+    listed = handle_request(
+        {"id": "list", "capability": "library.list", "arguments": {"reading_state": "inbox"}},
+        workspace, None, None, library,  # type: ignore[arg-type]
+    )
+    document = handle_request(
+        {"id": "document", "capability": "documents.get", "arguments": {"video_id": "fixture"}},
+        workspace, None, None, library,  # type: ignore[arg-type]
+    )
+    moved = handle_request(
+        {"id": "move", "capability": "library.set_reading_state", "arguments": {"video_id": "fixture", "reading_state": "to-read"}},
+        workspace, None, None, library,  # type: ignore[arg-type]
+    )
+
+    assert listed["ok"] is True
+    assert listed["result"]["total"] == 1  # type: ignore[index]
+    assert listed["result"]["assets"][0]["preparation_state"] == "ready"  # type: ignore[index]
+    assert document["result"]["markdown"].startswith("# 可交接")  # type: ignore[index]
+    assert moved["result"]["reading_state"] == "to-read"  # type: ignore[index]

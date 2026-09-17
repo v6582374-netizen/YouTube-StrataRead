@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     env,
@@ -6,7 +6,10 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::Mutex,
+    thread,
+    time::Duration,
 };
+use tauri::{Emitter, Manager};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct WorkspaceInfo {
@@ -55,6 +58,110 @@ struct DiscoveryResult {
     discovered: u32,
     scanned_sources: u32,
     truncated: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct LibraryFilters {
+    query: Option<String>,
+    include_transcript: Option<bool>,
+    reading_state: Option<String>,
+    channel_id: Option<String>,
+    preparation_state: Option<String>,
+    published_after: Option<f64>,
+    published_before: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct LibraryAsset {
+    video_id: String,
+    channel_id: String,
+    channel_title: String,
+    title: String,
+    url: String,
+    published_at: String,
+    preparation_state: String,
+    failure_reason: Option<String>,
+    reading_state: String,
+    manuscript_version: Option<u32>,
+    manuscript_path: Option<String>,
+    preparation_completed_at: Option<f64>,
+    transcript_available: u8,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct LibraryList {
+    assets: Vec<LibraryAsset>,
+    total: u32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SourceTrace {
+    video_url: String,
+    transcript_available: bool,
+    transcript_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct AssetInspection {
+    video_id: String,
+    channel_id: String,
+    channel_title: String,
+    title: String,
+    url: String,
+    published_at: String,
+    preparation_state: String,
+    failure_reason: Option<String>,
+    reading_state: String,
+    manuscript_version: Option<u32>,
+    manuscript_path: Option<String>,
+    preparation_completed_at: Option<f64>,
+    transcript_path: Option<String>,
+    source_trace: SourceTrace,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Document {
+    path: String,
+    markdown: String,
+    version: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ActivityVolume {
+    transcript_characters: u64,
+    manuscript_characters: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ActivityFailure {
+    video_id: String,
+    title: String,
+    state: String,
+    reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ActivitySnapshot {
+    queued: u32,
+    acquiring: u32,
+    generating: u32,
+    ready: u32,
+    unavailable: u32,
+    failed: u32,
+    drain_paused: bool,
+    volume: ActivityVolume,
+    cost_estimate: Option<f64>,
+    failures: Vec<ActivityFailure>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct RetryResult {
+    queued: u32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct DeletedAsset {
+    deleted: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,6 +280,15 @@ impl SidecarClient {
         serde_json::from_value(self.request("connection.disconnect", json!({}))?)
             .map_err(|error| error.to_string())
     }
+
+    fn capability<T: DeserializeOwned>(
+        &mut self,
+        capability: &str,
+        arguments: Value,
+    ) -> Result<T, String> {
+        serde_json::from_value(self.request(capability, arguments)?)
+            .map_err(|error| error.to_string())
+    }
 }
 
 impl Drop for SidecarClient {
@@ -246,6 +362,120 @@ fn disconnect_connection(state: tauri::State<'_, AppState>) -> Result<Connection
     with_sidecar(state, SidecarClient::disconnect_connection)
 }
 
+#[tauri::command]
+fn library_list(
+    state: tauri::State<'_, AppState>,
+    filters: LibraryFilters,
+) -> Result<LibraryList, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability(
+            "library.list",
+            serde_json::to_value(filters).map_err(|error| error.to_string())?,
+        )
+    })
+}
+
+#[tauri::command]
+fn library_inspect(
+    state: tauri::State<'_, AppState>,
+    video_id: String,
+) -> Result<AssetInspection, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("library.inspect", json!({ "video_id": video_id }))
+    })
+}
+
+#[tauri::command]
+fn library_set_reading_state(
+    state: tauri::State<'_, AppState>,
+    video_id: String,
+    reading_state: String,
+) -> Result<AssetInspection, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability(
+            "library.set_reading_state",
+            json!({ "video_id": video_id, "reading_state": reading_state }),
+        )
+    })
+}
+
+#[tauri::command]
+fn library_regenerate(
+    state: tauri::State<'_, AppState>,
+    video_id: String,
+) -> Result<AssetInspection, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("library.regenerate", json!({ "video_id": video_id }))
+    })
+}
+
+#[tauri::command]
+fn library_delete(
+    state: tauri::State<'_, AppState>,
+    video_id: String,
+) -> Result<DeletedAsset, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("library.delete", json!({ "video_id": video_id }))
+    })
+}
+
+#[tauri::command]
+fn document_get(state: tauri::State<'_, AppState>, video_id: String) -> Result<Document, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("documents.get", json!({ "video_id": video_id }))
+    })
+}
+
+#[tauri::command]
+fn document_open(state: tauri::State<'_, AppState>, video_id: String) -> Result<(), String> {
+    let document: Document = with_sidecar(state, |sidecar| {
+        sidecar.capability("documents.get", json!({ "video_id": video_id }))
+    })?;
+    Command::new("open")
+        .arg(document.path)
+        .spawn()
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn activity_snapshot(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("activity.snapshot", json!({}))
+    })
+}
+
+#[tauri::command]
+fn activity_drain_pause(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("activity.drain_pause", json!({}))
+    })
+}
+
+#[tauri::command]
+fn activity_resume(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("activity.resume", json!({}))
+    })
+}
+
+#[tauri::command]
+fn activity_retry_all_failed(state: tauri::State<'_, AppState>) -> Result<RetryResult, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("activity.retry_all_failed", json!({}))
+    })
+}
+
+#[tauri::command]
+fn activity_retry(
+    state: tauri::State<'_, AppState>,
+    video_id: String,
+) -> Result<RetryResult, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.capability("activity.retry", json!({ "video_id": video_id }))
+    })
+}
+
 fn sidecar_binary() -> Result<PathBuf, String> {
     let bundled = env::current_exe()
         .map_err(|error| error.to_string())?
@@ -269,10 +499,33 @@ fn sidecar_binary() -> Result<PathBuf, String> {
     }
 }
 
+fn stream_activity(app: tauri::AppHandle) {
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(1));
+        let snapshot = {
+            let state = app.state::<AppState>();
+            let result = match state.0.lock() {
+                Ok(mut sidecar) => {
+                    sidecar.capability::<ActivitySnapshot>("activity.snapshot", json!({}))
+                }
+                Err(_) => Err("sidecar lock was poisoned".to_owned()),
+            };
+            result
+        };
+        if let Ok(snapshot) = snapshot {
+            let _ = app.emit("activity-snapshot", snapshot);
+        }
+    });
+}
+
 fn main() {
     let sidecar = SidecarClient::start().expect("Python sidecar startup failed");
     tauri::Builder::default()
         .manage(AppState(Mutex::new(sidecar)))
+        .setup(|app| {
+            stream_activity(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             library_snapshot,
             connection_status,
@@ -282,6 +535,18 @@ fn main() {
             configure_connection,
             authorize_connection,
             disconnect_connection,
+            library_list,
+            library_inspect,
+            library_set_reading_state,
+            library_regenerate,
+            library_delete,
+            document_get,
+            document_open,
+            activity_snapshot,
+            activity_drain_pause,
+            activity_resume,
+            activity_retry_all_failed,
+            activity_retry,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri application failed");

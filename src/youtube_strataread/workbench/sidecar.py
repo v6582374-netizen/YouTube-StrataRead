@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -15,6 +17,12 @@ from youtube_strataread.workbench.connection import (
     GoogleOAuthGateway,
 )
 from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeAtomFeeds
+from youtube_strataread.workbench.library import (
+    ConfiguredManuscripts,
+    LibraryService,
+    PreparationService,
+    YtDlpCaptions,
+)
 from youtube_strataread.workbench.vault import AutomicVault, SecretVault
 from youtube_strataread.workbench.workspace import LocalWorkspace, workspace_root
 
@@ -57,6 +65,7 @@ def handle_request(
     workspace: LocalWorkspace,
     connection: ConnectionService,
     discovery: SubscriptionDiscovery,
+    library: LibraryService | None = None,
 ) -> dict[str, object]:
     request_id = request.get("id")
     capability = request.get("capability")
@@ -66,6 +75,37 @@ def handle_request(
     try:
         if capability == "library.snapshot":
             return _response(request_id, result=workspace.snapshot().as_result())
+        if library is not None and capability == "library.list":
+            return _response(request_id, result=library.list_assets(**_filters(arguments)))
+        if library is not None and capability == "library.search":
+            return _response(request_id, result=library.search(**_filters(arguments)))
+        if library is not None and capability == "library.inspect":
+            return _response(request_id, result=library.inspect(_video_id(arguments)))
+        if library is not None and capability == "library.set_reading_state":
+            return _response(
+                request_id,
+                result=library.set_reading_state(
+                    _video_id(arguments), str(arguments.get("reading_state") or "")
+                ),
+            )
+        if library is not None and capability == "library.regenerate":
+            return _response(request_id, result=library.regenerate(_video_id(arguments)))
+        if library is not None and capability == "library.delete":
+            return _response(request_id, result=library.delete(_video_id(arguments)))
+        if library is not None and capability == "documents.get":
+            return _response(request_id, result=library.document(_video_id(arguments)))
+        if library is not None and capability == "activity.snapshot":
+            return _response(request_id, result=library.activity())
+        if library is not None and capability == "diagnostics.snapshot":
+            return _response(request_id, result=library.activity())
+        if library is not None and capability == "activity.drain_pause":
+            return _response(request_id, result=library.drain_pause())
+        if library is not None and capability == "activity.resume":
+            return _response(request_id, result=library.resume())
+        if library is not None and capability == "activity.retry":
+            return _response(request_id, result=library.retry(_video_id(arguments)))
+        if library is not None and capability == "activity.retry_all_failed":
+            return _response(request_id, result=library.retry_all_failed())
         if capability == "connection.status":
             return _response(request_id, result=connection.status().as_result())
         if capability == "collection.subscription_sources":
@@ -92,9 +132,46 @@ def handle_request(
             return _response(request_id, result=connection.authorize_and_import().as_result())
         if capability == "connection.disconnect":
             return _response(request_id, result=connection.disconnect().as_result())
-    except ConnectionError as error:
+    except (ConnectionError, KeyError, ValueError) as error:
         return _response(request_id, error=str(error))
     return _response(request_id, error=f"unknown capability: {capability!r}")
+
+
+def _video_id(arguments: Mapping[str, Any]) -> str:
+    value = str(arguments.get("video_id") or "").strip()
+    if not value:
+        raise ValueError("video_id is required")
+    return value
+
+
+def _filters(arguments: Mapping[str, Any]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for name in ("query", "reading_state", "channel_id", "preparation_state"):
+        value = arguments.get(name)
+        if value is not None:
+            result[name] = str(value)
+    for name in ("published_after", "published_before"):
+        value = arguments.get(name)
+        if value is not None:
+            result[name] = float(value)
+    result["include_transcript"] = bool(arguments.get("include_transcript", False))
+    return result
+
+
+def _run_batch(
+    preparation: PreparationService, discovery: SubscriptionDiscovery, stop: threading.Event
+) -> None:
+    """Keep automatic work quiet and serial; all observable state lives in SQLite."""
+    next_discovery = 0.0
+    while not stop.wait(0.5):
+        try:
+            if time.monotonic() >= next_discovery:
+                next_discovery = time.monotonic() + 15 * 60
+                discovery.refresh()
+            preparation.run_next()
+        except Exception:
+            # A top-level guard keeps one malformed local asset from killing the service.
+            time.sleep(0.5)
 
 
 def main() -> int:
@@ -105,6 +182,15 @@ def main() -> int:
         oauth=GoogleOAuthGateway(),
     )
     discovery = SubscriptionDiscovery(workspace=workspace, feeds=YouTubeAtomFeeds())
+    preparation = PreparationService(
+        workspace=workspace, captions=YtDlpCaptions(), manuscripts=ConfiguredManuscripts()
+    )
+    library = LibraryService(workspace=workspace, preparation=preparation)
+    stop_batch = threading.Event()
+    batch = threading.Thread(
+        target=_run_batch, args=(preparation, discovery, stop_batch), daemon=True
+    )
+    batch.start()
     try:
         for raw_request in sys.stdin:
             if not raw_request.strip():
@@ -117,7 +203,7 @@ def main() -> int:
                 if not isinstance(request, dict):
                     response = _response(None, error="request must be an object")
                 else:
-                    response = handle_request(request, workspace, connection, discovery)
+                    response = handle_request(request, workspace, connection, discovery, library)
             try:
                 print(json.dumps(response, ensure_ascii=False), flush=True)
             except BrokenPipeError:
@@ -127,6 +213,8 @@ def main() -> int:
         _silence_broken_stdout()
     except KeyboardInterrupt:
         pass
+    finally:
+        stop_batch.set()
     return 0
 
 

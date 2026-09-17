@@ -1,0 +1,65 @@
+:root {
+  color: #1d1d1f;
+  background: #f4f4f6;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif;
+  font-synthesis: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { color: #f5f5f7; background: #18181a; }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button { font: inherit; }
+
+.app-shell {
+  min-height: 100vh;
+  background: radial-gradient(800px 460px at 0 -20%, #fff 0%, transparent 66%), #f4f4f6;
+}
+
+.toolbar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.13);
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+
+.window-controls { display: flex; gap: 7px; }
+.window-controls i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.window-controls i:nth-child(2) { background: #febc2e; }
+.window-controls i:nth-child(3) { background: #28c840; }
+.toolbar strong { font-size: 13px; }
+.workspace-status { margin-left: auto; color: #6e6e73; font-size: 12px; }
+
+.workspace { display: grid; grid-template-columns: 210px 1fr; min-height: calc(100vh - 56px); }
+.sidebar { padding: 18px 10px; border-right: 1px solid rgba(60, 60, 67, 0.13); background: rgba(240, 240, 245, 0.62); }
+.sidebar p { margin: 0 9px 7px; color: #8e8e93; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
+.sidebar button { display: flex; width: 100%; justify-content: space-between; border: 0; border-radius: 8px; padding: 8px 9px; color: inherit; background: transparent; text-align: left; }
+.sidebar button.active { color: #007aff; background: #e5f1ff; font-weight: 700; }
+.sidebar b { color: #6e6e73; font-size: 10px; }
+
+.library { padding: 42px clamp(24px, 7vw, 92px); }
+.library-heading { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(60, 60, 67, 0.13); padding-bottom: 22px; }
+.library-heading p { margin: 0; color: #8e8e93; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
+h1 { margin: 7px 0; font-size: 30px; letter-spacing: -0.04em; }
+.library-heading span { color: #6e6e73; font-size: 12px; }
+.quiet-pulse { width: 9px; height: 9px; border-radius: 50%; background: #007aff; box-shadow: 0 0 0 5px rgba(0, 122, 255, 0.14); }
+.empty-state { max-width: 360px; margin: 15vh auto; text-align: center; }
+.markdown-mark { display: grid; place-items: center; width: 44px; height: 50px; margin: 0 auto 18px; border: 1px solid rgba(0, 122, 255, 0.24); border-radius: 9px; color: #007aff; background: linear-gradient(135deg, #fff 0 72%, #dcecff 72%); font-size: 12px; font-weight: 800; }
+.empty-state h2 { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
+.empty-state p { color: #6e6e73; font-size: 13px; line-height: 1.55; }
+
+@media (prefers-color-scheme: dark) {
+  .app-shell { background: radial-gradient(800px 460px at 0 -20%, #3b3b40 0%, transparent 66%), #18181a; }
+  .toolbar { border-color: rgba(235, 235, 245, 0.16); background: rgba(44, 44, 46, 0.7); }
+  .workspace, .sidebar, .library-heading { border-color: rgba(235, 235, 245, 0.16); }
+  .sidebar { background: rgba(43, 43, 46, 0.62); }
+  .sidebar button.active { color: #0a84ff; background: #153b62; }
+  .workspace-status, .library-heading span, .empty-state p { color: #a1a1a6; }
+  .markdown-mark { background: linear-gradient(135deg, #3a4653 0 72%, #27466a 72%); }
+}

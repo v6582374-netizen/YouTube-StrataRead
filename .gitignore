@@ -8,3 +8,8 @@ __pycache__/
 *.DS_Store
 dist/
 *.egg-info/
+node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/src-tauri/binaries/
+desktop/.sidecar-build/

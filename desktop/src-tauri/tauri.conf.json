@@ -10,10 +10,27 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "视频资料库", "width": 1100, "height": 760, "minWidth": 800, "minHeight": 600 }],
+    "windows": [
+      {
+        "title": "视频资料库",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
     "security": {
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
-  "bundle": { "active": true, "externalBin": ["binaries/youtube-workbench-sidecar"] }
+  "bundle": {
+    "active": true,
+    "externalBin": [
+      "binaries/youtube-workbench-sidecar"
+    ],
+    "icon": [
+      "icons/icon.icns",
+      "icons/icon.png"
+    ]
+  }
 }

@@ -31,6 +31,9 @@ def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None
                 }
             ),
             json.dumps({"id": "configured", "capability": "connection.status", "arguments": {}}),
+            json.dumps(
+                {"id": "sources", "capability": "collection.subscription_sources", "arguments": {}}
+            ),
         ]
     )
 
@@ -91,6 +94,22 @@ def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None
                 "subscription_count": 0,
             },
         },
+        {
+            "id": "sources",
+            "ok": True,
+            "result": {"sources": []},
+        },
     ]
     assert "not-a-real-secret" not in result.stdout
     assert workspace.is_dir()
+
+
+def test_frozen_sidecar_rejects_the_test_vault(monkeypatch) -> None:
+    import youtube_strataread.workbench.sidecar as sidecar
+
+    sentinel = object()
+    monkeypatch.setenv("YOUTUBE_WORKBENCH_TEST_VAULT", "1")
+    monkeypatch.setattr(sidecar.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sidecar, "AutomicVault", lambda: sentinel)
+
+    assert sidecar._vault() is sentinel

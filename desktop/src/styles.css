@@ -85,3 +85,15 @@ h1 { margin: 7px 0; font-size: 30px; letter-spacing: -0.04em; }
   .connection-panel label { color: #f5f5f7; }
   .connection-panel input { background: #303034; border-color: rgba(235, 235, 245, 0.16); color: #f5f5f7; }
 }
+
+.source-list { display: grid; gap: 10px; max-width: 680px; padding: 28px 0; }
+.source-list > p { color: #6e6e73; }
+.source-card { display: flex; gap: 12px; align-items: center; border: 1px solid rgba(60, 60, 67, 0.13); border-radius: 12px; background: rgba(255, 255, 255, 0.65); padding: 12px; }
+.source-card img, .source-avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: #e5f1ff; color: #007aff; object-fit: cover; }
+.source-card h2 { margin: 0; font-size: 14px; }
+.source-card p { margin: 4px 0 0; color: #6e6e73; font-size: 12px; }
+@media (prefers-color-scheme: dark) {
+  .source-card { border-color: rgba(235, 235, 245, 0.16); background: rgba(48, 48, 52, 0.65); }
+  .source-avatar { background: #153b62; color: #0a84ff; }
+  .source-card p, .source-list > p { color: #a1a1a6; }
+}

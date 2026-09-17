@@ -46,7 +46,7 @@ class _TestVault:
 
 
 def _vault() -> SecretVault:
-    if os.environ.get("YOUTUBE_WORKBENCH_TEST_VAULT") == "1":
+    if os.environ.get("YOUTUBE_WORKBENCH_TEST_VAULT") == "1" and not getattr(sys, "frozen", False):
         return _TestVault()
     return AutomicVault()
 
@@ -66,6 +66,8 @@ def handle_request(
             return _response(request_id, result=workspace.snapshot().as_result())
         if capability == "connection.status":
             return _response(request_id, result=connection.status().as_result())
+        if capability == "collection.subscription_sources":
+            return _response(request_id, result={"sources": connection.subscription_sources()})
         if capability == "connection.configure":
             return _response(
                 request_id,

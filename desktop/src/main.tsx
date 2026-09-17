@@ -15,6 +15,14 @@ type ConnectionStatus = {
   subscription_count: number;
 };
 
+type SubscriptionSource = {
+  channel_id: string;
+  title: string;
+  description: string;
+  thumbnail_url: string | null;
+  subscribed_at: string | null;
+};
+
 async function loadSnapshot(): Promise<LibrarySnapshot> {
   return invoke<LibrarySnapshot>("library_snapshot");
 }
@@ -23,15 +31,32 @@ function App() {
   const [snapshot, setSnapshot] = useState<LibrarySnapshot | null>(null);
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const [showConnection, setShowConnection] = useState(false);
+  const [view, setView] = useState<"inbox" | "sources">("inbox");
+  const [sources, setSources] = useState<SubscriptionSource[]>([]);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  async function hydrateConnection(): Promise<ConnectionStatus> {
+    const status = await invoke<ConnectionStatus>("connection_status");
+    setConnection(status);
+    if (status.subscription_count > 0) {
+      const result = await invoke<{ sources: SubscriptionSource[] }>("subscription_sources");
+      setSources(result.sources);
+    }
+    return status;
+  }
+
   useEffect(() => {
-    void loadSnapshot().then(setSnapshot).catch((cause: unknown) => {
-      setMessage(cause instanceof Error ? cause.message : String(cause));
-    });
+    void (async () => {
+      try {
+        setSnapshot(await loadSnapshot());
+        await hydrateConnection();
+      } catch (cause) {
+        setMessage(cause instanceof Error ? cause.message : String(cause));
+      }
+    })();
   }, []);
 
   const counts = snapshot?.counts ?? { inbox: 0, to_read: 0, reading: 0, read: 0 };
@@ -40,7 +65,7 @@ function App() {
     setBusy(true);
     setMessage(null);
     try {
-      setConnection(await invoke<ConnectionStatus>("connection_status"));
+      await hydrateConnection();
       setShowConnection(true);
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : String(cause));
@@ -71,7 +96,11 @@ function App() {
     setBusy(true);
     setMessage("正在浏览器中等待 Google 授权…");
     try {
-      setConnection(await invoke<ConnectionStatus>("authorize_connection"));
+      const status = await invoke<ConnectionStatus>("authorize_connection");
+      setConnection(status);
+      const result = await invoke<{ sources: SubscriptionSource[] }>("subscription_sources");
+      setSources(result.sources);
+      setView("sources");
       setMessage("订阅来源已导入本地资料库。");
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : String(cause));
@@ -105,27 +134,38 @@ function App() {
       <section className="workspace">
         <nav className="sidebar" aria-label="资料库导航">
           <p>资料库</p>
-          <button className="active">收件箱 <b>{counts.inbox}</b></button>
+          <button className={view === "inbox" ? "active" : ""} onClick={() => setView("inbox")}>收件箱 <b>{counts.inbox}</b></button>
           <button>待读 <b>{counts.to_read}</b></button>
           <button>已读 <b>{counts.read}</b></button>
           <button>全部稿件</button>
           <p className="source-heading">来源</p>
-          <button>订阅频道 <b>{connection?.subscription_count ?? 0}</b></button>
+          <button className={view === "sources" ? "active" : ""} onClick={() => setView("sources")}>订阅频道 <b>{connection?.subscription_count ?? 0}</b></button>
         </nav>
         <section className="library">
           <div className="library-heading">
             <div>
               <p>本地资料库</p>
-              <h1>收件箱</h1>
-              <span>{message ?? "连接 YouTube 后，已准备的稿件会出现在这里。"}</span>
+              <h1>{view === "inbox" ? "收件箱" : "订阅频道"}</h1>
+              <span>{message ?? (view === "inbox" ? "连接 YouTube 后，已准备的稿件会出现在这里。" : "已从你的 YouTube 账号导入的本地来源。")}</span>
             </div>
             <span className="quiet-pulse" title="活动将在后续批次中显示" />
           </div>
-          <div className="empty-state">
-            <div className="markdown-mark">MD</div>
-            <h2>资料库已经就绪</h2>
-            <p>配置个人 YouTube 订阅源后，新的更新将以 Markdown 稿件进入这里。</p>
-          </div>
+          {view === "inbox" ? (
+            <div className="empty-state">
+              <div className="markdown-mark">MD</div>
+              <h2>资料库已经就绪</h2>
+              <p>配置个人 YouTube 订阅源后，新的更新将以 Markdown 稿件进入这里。</p>
+            </div>
+          ) : (
+            <div className="source-list">
+              {sources.length === 0 ? <p>尚未导入订阅来源。</p> : sources.map((source) => (
+                <article key={source.channel_id} className="source-card">
+                  <div><span className="source-avatar">{source.title.slice(0, 1).toUpperCase()}</span></div>
+                  <div><h2>{source.title}</h2><p>{source.description || "没有频道说明"}</p></div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       </section>
       {showConnection && (

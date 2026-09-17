@@ -56,12 +56,12 @@ class LocalWorkspace:
     def snapshot(self) -> LibrarySnapshot:
         return LibrarySnapshot()
 
-    def replace_subscription_sources(self, sources: Iterable["SubscriptionSource"]) -> None:
+    def replace_subscription_sources(self, sources: Iterable[SubscriptionSource]) -> None:
         with sqlite3.connect(self.database_path) as connection:
             connection.execute("DELETE FROM subscription_sources")
             connection.executemany(
                 """
-                INSERT INTO subscription_sources
+                INSERT OR REPLACE INTO subscription_sources
                     (channel_id, title, description, thumbnail_url, subscribed_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,

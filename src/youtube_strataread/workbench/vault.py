@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-from typing import Protocol
 from pathlib import Path
+from typing import Protocol
 
 
 class VaultError(RuntimeError):
@@ -24,31 +24,48 @@ class SecretVault(Protocol):
 class AutomicVault:
     """Uses the local Automic Vault CLI as the only production secret store."""
 
-    def __init__(self, executable: Path | None = None) -> None:
-        self.executable = executable or _default_executable()
+    def __init__(self, executable: Path | None = None, *, timeout: int = 30) -> None:
+        self.executable = executable
+        self.timeout = timeout
 
     def save(self, key: str, value: str) -> None:
-        result = subprocess.run(
-            [str(self.executable), "save", key],
-            input=f"{value}\n",
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise VaultError("Automic Vault could not save the requested credential")
+        self._run(["save", key], input=f"{value}\n")
 
     def load(self, key: str) -> str | None:
-        result = subprocess.run(
-            [str(self.executable), "inject", f"+{key}", "--", "/usr/bin/printenv", key],
-            text=True,
-            capture_output=True,
-            check=False,
+        result = self._run(
+            ["inject", f"+{key}", "--", "/usr/bin/printenv", key], allow_failure=True
         )
-        if result.returncode != 0:
+        if result is None:
             return None
         value = result.stdout.rstrip("\n")
         return value or None
+
+    def _executable(self) -> Path:
+        return self.executable or _default_executable()
+
+    def _run(
+        self,
+        arguments: list[str],
+        *,
+        input: str | None = None,
+        allow_failure: bool = False,
+    ) -> subprocess.CompletedProcess[str] | None:
+        try:
+            result = subprocess.run(
+                [str(self._executable()), *arguments],
+                input=input,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=self.timeout,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired) as error:
+            raise VaultError("Automic Vault is unavailable") from error
+        if result.returncode != 0:
+            if allow_failure:
+                return None
+            raise VaultError("Automic Vault could not save the requested credential")
+        return result
 
 
 def _default_executable() -> Path:

@@ -36,6 +36,20 @@ struct ConnectionStatus {
     subscription_count: u32,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct SubscriptionSource {
+    channel_id: String,
+    title: String,
+    description: String,
+    thumbnail_url: Option<String>,
+    subscribed_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SubscriptionSources {
+    sources: Vec<SubscriptionSource>,
+}
+
 #[derive(Debug, Deserialize)]
 struct SidecarResponse {
     id: u64,
@@ -113,6 +127,11 @@ impl SidecarClient {
             .map_err(|error| error.to_string())
     }
 
+    fn subscription_sources(&mut self) -> Result<SubscriptionSources, String> {
+        serde_json::from_value(self.request("collection.subscription_sources", json!({}))?)
+            .map_err(|error| error.to_string())
+    }
+
     fn configure_connection(
         &mut self,
         client_id: String,
@@ -166,6 +185,11 @@ fn connection_status(state: tauri::State<'_, AppState>) -> Result<ConnectionStat
 }
 
 #[tauri::command]
+fn subscription_sources(state: tauri::State<'_, AppState>) -> Result<SubscriptionSources, String> {
+    with_sidecar(state, SidecarClient::subscription_sources)
+}
+
+#[tauri::command]
 fn configure_connection(
     state: tauri::State<'_, AppState>,
     client_id: String,
@@ -216,6 +240,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             library_snapshot,
             connection_status,
+            subscription_sources,
             configure_connection,
             authorize_connection,
             disconnect_connection,

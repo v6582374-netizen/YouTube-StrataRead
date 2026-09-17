@@ -73,6 +73,15 @@ def test_prepared_asset_is_searchable_versioned_and_handed_off(tmp_path: Path) -
     inspection = library.inspect("one")
     assert inspection["source_trace"]["video_url"].endswith("v=one")
     assert inspection["source_trace"]["transcript_available"] is True
+    record = inspection["generation_records"][0]
+    assert record == {
+        "manuscript_version": 1,
+        "generator": "FakeManuscripts",
+        "transcript_characters": len("source-only phrase"),
+        "manuscript_characters": len("# 一份可信的中文稿件\n\n可检索的正文。\n"),
+        "created_at": record["created_at"],
+    }
+    assert isinstance(record["created_at"], float)
     assert library.document("one")["markdown"].startswith("# 一份可信")
     assert Path(str(library.document("one")["path"])).is_file()
 
@@ -116,3 +125,4 @@ def test_unavailable_and_drain_pause_keep_batch_outcomes_visible(tmp_path: Path)
     activity = library.activity()
     assert activity["unavailable"] == 1
     assert activity["failures"][0]["reason"] == "no subtitles were available"
+    assert library.inspect("one")["generation_records"] == []

@@ -75,7 +75,12 @@ class PreparationService:
             markdown = self.manuscripts.generate(transcript).strip()
             if not markdown:
                 raise RuntimeError("manuscript generator returned no Markdown")
-            self.workspace.save_manuscript(video_id, markdown)
+            self.workspace.save_manuscript(
+                video_id,
+                markdown,
+                generator=type(self.manuscripts).__name__,
+                transcript_characters=len(transcript),
+            )
             self.workspace.set_preparation_state(video_id, "ready")
         except Exception as error:
             self.workspace.set_preparation_state(video_id, "failed", _safe_error(error))
@@ -95,6 +100,7 @@ class LibraryService:
         asset = self.workspace.asset(video_id)
         return {
             **asset,
+            "generation_records": self.workspace.generation_records(video_id),
             "source_trace": {
                 "video_url": asset["url"],
                 "transcript_available": bool(asset["transcript_path"]),

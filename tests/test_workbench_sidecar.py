@@ -166,6 +166,10 @@ def test_sidecar_library_capabilities_expose_the_prepared_asset_contract(tmp_pat
         {"id": "document", "capability": "documents.get", "arguments": {"video_id": "fixture"}},
         workspace, None, None, library,  # type: ignore[arg-type]
     )
+    inspected = handle_request(
+        {"id": "inspect", "capability": "library.inspect", "arguments": {"video_id": "fixture"}},
+        workspace, None, None, library,  # type: ignore[arg-type]
+    )
     moved = handle_request(
         {"id": "move", "capability": "library.set_reading_state", "arguments": {"video_id": "fixture", "reading_state": "to-read"}},
         workspace, None, None, library,  # type: ignore[arg-type]
@@ -175,4 +179,5 @@ def test_sidecar_library_capabilities_expose_the_prepared_asset_contract(tmp_pat
     assert listed["result"]["total"] == 1  # type: ignore[index]
     assert listed["result"]["assets"][0]["preparation_state"] == "ready"  # type: ignore[index]
     assert document["result"]["markdown"].startswith("# 可交接")  # type: ignore[index]
+    assert inspected["result"]["generation_records"][0]["manuscript_version"] == 1  # type: ignore[index]
     assert moved["result"]["reading_state"] == "to-read"  # type: ignore[index]

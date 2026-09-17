@@ -208,7 +208,14 @@ class LocalWorkspace:
             )
         return str(path)
 
-    def save_manuscript(self, video_id: str, markdown: str) -> dict[str, object]:
+    def save_manuscript(
+        self,
+        video_id: str,
+        markdown: str,
+        *,
+        generator: str,
+        transcript_characters: int,
+    ) -> dict[str, object]:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
                 "SELECT COALESCE(MAX(version), 0) + 1 FROM manuscripts WHERE video_id = ?",
@@ -235,7 +242,35 @@ class LocalWorkspace:
                 """,
                 (version, str(path), video_id),
             )
+            connection.execute(
+                """
+                INSERT INTO generation_records
+                    (video_id, manuscript_version, generator, transcript_characters,
+                     manuscript_characters, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    video_id,
+                    version,
+                    generator,
+                    transcript_characters,
+                    len(markdown.rstrip() + "\n"),
+                    created_at,
+                ),
+            )
         return {"version": version, "path": str(path), "created_at": created_at}
+
+    def generation_records(self, video_id: str) -> list[dict[str, object]]:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute(
+                """
+                SELECT manuscript_version, generator, transcript_characters, manuscript_characters, created_at
+                FROM generation_records WHERE video_id = ? ORDER BY manuscript_version
+                """,
+                (video_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def asset(self, video_id: str) -> dict[str, object]:
         with sqlite3.connect(self.database_path) as connection:
@@ -330,6 +365,7 @@ class LocalWorkspace:
 
     def delete_asset(self, video_id: str) -> None:
         with sqlite3.connect(self.database_path) as connection:
+            connection.execute("DELETE FROM generation_records WHERE video_id = ?", (video_id,))
             connection.execute("DELETE FROM manuscripts WHERE video_id = ?", (video_id,))
             connection.execute("DELETE FROM transcripts WHERE video_id = ?", (video_id,))
             cursor = connection.execute("DELETE FROM candidates WHERE video_id = ?", (video_id,))
@@ -479,6 +515,15 @@ class LocalWorkspace:
                     video_id TEXT NOT NULL REFERENCES candidates(video_id) ON DELETE CASCADE,
                     version INTEGER NOT NULL, path TEXT NOT NULL, markdown TEXT NOT NULL, created_at REAL NOT NULL,
                     PRIMARY KEY (video_id, version)
+                );
+                CREATE TABLE IF NOT EXISTS generation_records (
+                    video_id TEXT NOT NULL REFERENCES candidates(video_id) ON DELETE CASCADE,
+                    manuscript_version INTEGER NOT NULL,
+                    generator TEXT NOT NULL,
+                    transcript_characters INTEGER NOT NULL,
+                    manuscript_characters INTEGER NOT NULL,
+                    created_at REAL NOT NULL,
+                    PRIMARY KEY (video_id, manuscript_version)
                 );
                 CREATE INDEX IF NOT EXISTS candidates_preparation_state ON candidates(preparation_state);
                 CREATE INDEX IF NOT EXISTS candidates_reading_state ON candidates(reading_state);

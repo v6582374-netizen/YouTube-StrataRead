@@ -8,7 +8,7 @@ target_name="youtube-workbench-sidecar-aarch64-apple-darwin"
 
 rm -rf "$output_dir" "$work_dir"
 mkdir -p "$output_dir" "$work_dir"
-uv tool run --python 3.13 --with pyinstaller==6.22.3 pyinstaller \
+uv tool run --python 3.13 --with "$script_dir/.." --with pyinstaller==6.22.3 pyinstaller \
   --noconfirm \
   --clean \
   --onefile \

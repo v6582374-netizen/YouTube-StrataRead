@@ -113,15 +113,17 @@ class LocalWorkspace:
             )
         return cursor.rowcount > 0
 
-    def next_queued_asset(self) -> dict[str, object] | None:
-        """Return the oldest queued asset without claiming it.
-
-        The sidecar processes one asset at a time, so this intentionally has no
-        general job-queue abstraction. State is claimed immediately afterwards
-        by ``set_preparation_state``.
-        """
-        with sqlite3.connect(self.database_path) as connection:
+    def claim_next_queued_asset(self) -> dict[str, object] | None:
+        """Atomically honour drain pause and claim exactly one queued asset."""
+        with sqlite3.connect(self.database_path, isolation_level=None) as connection:
             connection.row_factory = sqlite3.Row
+            connection.execute("BEGIN IMMEDIATE")
+            paused = connection.execute(
+                "SELECT value FROM workspace_meta WHERE key = 'drain_paused'"
+            ).fetchone()
+            if paused is not None and paused[0] == "1":
+                connection.execute("COMMIT")
+                return None
             row = connection.execute(
                 """
                 SELECT video_id, channel_id, channel_title, title, url, published_at
@@ -129,7 +131,19 @@ class LocalWorkspace:
                 ORDER BY discovered_at ASC LIMIT 1
                 """
             ).fetchone()
-        return dict(row) if row is not None else None
+            if row is None:
+                connection.execute("COMMIT")
+                return None
+            connection.execute(
+                """
+                UPDATE candidates SET preparation_state = 'acquiring', failure_reason = NULL,
+                    preparation_started_at = ?, preparation_completed_at = NULL
+                WHERE video_id = ?
+                """,
+                (time.time(), row["video_id"]),
+            )
+            connection.execute("COMMIT")
+        return dict(row)
 
     def set_preparation_state(
         self, video_id: str, state: str, failure_reason: str | None = None

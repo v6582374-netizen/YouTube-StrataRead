@@ -49,14 +49,11 @@ class PreparationService:
         return self.workspace.activity()
 
     def run_next(self) -> bool:
-        if self.workspace.meta("drain_paused") == "1":
-            return False
-        asset = self.workspace.next_queued_asset()
+        asset = self.workspace.claim_next_queued_asset()
         if asset is None:
             return False
         video_id = str(asset["video_id"])
         try:
-            self.workspace.set_preparation_state(video_id, "acquiring")
             subtitles = self.captions.acquire(str(asset["url"]))
             self.workspace.store_transcript(
                 video_id, language=subtitles.language, srt_text=subtitles.srt_text

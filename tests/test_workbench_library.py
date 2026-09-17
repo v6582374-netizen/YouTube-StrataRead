@@ -140,3 +140,14 @@ def test_automatic_batch_bounds_work_and_drains_after_the_current_asset(tmp_path
     assert workspace.activity()["batch"] == {"limit": 1, "completed": 1}
     assert workspace.asset("one")["preparation_state"] == "ready"
     assert workspace.asset("two")["preparation_state"] == "queued"
+
+
+def test_drain_pause_prevents_an_unclaimed_asset_from_starting(tmp_path: Path) -> None:
+    workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.add_candidate(candidate("one"))
+    preparation = ready_service(workspace)
+
+    preparation.request_drain_pause()
+
+    assert preparation.run_next() is False
+    assert workspace.asset("one")["preparation_state"] == "queued"

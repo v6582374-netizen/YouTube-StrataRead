@@ -38,6 +38,23 @@ function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  async function refreshInbox(backfill = false) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await invoke<{ discovered: number; truncated: boolean }>(
+        backfill ? "collection_backfill_updates" : "collection_refresh_updates",
+        backfill ? { days: 7, limit: 100 } : {},
+      );
+      setSnapshot(await loadSnapshot());
+      setMessage(result.truncated ? "已达到本轮导入上限。" : `发现 ${result.discovered} 条新更新。`);
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function hydrateConnection(): Promise<ConnectionStatus> {
     const status = await invoke<ConnectionStatus>("connection_status");
     setConnection(status);
@@ -148,10 +165,21 @@ function App() {
               <h1>{view === "inbox" ? "收件箱" : "订阅频道"}</h1>
               <span>{message ?? (view === "inbox" ? "连接 YouTube 后，已准备的稿件会出现在这里。" : "已从你的 YouTube 账号导入的本地来源。")}</span>
             </div>
-            <span className="quiet-pulse" title="活动将在后续批次中显示" />
+            <div className="inbox-actions">
+              <button onClick={() => void refreshInbox()} disabled={busy}>刷新更新</button>
+              <button onClick={() => void refreshInbox(true)} disabled={busy}>导入最近 7 天</button>
+              <span className="quiet-pulse" title="活动将在后续批次中显示" />
+            </div>
           </div>
           {view === "inbox" ? (
-            <div className="empty-state">
+            snapshot && snapshot.inbox.length > 0 ? (
+              <div className="candidate-list">
+                {snapshot.inbox.map((candidate) => {
+                  const item = candidate as { video_id: string; channel_title: string; title: string; published_at: string; preparation_state: string };
+                  return <article className="candidate-card" key={item.video_id}><span>{item.preparation_state}</span><h2>{item.title}</h2><p>{item.channel_title} · {item.published_at}</p></article>;
+                })}
+              </div>
+            ) : <div className="empty-state">
               <div className="markdown-mark">MD</div>
               <h2>资料库已经就绪</h2>
               <p>配置个人 YouTube 订阅源后，新的更新将以 Markdown 稿件进入这里。</p>

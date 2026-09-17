@@ -34,6 +34,9 @@ def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None
             json.dumps(
                 {"id": "sources", "capability": "collection.subscription_sources", "arguments": {}}
             ),
+            json.dumps(
+                {"id": "refresh", "capability": "collection.refresh_updates", "arguments": {}}
+            ),
         ]
     )
 
@@ -98,6 +101,11 @@ def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None
             "id": "sources",
             "ok": True,
             "result": {"sources": []},
+        },
+        {
+            "id": "refresh",
+            "ok": True,
+            "result": {"discovered": 0, "scanned_sources": 0, "truncated": False},
         },
     ]
     assert "not-a-real-secret" not in result.stdout

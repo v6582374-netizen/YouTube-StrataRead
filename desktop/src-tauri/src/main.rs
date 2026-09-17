@@ -50,6 +50,13 @@ struct SubscriptionSources {
     sources: Vec<SubscriptionSource>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct DiscoveryResult {
+    discovered: u32,
+    scanned_sources: u32,
+    truncated: bool,
+}
+
 #[derive(Debug, Deserialize)]
 struct SidecarResponse {
     id: u64,
@@ -132,6 +139,19 @@ impl SidecarClient {
             .map_err(|error| error.to_string())
     }
 
+    fn refresh_updates(&mut self) -> Result<DiscoveryResult, String> {
+        serde_json::from_value(self.request("collection.refresh_updates", json!({}))?)
+            .map_err(|error| error.to_string())
+    }
+
+    fn backfill_updates(&mut self, days: u32, limit: u32) -> Result<DiscoveryResult, String> {
+        serde_json::from_value(self.request(
+            "collection.backfill_updates",
+            json!({ "days": days, "limit": limit }),
+        )?)
+        .map_err(|error| error.to_string())
+    }
+
     fn configure_connection(
         &mut self,
         client_id: String,
@@ -190,6 +210,22 @@ fn subscription_sources(state: tauri::State<'_, AppState>) -> Result<Subscriptio
 }
 
 #[tauri::command]
+fn collection_refresh_updates(
+    state: tauri::State<'_, AppState>,
+) -> Result<DiscoveryResult, String> {
+    with_sidecar(state, SidecarClient::refresh_updates)
+}
+
+#[tauri::command]
+fn collection_backfill_updates(
+    state: tauri::State<'_, AppState>,
+    days: u32,
+    limit: u32,
+) -> Result<DiscoveryResult, String> {
+    with_sidecar(state, |sidecar| sidecar.backfill_updates(days, limit))
+}
+
+#[tauri::command]
 fn configure_connection(
     state: tauri::State<'_, AppState>,
     client_id: String,
@@ -241,6 +277,8 @@ fn main() {
             library_snapshot,
             connection_status,
             subscription_sources,
+            collection_refresh_updates,
+            collection_backfill_updates,
             configure_connection,
             authorize_connection,
             disconnect_connection,

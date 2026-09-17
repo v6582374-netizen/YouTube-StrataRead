@@ -295,9 +295,7 @@ class ConnectionService:
             expires_at = _float_or_none(self.vault.load(_EXPIRES_AT))
         except VaultError as error:
             raise ConnectionError("Automic Vault is unavailable") from error
-        if not access_token:
-            raise ConnectionError("Connect YouTube before refreshing subscriptions")
-        if expires_at is not None and expires_at <= time.time() + 60:
+        if not access_token or (expires_at is not None and expires_at <= time.time() + 60):
             if not refresh_token:
                 raise ConnectionError("YouTube authorization expired; reconnect the account")
             credentials = self.oauth.refresh(configuration, refresh_token)

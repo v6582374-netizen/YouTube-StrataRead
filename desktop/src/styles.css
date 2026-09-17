@@ -97,3 +97,12 @@ h1 { margin: 7px 0; font-size: 30px; letter-spacing: -0.04em; }
   .source-avatar { background: #153b62; color: #0a84ff; }
   .source-card p, .source-list > p { color: #a1a1a6; }
 }
+
+.inbox-actions { display: flex; align-items: center; gap: 8px; }
+.inbox-actions button { border: 1px solid rgba(60, 60, 67, 0.13); border-radius: 8px; background: rgba(255, 255, 255, 0.65); color: inherit; padding: 7px 9px; font-size: 11px; }
+.candidate-list { display: grid; gap: 10px; padding: 26px 0; max-width: 760px; }
+.candidate-card { border: 1px solid rgba(60, 60, 67, 0.13); border-radius: 12px; background: rgba(255, 255, 255, 0.65); padding: 14px; }
+.candidate-card span { color: #007aff; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.candidate-card h2 { margin: 6px 0; font-size: 15px; }
+.candidate-card p { margin: 0; color: #6e6e73; font-size: 12px; }
+@media (prefers-color-scheme: dark) { .inbox-actions button, .candidate-card { background: rgba(48, 48, 52, 0.65); border-color: rgba(235, 235, 245, 0.16); } .candidate-card p { color: #a1a1a6; } }

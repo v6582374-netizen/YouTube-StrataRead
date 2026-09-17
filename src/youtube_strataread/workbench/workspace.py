@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,7 @@ from platformdirs import user_data_dir
 
 if TYPE_CHECKING:
     from youtube_strataread.workbench.connection import SubscriptionSource
+    from youtube_strataread.workbench.discovery import Candidate
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,7 @@ class LibrarySnapshot:
     to_read: int = 0
     reading: int = 0
     read: int = 0
+    candidates: list[dict[str, object]] | None = None
 
     def as_result(self) -> dict[str, object]:
         return {
@@ -35,7 +38,7 @@ class LibrarySnapshot:
                 "reading": self.reading,
                 "read": self.read,
             },
-            "inbox": [],
+            "inbox": self.candidates or [],
         }
 
 
@@ -54,7 +57,49 @@ class LocalWorkspace:
         return workspace
 
     def snapshot(self) -> LibrarySnapshot:
-        return LibrarySnapshot()
+        with sqlite3.connect(self.database_path) as connection:
+            rows = connection.execute(
+                """
+                SELECT video_id, channel_title, title, url, published_at, preparation_state, failure_reason
+                FROM candidates
+                ORDER BY COALESCE(published_ts, 0) DESC, discovered_at DESC
+                """
+            ).fetchall()
+        candidates = [
+            {
+                "video_id": str(row[0]),
+                "channel_title": str(row[1]),
+                "title": str(row[2]),
+                "url": str(row[3]),
+                "published_at": str(row[4]),
+                "preparation_state": str(row[5]),
+                "failure_reason": row[6],
+            }
+            for row in rows
+        ]
+        return LibrarySnapshot(inbox=len(candidates), candidates=candidates)
+
+    def add_candidate(self, candidate: Candidate) -> bool:
+        with sqlite3.connect(self.database_path) as connection:
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO candidates
+                    (video_id, channel_id, channel_title, title, url, published_at, published_ts,
+                     discovered_at, preparation_state, failure_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', NULL)
+                """,
+                (
+                    candidate.video_id,
+                    candidate.channel_id,
+                    candidate.channel_title,
+                    candidate.title,
+                    candidate.url,
+                    candidate.published_at,
+                    candidate.published_ts,
+                    time.time(),
+                ),
+            )
+        return cursor.rowcount > 0
 
     def replace_subscription_sources(self, sources: Iterable[SubscriptionSource]) -> None:
         with sqlite3.connect(self.database_path) as connection:
@@ -116,6 +161,18 @@ class LocalWorkspace:
                     description TEXT NOT NULL DEFAULT '',
                     thumbnail_url TEXT,
                     subscribed_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS candidates (
+                    video_id TEXT PRIMARY KEY,
+                    channel_id TEXT NOT NULL,
+                    channel_title TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    published_at TEXT NOT NULL,
+                    published_ts REAL,
+                    discovered_at REAL NOT NULL,
+                    preparation_state TEXT NOT NULL DEFAULT 'queued',
+                    failure_reason TEXT
                 )
                 """
             )

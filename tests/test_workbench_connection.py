@@ -227,3 +227,24 @@ def test_duplicate_subscription_channel_ids_are_imported_once(
     )
 
     assert [source.channel_id for source in sources] == ["alpha"]
+
+
+def test_refresh_token_without_access_token_recovers_subscription_import(tmp_path: Path) -> None:
+    workspace = LocalWorkspace.open(tmp_path / "workspace")
+    vault = MemoryVault(
+        values={
+            "YOUTUBE_WORKBENCH_OAUTH_CLIENT_ID": "desktop-client",
+            "YOUTUBE_WORKBENCH_OAUTH_CLIENT_SECRET": "not-a-real-secret",
+            "YOUTUBE_WORKBENCH_OAUTH_REFRESH_TOKEN": "refresh-token",
+        }
+    )
+    oauth = RefreshingGoogleOAuth(
+        subscriptions=[SubscriptionSource(channel_id="alpha", title="Alpha")]
+    )
+
+    status = ConnectionService(
+        workspace=workspace, vault=vault, oauth=oauth
+    ).refresh_subscription_sources()
+
+    assert status.authorized is True
+    assert oauth.refreshed is True

@@ -14,6 +14,7 @@ from youtube_strataread.workbench.connection import (
     ConnectionService,
     GoogleOAuthGateway,
 )
+from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeAtomFeeds
 from youtube_strataread.workbench.vault import AutomicVault, SecretVault
 from youtube_strataread.workbench.workspace import LocalWorkspace, workspace_root
 
@@ -55,6 +56,7 @@ def handle_request(
     request: Mapping[str, Any],
     workspace: LocalWorkspace,
     connection: ConnectionService,
+    discovery: SubscriptionDiscovery,
 ) -> dict[str, object]:
     request_id = request.get("id")
     capability = request.get("capability")
@@ -68,6 +70,16 @@ def handle_request(
             return _response(request_id, result=connection.status().as_result())
         if capability == "collection.subscription_sources":
             return _response(request_id, result={"sources": connection.subscription_sources()})
+        if capability == "collection.refresh_updates":
+            return _response(request_id, result=discovery.refresh().as_result())
+        if capability == "collection.backfill_updates":
+            return _response(
+                request_id,
+                result=discovery.backfill(
+                    days=int(arguments.get("days") or 7),
+                    limit=int(arguments.get("limit") or 100),
+                ).as_result(),
+            )
         if capability == "connection.configure":
             return _response(
                 request_id,
@@ -92,6 +104,7 @@ def main() -> int:
         vault=_vault(),
         oauth=GoogleOAuthGateway(),
     )
+    discovery = SubscriptionDiscovery(workspace=workspace, feeds=YouTubeAtomFeeds())
     try:
         for raw_request in sys.stdin:
             if not raw_request.strip():
@@ -104,7 +117,7 @@ def main() -> int:
                 if not isinstance(request, dict):
                     response = _response(None, error="request must be an object")
                 else:
-                    response = handle_request(request, workspace, connection)
+                    response = handle_request(request, workspace, connection, discovery)
             try:
                 print(json.dumps(response, ensure_ascii=False), flush=True)
             except BrokenPipeError:

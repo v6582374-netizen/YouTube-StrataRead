@@ -248,3 +248,17 @@ def test_refresh_token_without_access_token_recovers_subscription_import(tmp_pat
 
     assert status.authorized is True
     assert oauth.refreshed is True
+
+
+def test_saving_client_does_not_read_secrets_back_for_confirmation(tmp_path):
+    class WriteOnlyVault(MemoryVault):
+        def load(self, key):
+            raise AssertionError("Saving must not prompt for a second secret read")
+
+    vault = WriteOnlyVault(values={})
+    service = ConnectionService(
+        workspace=LocalWorkspace.open(tmp_path),
+        vault=vault,
+        oauth=FakeGoogleOAuth(subscriptions=[]),
+    )
+    assert service.configure(client_id="fixture", client_secret="fixture").configured

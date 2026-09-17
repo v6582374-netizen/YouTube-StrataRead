@@ -5,7 +5,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
-    sync::Mutex,
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
@@ -304,140 +304,161 @@ impl Drop for SidecarClient {
     }
 }
 
-struct AppState(Mutex<SidecarClient>);
+struct AppState(Arc<Mutex<SidecarClient>>);
 
-fn with_sidecar<T>(
+async fn with_sidecar<T: Send + 'static>(
     state: tauri::State<'_, AppState>,
-    operation: impl FnOnce(&mut SidecarClient) -> Result<T, String>,
+    operation: impl FnOnce(&mut SidecarClient) -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
-    let mut sidecar = state
-        .0
-        .lock()
-        .map_err(|_| "sidecar lock was poisoned".to_owned())?;
-    operation(&mut sidecar)
+    let client = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut sidecar = client
+            .lock()
+            .map_err(|_| "sidecar lock was poisoned".to_owned())?;
+        operation(&mut sidecar)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-fn library_snapshot(state: tauri::State<'_, AppState>) -> Result<LibrarySnapshot, String> {
-    with_sidecar(state, SidecarClient::library_snapshot)
+async fn library_snapshot(state: tauri::State<'_, AppState>) -> Result<LibrarySnapshot, String> {
+    with_sidecar(state, SidecarClient::library_snapshot).await
 }
 
 #[tauri::command]
-fn connection_status(state: tauri::State<'_, AppState>) -> Result<ConnectionStatus, String> {
-    with_sidecar(state, SidecarClient::connection_status)
+async fn connection_status(state: tauri::State<'_, AppState>) -> Result<ConnectionStatus, String> {
+    with_sidecar(state, SidecarClient::connection_status).await
 }
 
 #[tauri::command]
-fn subscription_sources(state: tauri::State<'_, AppState>) -> Result<SubscriptionSources, String> {
-    with_sidecar(state, SidecarClient::subscription_sources)
+async fn subscription_sources(
+    state: tauri::State<'_, AppState>,
+) -> Result<SubscriptionSources, String> {
+    with_sidecar(state, SidecarClient::subscription_sources).await
 }
 
 #[tauri::command]
-fn collection_refresh_updates(
+async fn collection_refresh_updates(
     state: tauri::State<'_, AppState>,
 ) -> Result<DiscoveryResult, String> {
-    with_sidecar(state, SidecarClient::refresh_updates)
+    with_sidecar(state, SidecarClient::refresh_updates).await
 }
 
 #[tauri::command]
-fn collection_backfill_updates(
+async fn collection_backfill_updates(
     state: tauri::State<'_, AppState>,
     days: u32,
     limit: u32,
 ) -> Result<DiscoveryResult, String> {
-    with_sidecar(state, |sidecar| sidecar.backfill_updates(days, limit))
+    with_sidecar(state, move |sidecar| sidecar.backfill_updates(days, limit)).await
 }
 
 #[tauri::command]
-fn configure_connection(
+async fn configure_connection(
     state: tauri::State<'_, AppState>,
     client_id: String,
     client_secret: String,
 ) -> Result<ConnectionStatus, String> {
-    with_sidecar(state, |sidecar| {
+    with_sidecar(state, move |sidecar| {
         sidecar.configure_connection(client_id, client_secret)
     })
+    .await
 }
 
 #[tauri::command]
-fn authorize_connection(state: tauri::State<'_, AppState>) -> Result<ConnectionStatus, String> {
-    with_sidecar(state, SidecarClient::authorize_connection)
+async fn authorize_connection(
+    state: tauri::State<'_, AppState>,
+) -> Result<ConnectionStatus, String> {
+    with_sidecar(state, SidecarClient::authorize_connection).await
 }
 
 #[tauri::command]
-fn disconnect_connection(state: tauri::State<'_, AppState>) -> Result<ConnectionStatus, String> {
-    with_sidecar(state, SidecarClient::disconnect_connection)
+async fn disconnect_connection(
+    state: tauri::State<'_, AppState>,
+) -> Result<ConnectionStatus, String> {
+    with_sidecar(state, SidecarClient::disconnect_connection).await
 }
 
 #[tauri::command]
-fn library_list(
+async fn library_list(
     state: tauri::State<'_, AppState>,
     filters: LibraryFilters,
 ) -> Result<LibraryList, String> {
-    with_sidecar(state, |sidecar| {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability(
             "library.list",
             serde_json::to_value(filters).map_err(|error| error.to_string())?,
         )
     })
+    .await
 }
 
 #[tauri::command]
-fn library_inspect(
+async fn library_inspect(
     state: tauri::State<'_, AppState>,
     video_id: String,
 ) -> Result<AssetInspection, String> {
-    with_sidecar(state, |sidecar| {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("library.inspect", json!({ "video_id": video_id }))
     })
+    .await
 }
 
 #[tauri::command]
-fn library_set_reading_state(
+async fn library_set_reading_state(
     state: tauri::State<'_, AppState>,
     video_id: String,
     reading_state: String,
 ) -> Result<AssetInspection, String> {
-    with_sidecar(state, |sidecar| {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability(
             "library.set_reading_state",
             json!({ "video_id": video_id, "reading_state": reading_state }),
         )
     })
+    .await
 }
 
 #[tauri::command]
-fn library_regenerate(
+async fn library_regenerate(
     state: tauri::State<'_, AppState>,
     video_id: String,
 ) -> Result<AssetInspection, String> {
-    with_sidecar(state, |sidecar| {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("library.regenerate", json!({ "video_id": video_id }))
     })
+    .await
 }
 
 #[tauri::command]
-fn library_delete(
+async fn library_delete(
     state: tauri::State<'_, AppState>,
     video_id: String,
 ) -> Result<DeletedAsset, String> {
-    with_sidecar(state, |sidecar| {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("library.delete", json!({ "video_id": video_id }))
     })
+    .await
 }
 
 #[tauri::command]
-fn document_get(state: tauri::State<'_, AppState>, video_id: String) -> Result<Document, String> {
-    with_sidecar(state, |sidecar| {
+async fn document_get(
+    state: tauri::State<'_, AppState>,
+    video_id: String,
+) -> Result<Document, String> {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("documents.get", json!({ "video_id": video_id }))
     })
+    .await
 }
 
 #[tauri::command]
-fn document_open(state: tauri::State<'_, AppState>, video_id: String) -> Result<(), String> {
-    let document: Document = with_sidecar(state, |sidecar| {
+async fn document_open(state: tauri::State<'_, AppState>, video_id: String) -> Result<(), String> {
+    let document: Document = with_sidecar(state, move |sidecar| {
         sidecar.capability("documents.get", json!({ "video_id": video_id }))
-    })?;
+    })
+    .await?;
     Command::new("open")
         .arg(document.path)
         .spawn()
@@ -446,41 +467,50 @@ fn document_open(state: tauri::State<'_, AppState>, video_id: String) -> Result<
 }
 
 #[tauri::command]
-fn activity_snapshot(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
-    with_sidecar(state, |sidecar| {
+async fn activity_snapshot(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("activity.snapshot", json!({}))
     })
+    .await
 }
 
 #[tauri::command]
-fn activity_drain_pause(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
-    with_sidecar(state, |sidecar| {
+async fn activity_drain_pause(
+    state: tauri::State<'_, AppState>,
+) -> Result<ActivitySnapshot, String> {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("activity.drain_pause", json!({}))
     })
+    .await
 }
 
 #[tauri::command]
-fn activity_resume(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
-    with_sidecar(state, |sidecar| {
+async fn activity_resume(state: tauri::State<'_, AppState>) -> Result<ActivitySnapshot, String> {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("activity.resume", json!({}))
     })
+    .await
 }
 
 #[tauri::command]
-fn activity_retry_all_failed(state: tauri::State<'_, AppState>) -> Result<RetryResult, String> {
-    with_sidecar(state, |sidecar| {
+async fn activity_retry_all_failed(
+    state: tauri::State<'_, AppState>,
+) -> Result<RetryResult, String> {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("activity.retry_all_failed", json!({}))
     })
+    .await
 }
 
 #[tauri::command]
-fn activity_retry(
+async fn activity_retry(
     state: tauri::State<'_, AppState>,
     video_id: String,
 ) -> Result<RetryResult, String> {
-    with_sidecar(state, |sidecar| {
+    with_sidecar(state, move |sidecar| {
         sidecar.capability("activity.retry", json!({ "video_id": video_id }))
     })
+    .await
 }
 
 fn sidecar_binary() -> Result<PathBuf, String> {
@@ -507,20 +537,28 @@ fn sidecar_binary() -> Result<PathBuf, String> {
 }
 
 fn stream_activity(app: tauri::AppHandle) {
-    thread::spawn(move || loop {
-        thread::sleep(Duration::from_secs(1));
-        let snapshot = {
-            let state = app.state::<AppState>();
-            let result = match state.0.lock() {
-                Ok(mut sidecar) => {
-                    sidecar.capability::<ActivitySnapshot>("activity.snapshot", json!({}))
-                }
-                Err(_) => Err("sidecar lock was poisoned".to_owned()),
+    thread::spawn(move || {
+        let mut previous = String::new();
+        loop {
+            thread::sleep(Duration::from_secs(1));
+            let snapshot = {
+                let state = app.state::<AppState>();
+                let result = match state.0.try_lock() {
+                    Ok(mut sidecar) => {
+                        sidecar.capability::<ActivitySnapshot>("activity.snapshot", json!({}))
+                    }
+                    Err(_) => continue,
+                };
+                result
             };
-            result
-        };
-        if let Ok(snapshot) = snapshot {
-            let _ = app.emit("activity-snapshot", snapshot);
+            if let Ok(snapshot) = snapshot {
+                if let Ok(encoded) = serde_json::to_string(&snapshot) {
+                    if encoded != previous {
+                        previous = encoded;
+                        let _ = app.emit("activity-snapshot", snapshot);
+                    }
+                }
+            }
         }
     });
 }
@@ -528,7 +566,7 @@ fn stream_activity(app: tauri::AppHandle) {
 fn main() {
     let sidecar = SidecarClient::start().expect("Python sidecar startup failed");
     tauri::Builder::default()
-        .manage(AppState(Mutex::new(sidecar)))
+        .manage(AppState(Arc::new(Mutex::new(sidecar))))
         .setup(|app| {
             stream_activity(app.handle().clone());
             Ok(())

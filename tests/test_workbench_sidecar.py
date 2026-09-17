@@ -18,7 +18,10 @@ from youtube_strataread.workbench.workspace import LocalWorkspace
 class _Captions:
     def acquire(self, url: str) -> SubtitleResult:
         return SubtitleResult(
-            video_id="fixture", title="Fixture", language="zh-Hans", is_auto=False,
+            video_id="fixture",
+            title="Fixture",
+            language="zh-Hans",
+            is_auto=False,
             srt_text="1\n00:00:00,000 --> 00:00:02,000\n一段可追溯的字幕\n",
         )
 
@@ -149,30 +152,52 @@ def test_sidecar_library_capabilities_expose_the_prepared_asset_contract(tmp_pat
     workspace = LocalWorkspace.open(tmp_path / "workspace")
     workspace.add_candidate(
         Candidate(
-            video_id="fixture", channel_id="channel", channel_title="Fixture channel",
-            title="Fixture", url="https://www.youtube.com/watch?v=fixture",
-            published_at="2026-09-17T00:00:00Z", published_ts=1_789_603_200,
+            video_id="fixture",
+            channel_id="channel",
+            channel_title="Fixture channel",
+            title="Fixture",
+            url="https://www.youtube.com/watch?v=fixture",
+            published_at="2026-09-17T00:00:00Z",
+            published_ts=1_789_603_200,
         )
     )
-    preparation = PreparationService(workspace=workspace, captions=_Captions(), manuscripts=_Manuscripts())
+    preparation = PreparationService(
+        workspace=workspace, captions=_Captions(), manuscripts=_Manuscripts()
+    )
     library = LibraryService(workspace=workspace, preparation=preparation)
     assert preparation.run_next() is True
 
     listed = handle_request(
         {"id": "list", "capability": "library.list", "arguments": {"reading_state": "inbox"}},
-        workspace, None, None, library,  # type: ignore[arg-type]
+        workspace,
+        None,
+        None,
+        library,  # type: ignore[arg-type]
     )
     document = handle_request(
         {"id": "document", "capability": "documents.get", "arguments": {"video_id": "fixture"}},
-        workspace, None, None, library,  # type: ignore[arg-type]
+        workspace,
+        None,
+        None,
+        library,  # type: ignore[arg-type]
     )
     inspected = handle_request(
         {"id": "inspect", "capability": "library.inspect", "arguments": {"video_id": "fixture"}},
-        workspace, None, None, library,  # type: ignore[arg-type]
+        workspace,
+        None,
+        None,
+        library,  # type: ignore[arg-type]
     )
     moved = handle_request(
-        {"id": "move", "capability": "library.set_reading_state", "arguments": {"video_id": "fixture", "reading_state": "to-read"}},
-        workspace, None, None, library,  # type: ignore[arg-type]
+        {
+            "id": "move",
+            "capability": "library.set_reading_state",
+            "arguments": {"video_id": "fixture", "reading_state": "to-read"},
+        },
+        workspace,
+        None,
+        None,
+        library,  # type: ignore[arg-type]
     )
 
     assert listed["ok"] is True
@@ -181,3 +206,43 @@ def test_sidecar_library_capabilities_expose_the_prepared_asset_contract(tmp_pat
     assert document["result"]["markdown"].startswith("# 可交接")  # type: ignore[index]
     assert inspected["result"]["generation_records"][0]["manuscript_version"] == 1  # type: ignore[index]
     assert moved["result"]["reading_state"] == "to-read"  # type: ignore[index]
+
+
+def test_connection_save_through_sidecar_and_vault_stdin(tmp_path: Path) -> None:
+    vault = tmp_path / "av"
+    vault.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        'if sys.argv[1:3] != ["save", "--stdin"]: sys.exit(2)\n'
+        'if sys.stdin.read() not in ("fixture-client", "fixture-secret"): sys.exit(3)\n'
+    )
+    vault.chmod(0o700)
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(Path(__file__).parents[1] / "src"),
+        "YOUTUBE_WORKBENCH_WORKSPACE": str(tmp_path / "workspace"),
+        "YOUTUBE_WORKBENCH_AUTOMIC_VAULT": str(vault),
+    }
+    environment.pop("YOUTUBE_WORKBENCH_TEST_VAULT", None)
+    binary = os.environ.get("WORKBENCH_TEST_BINARY")
+    command = [binary] if binary else [sys.executable, "-m", "youtube_strataread.workbench.sidecar"]
+    result = subprocess.run(
+        command,
+        input=json.dumps(
+            {
+                "id": "save",
+                "capability": "connection.configure",
+                "arguments": {"client_id": "fixture-client", "client_secret": "fixture-secret"},
+            }
+        )
+        + "\n",
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert result.returncode == 0
+    response = json.loads(result.stdout)
+    assert response["ok"], response
+    assert response["result"]["configured"]
+    assert "fixture-secret" not in result.stdout + result.stderr

@@ -40,3 +40,13 @@ def test_vault_load_returns_no_value_when_injection_is_rejected(
     )
 
     assert AutomicVault(executable=Path("/fake/av")).load("OAUTH_CLIENT") is None
+
+
+def test_vault_save_uses_noninteractive_stdin_without_altering_secret(monkeypatch):
+    def run(args, **kwargs):
+        assert args[1:3] == ["save", "--stdin"]
+        assert kwargs["input"] == "fixture-value"
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    AutomicVault(executable=Path("/fake/av")).save("OAUTH_CLIENT", "fixture-value")

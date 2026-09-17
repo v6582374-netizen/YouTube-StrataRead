@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -51,12 +51,24 @@ type SubscriptionSource = {
   subscribed_at: string | null;
 };
 
+// Coalesce concurrent startup reads (including StrictMode's effect replay).
+let pendingConnection: Promise<ConnectionStatus> | null = null;
+function loadConnectionStatus(): Promise<ConnectionStatus> {
+  if (!pendingConnection) {
+    pendingConnection = invoke<ConnectionStatus>("connection_status").finally(() => {
+      pendingConnection = null;
+    });
+  }
+  return pendingConnection;
+}
+
 async function loadSnapshot(): Promise<LibrarySnapshot> {
   return invoke<LibrarySnapshot>("library_snapshot");
 }
 
 function App() {
   const [snapshot, setSnapshot] = useState<LibrarySnapshot | null>(null);
+  const connectionRevision = useRef(0);
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const [showConnection, setShowConnection] = useState(false);
   const [view, setView] = useState<"inbox" | "to-read" | "read" | "all" | "sources">("inbox");
@@ -112,7 +124,9 @@ function App() {
   }
 
   async function hydrateConnection(): Promise<ConnectionStatus> {
-    const status = await invoke<ConnectionStatus>("connection_status");
+    const revision = connectionRevision.current;
+    const status = await loadConnectionStatus();
+    if (revision !== connectionRevision.current) return status;
     setConnection(status);
     if (status.subscription_count > 0) {
       const result = await invoke<{ sources: SubscriptionSource[] }>("subscription_sources");
@@ -165,23 +179,16 @@ function App() {
     setMessage("Markdown 已复制。");
   }
 
-  async function inspectConnection() {
-    setBusy(true);
+  function inspectConnection() {
+    setShowConnection(true);
     setMessage(null);
-    try {
-      await hydrateConnection();
-      setShowConnection(true);
-    } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function configure(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    connectionRevision.current += 1;
     setBusy(true);
-    setMessage(null);
+    setMessage("正在保存凭据，请在 Automic Vault 中完成授权…");
     try {
       const status = await invoke<ConnectionStatus>("configure_connection", {
         clientId,
@@ -189,6 +196,7 @@ function App() {
       });
       setConnection(status);
       setClientSecret("");
+      setMessage("凭据已保存，现在可以授权 YouTube。");
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -197,6 +205,7 @@ function App() {
   }
 
   async function authorize() {
+    connectionRevision.current += 1;
     setBusy(true);
     setMessage("正在浏览器中等待 Google 授权…");
     try {
@@ -214,6 +223,7 @@ function App() {
   }
 
   async function disconnect() {
+    connectionRevision.current += 1;
     setBusy(true);
     try {
       setConnection(await invoke<ConnectionStatus>("disconnect_connection"));
@@ -289,11 +299,12 @@ function App() {
             <p className="eyebrow">个人订阅源</p>
             <h2>连接 YouTube</h2>
             <p>使用你自己的 Google OAuth 客户端。凭据只存入本机 Automic Vault。</p>
+            {message && <p role="status" aria-live="polite">{message}</p>}
             {!connection?.configured ? (
               <form onSubmit={(event) => void configure(event)}>
                 <label>Google OAuth Client ID<input value={clientId} onChange={(event) => setClientId(event.target.value)} required /></label>
                 <label>Google OAuth Client Secret<input type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} required /></label>
-                <button className="primary-button" disabled={busy}>保存到 Automic Vault</button>
+                <button className="primary-button" disabled={busy} aria-busy={busy}>{busy ? "正在保存…" : "保存到 Automic Vault"}</button>
               </form>
             ) : !connection.authorized ? (
               <button className="primary-button" onClick={() => void authorize()} disabled={busy}>在浏览器中授权并导入订阅</button>

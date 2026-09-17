@@ -29,7 +29,7 @@ class AutomicVault:
         self.timeout = timeout
 
     def save(self, key: str, value: str) -> None:
-        self._run(["save", key], input=f"{value}\n")
+        self._run(["save", "--stdin", key], input=value)
 
     def load(self, key: str) -> str | None:
         result = self._run(

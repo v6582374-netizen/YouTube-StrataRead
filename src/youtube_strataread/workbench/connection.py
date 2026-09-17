@@ -237,6 +237,7 @@ class ConnectionService:
         self.workspace = workspace
         self.vault = vault
         self.oauth = oauth
+        self._authorized = False
 
     def status(self) -> ConnectionStatus:
         try:
@@ -245,9 +246,10 @@ class ConnectionService:
             refresh_token = self.vault.load(_REFRESH_TOKEN)
         except VaultError as error:
             raise ConnectionError("Automic Vault is unavailable") from error
+        self._authorized = bool(access_token or (configuration and refresh_token))
         return ConnectionStatus(
             configured=configuration is not None,
-            authorized=bool(access_token or (configuration and refresh_token)),
+            authorized=self._authorized,
             subscription_count=self.workspace.subscription_source_count(),
         )
 
@@ -259,7 +261,13 @@ class ConnectionService:
             self.vault.save(_CLIENT_SECRET, client_secret.strip())
         except VaultError as error:
             raise ConnectionError("Automic Vault could not save the Google OAuth client") from error
-        return self.status()
+        # Successful writes are the acknowledgement; re-reading would trigger
+        # additional Vault approvals merely to render the next screen.
+        return ConnectionStatus(
+            configured=True,
+            authorized=self._authorized,
+            subscription_count=self.workspace.subscription_source_count(),
+        )
 
     def authorize_and_import(self) -> ConnectionStatus:
         configuration = self._require_configuration()

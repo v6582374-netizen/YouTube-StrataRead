@@ -9,21 +9,88 @@ type LibrarySnapshot = {
   inbox: unknown[];
 };
 
+type ConnectionStatus = {
+  configured: boolean;
+  authorized: boolean;
+  subscription_count: number;
+};
+
 async function loadSnapshot(): Promise<LibrarySnapshot> {
   return invoke<LibrarySnapshot>("library_snapshot");
 }
 
 function App() {
   const [snapshot, setSnapshot] = useState<LibrarySnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [connection, setConnection] = useState<ConnectionStatus | null>(null);
+  const [showConnection, setShowConnection] = useState(false);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     void loadSnapshot().then(setSnapshot).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setMessage(cause instanceof Error ? cause.message : String(cause));
     });
   }, []);
 
   const counts = snapshot?.counts ?? { inbox: 0, to_read: 0, reading: 0, read: 0 };
+
+  async function inspectConnection() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      setConnection(await invoke<ConnectionStatus>("connection_status"));
+      setShowConnection(true);
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function configure(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      const status = await invoke<ConnectionStatus>("configure_connection", {
+        clientId,
+        clientSecret,
+      });
+      setConnection(status);
+      setClientSecret("");
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function authorize() {
+    setBusy(true);
+    setMessage("正在浏览器中等待 Google 授权…");
+    try {
+      setConnection(await invoke<ConnectionStatus>("authorize_connection"));
+      setMessage("订阅来源已导入本地资料库。");
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnect() {
+    setBusy(true);
+    try {
+      setConnection(await invoke<ConnectionStatus>("disconnect_connection"));
+      setMessage("YouTube 授权已断开；已导入的本地来源仍被保留。");
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -31,6 +98,9 @@ function App() {
         <div className="window-controls" aria-hidden="true"><i /><i /><i /></div>
         <strong>视频资料库</strong>
         <span className="workspace-status">{snapshot?.workspace.label ?? "正在连接本地工作区"}</span>
+        <button className="connect-button" onClick={() => void inspectConnection()} disabled={busy}>
+          {connection?.authorized ? `已连接 · ${connection.subscription_count} 个订阅` : "连接 YouTube"}
+        </button>
       </header>
       <section className="workspace">
         <nav className="sidebar" aria-label="资料库导航">
@@ -39,13 +109,15 @@ function App() {
           <button>待读 <b>{counts.to_read}</b></button>
           <button>已读 <b>{counts.read}</b></button>
           <button>全部稿件</button>
+          <p className="source-heading">来源</p>
+          <button>订阅频道 <b>{connection?.subscription_count ?? 0}</b></button>
         </nav>
         <section className="library">
           <div className="library-heading">
             <div>
               <p>本地资料库</p>
               <h1>收件箱</h1>
-              <span>{error ?? "连接 YouTube 后，已准备的稿件会出现在这里。"}</span>
+              <span>{message ?? "连接 YouTube 后，已准备的稿件会出现在这里。"}</span>
             </div>
             <span className="quiet-pulse" title="活动将在后续批次中显示" />
           </div>
@@ -56,6 +128,30 @@ function App() {
           </div>
         </section>
       </section>
+      {showConnection && (
+        <div className="connection-scrim" role="presentation">
+          <section className="connection-panel" role="dialog" aria-modal="true" aria-label="连接 YouTube">
+            <button className="close-button" onClick={() => setShowConnection(false)} aria-label="关闭">×</button>
+            <p className="eyebrow">个人订阅源</p>
+            <h2>连接 YouTube</h2>
+            <p>使用你自己的 Google OAuth 客户端。凭据只存入本机 Automic Vault。</p>
+            {!connection?.configured ? (
+              <form onSubmit={(event) => void configure(event)}>
+                <label>Google OAuth Client ID<input value={clientId} onChange={(event) => setClientId(event.target.value)} required /></label>
+                <label>Google OAuth Client Secret<input type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} required /></label>
+                <button className="primary-button" disabled={busy}>保存到 Automic Vault</button>
+              </form>
+            ) : !connection.authorized ? (
+              <button className="primary-button" onClick={() => void authorize()} disabled={busy}>在浏览器中授权并导入订阅</button>
+            ) : (
+              <div className="connection-ready">
+                <strong>已导入 {connection.subscription_count} 个订阅来源</strong>
+                <button onClick={() => void disconnect()} disabled={busy}>断开授权</button>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   );
 }

@@ -13,11 +13,24 @@ def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None
         **os.environ,
         "PYTHONPATH": str(Path(__file__).parents[1] / "src"),
         "YOUTUBE_WORKBENCH_WORKSPACE": str(workspace),
+        "YOUTUBE_WORKBENCH_TEST_VAULT": "1",
     }
     requests = "\n".join(
         [
             json.dumps({"id": "first", "capability": "library.snapshot", "arguments": {}}),
             json.dumps({"id": "second", "capability": "library.snapshot", "arguments": {}}),
+            json.dumps({"id": "connection", "capability": "connection.status", "arguments": {}}),
+            json.dumps(
+                {
+                    "id": "configure",
+                    "capability": "connection.configure",
+                    "arguments": {
+                        "client_id": "desktop-client",
+                        "client_secret": "not-a-real-secret",
+                    },
+                }
+            ),
+            json.dumps({"id": "configured", "capability": "connection.status", "arguments": {}}),
         ]
     )
 
@@ -51,5 +64,33 @@ def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None
                 "inbox": [],
             },
         },
+        {
+            "id": "connection",
+            "ok": True,
+            "result": {
+                "configured": False,
+                "authorized": False,
+                "subscription_count": 0,
+            },
+        },
+        {
+            "id": "configure",
+            "ok": True,
+            "result": {
+                "configured": True,
+                "authorized": False,
+                "subscription_count": 0,
+            },
+        },
+        {
+            "id": "configured",
+            "ok": True,
+            "result": {
+                "configured": True,
+                "authorized": False,
+                "subscription_count": 0,
+            },
+        },
     ]
+    assert "not-a-real-secret" not in result.stdout
     assert workspace.is_dir()

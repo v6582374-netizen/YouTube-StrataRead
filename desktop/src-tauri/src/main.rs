@@ -29,11 +29,18 @@ struct LibrarySnapshot {
     inbox: Vec<Value>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct ConnectionStatus {
+    configured: bool,
+    authorized: bool,
+    subscription_count: u32,
+}
+
 #[derive(Debug, Deserialize)]
 struct SidecarResponse {
     id: u64,
     ok: bool,
-    result: Option<LibrarySnapshot>,
+    result: Option<Value>,
     error: Option<String>,
 }
 
@@ -67,13 +74,13 @@ impl SidecarClient {
         })
     }
 
-    fn library_snapshot(&mut self) -> Result<LibrarySnapshot, String> {
+    fn request(&mut self, capability: &str, arguments: Value) -> Result<Value, String> {
         let request_id = self.next_request_id;
         self.next_request_id += 1;
         let request = json!({
             "id": request_id,
-            "capability": "library.snapshot",
-            "arguments": {}
+            "capability": capability,
+            "arguments": arguments,
         });
         writeln!(self.input, "{request}").map_err(|error| error.to_string())?;
         self.input.flush().map_err(|error| error.to_string())?;
@@ -93,7 +100,39 @@ impl SidecarClient {
         }
         response
             .result
-            .ok_or_else(|| "sidecar response had no library snapshot".to_owned())
+            .ok_or_else(|| "sidecar response had no result".to_owned())
+    }
+
+    fn library_snapshot(&mut self) -> Result<LibrarySnapshot, String> {
+        serde_json::from_value(self.request("library.snapshot", json!({}))?)
+            .map_err(|error| error.to_string())
+    }
+
+    fn connection_status(&mut self) -> Result<ConnectionStatus, String> {
+        serde_json::from_value(self.request("connection.status", json!({}))?)
+            .map_err(|error| error.to_string())
+    }
+
+    fn configure_connection(
+        &mut self,
+        client_id: String,
+        client_secret: String,
+    ) -> Result<ConnectionStatus, String> {
+        serde_json::from_value(self.request(
+            "connection.configure",
+            json!({ "client_id": client_id, "client_secret": client_secret }),
+        )?)
+        .map_err(|error| error.to_string())
+    }
+
+    fn authorize_connection(&mut self) -> Result<ConnectionStatus, String> {
+        serde_json::from_value(self.request("connection.authorize", json!({}))?)
+            .map_err(|error| error.to_string())
+    }
+
+    fn disconnect_connection(&mut self) -> Result<ConnectionStatus, String> {
+        serde_json::from_value(self.request("connection.disconnect", json!({}))?)
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -105,13 +144,46 @@ impl Drop for SidecarClient {
 
 struct AppState(Mutex<SidecarClient>);
 
-#[tauri::command]
-fn library_snapshot(state: tauri::State<'_, AppState>) -> Result<LibrarySnapshot, String> {
-    state
+fn with_sidecar<T>(
+    state: tauri::State<'_, AppState>,
+    operation: impl FnOnce(&mut SidecarClient) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut sidecar = state
         .0
         .lock()
-        .map_err(|_| "sidecar lock was poisoned".to_owned())?
-        .library_snapshot()
+        .map_err(|_| "sidecar lock was poisoned".to_owned())?;
+    operation(&mut sidecar)
+}
+
+#[tauri::command]
+fn library_snapshot(state: tauri::State<'_, AppState>) -> Result<LibrarySnapshot, String> {
+    with_sidecar(state, SidecarClient::library_snapshot)
+}
+
+#[tauri::command]
+fn connection_status(state: tauri::State<'_, AppState>) -> Result<ConnectionStatus, String> {
+    with_sidecar(state, SidecarClient::connection_status)
+}
+
+#[tauri::command]
+fn configure_connection(
+    state: tauri::State<'_, AppState>,
+    client_id: String,
+    client_secret: String,
+) -> Result<ConnectionStatus, String> {
+    with_sidecar(state, |sidecar| {
+        sidecar.configure_connection(client_id, client_secret)
+    })
+}
+
+#[tauri::command]
+fn authorize_connection(state: tauri::State<'_, AppState>) -> Result<ConnectionStatus, String> {
+    with_sidecar(state, SidecarClient::authorize_connection)
+}
+
+#[tauri::command]
+fn disconnect_connection(state: tauri::State<'_, AppState>) -> Result<ConnectionStatus, String> {
+    with_sidecar(state, SidecarClient::disconnect_connection)
 }
 
 fn sidecar_binary() -> Result<PathBuf, String> {
@@ -141,7 +213,13 @@ fn main() {
     let sidecar = SidecarClient::start().expect("Python sidecar startup failed");
     tauri::Builder::default()
         .manage(AppState(Mutex::new(sidecar)))
-        .invoke_handler(tauri::generate_handler![library_snapshot])
+        .invoke_handler(tauri::generate_handler![
+            library_snapshot,
+            connection_status,
+            configure_connection,
+            authorize_connection,
+            disconnect_connection,
+        ])
         .run(tauri::generate_context!())
         .expect("Tauri application failed");
 }

@@ -67,6 +67,38 @@ export function YouTubeView({
   const [defaultPrompt, setDefaultPrompt] = useState("");
   const [savedPrompt, setSavedPrompt] = useState("");
   const [connection, setConnection] = useState<Connection | null>(null);
+  const [connectionChecking, setConnectionChecking] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
+  const connectionEpoch = useRef(0);
+  const connectionRequest = useRef<Promise<Connection> | null>(null);
+  const checkConnection = async () => {
+    const epoch = connectionEpoch.current;
+    setConnectionChecking(true);
+    setConnectionError(false);
+    if (!connectionRequest.current) {
+      const request = call<Connection>("connection.status");
+      connectionRequest.current = request;
+      void request
+        .finally(() => {
+          if (connectionRequest.current === request)
+            connectionRequest.current = null;
+        })
+        .catch(() => {});
+    }
+    try {
+      const result = await connectionRequest.current;
+      if (epoch === connectionEpoch.current) setConnection(result);
+      return result;
+    } catch (error) {
+      if (epoch === connectionEpoch.current) {
+        setConnection(null);
+        setConnectionError(true);
+      }
+      throw error;
+    } finally {
+      if (epoch === connectionEpoch.current) setConnectionChecking(false);
+    }
+  };
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [selected, setSelected] = useState<Inspection | null>(null);
@@ -190,6 +222,7 @@ export function YouTubeView({
     setConfirmDelete(false);
     try {
       if (kind === "channels") {
+        void checkConnection().catch(() => {});
         const value = await preferences();
         if (version === panelRevision.current) {
           setExcluded(value.excluded_channels);
@@ -205,8 +238,7 @@ export function YouTubeView({
         }
       }
       if (kind === "connection") {
-        const value = await call<Connection>("connection.status");
-        if (version === panelRevision.current) setConnection(value);
+        await checkConnection();
       }
       if (kind === "document" && asset) {
         const value = await call<Inspection>("library.inspect", {
@@ -234,15 +266,26 @@ export function YouTubeView({
   };
   const connectAction = (capability: string, args = {}) =>
     panelAction(async () => {
+      connectionEpoch.current++;
+      connectionRequest.current = null;
+      setConnectionChecking(false);
+      setConnectionError(false);
       setPanelMessage(
         capability === "connection.configure"
           ? "正在保存，请在 Automic Vault 中完成授权…"
           : "请完成浏览器或 Vault 中的授权…",
       );
-      setConnection(await call<Connection>(capability, args));
+      const result = await call<Connection>(capability, args);
+      setConnection(result);
       setClientSecret("");
+      setPanelMessage(
+        capability === "connection.authorize"
+          ? `YouTube 已连接，已导入 ${result.subscription_count} 个订阅。`
+          : capability === "connection.disconnect"
+            ? "YouTube 授权已断开，已有文档仍保留。"
+            : "客户端已保存，请继续在浏览器中授权 YouTube。",
+      );
       await preferences();
-      setPanelMessage("操作成功。");
     });
   const selectLayout = (value: Layout) => {
     setLayout(value);
@@ -554,7 +597,7 @@ export function YouTubeView({
                   : () => void openPanel("connection")
               }
             >
-              {prefs.sources.length ? "清除筛选" : "连接 YouTube"}
+              {prefs.sources.length ? "清除筛选" : connection?.authorized ? "已连接 YouTube" : "连接 YouTube"}
             </button>
           </div>
         ) : (
@@ -617,8 +660,26 @@ export function YouTubeView({
               className="yp-btn"
               onClick={() => void openPanel("connection")}
             >
-              连接 YouTube
+              {connection?.authorized && (
+                <span className="yp-dot" aria-hidden="true" />
+              )}
+              {connection?.authorized ? "已连接 YouTube" : "连接 YouTube"}
             </button>
+            <span
+              role="status"
+              className="yp-inline-status"
+              style={{ padding: "7px 0" }}
+            >
+              {connectionChecking
+                ? "正在确认连接状态…"
+                : connectionError
+                  ? "连接状态未知，请重试"
+                  : connection?.authorized
+                    ? `${connection.subscription_count} 个订阅`
+                    : connection
+                      ? "未连接"
+                      : ""}
+            </span>
             <button
               className="yp-btn"
               disabled={busy}

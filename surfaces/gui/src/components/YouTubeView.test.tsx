@@ -212,3 +212,57 @@ it("does not save stale rules after a failed Prompt load", async () => {
       .disabled,
   ).toBe(true);
 });
+
+it("shows the verified connection on the channel button, including after authorization and disconnect", async () => {
+  const implementation = call.getMockImplementation()!;
+  let connected = false;
+  call.mockImplementation(async (capability, args) => {
+    if (capability === "connection.authorize") connected = true;
+    if (capability === "connection.disconnect") connected = false;
+    if (capability.startsWith("connection."))
+      return { configured: true, authorized: connected, subscription_count: 3 };
+    return implementation(capability, args);
+  });
+  render(<YouTubeView onModelSettings={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
+  fireEvent.click(await screen.findByRole("button", { name: "连接 YouTube" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "在浏览器中授权并导入订阅" }),
+  );
+  await screen.findByText("YouTube 已连接，已导入 3 个订阅。");
+  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "已连接 YouTube" }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "断开授权" }));
+  await screen.findByText("YouTube 授权已断开，已有文档仍保留。");
+  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
+  expect(
+    await screen.findByRole("button", { name: "连接 YouTube" }),
+  ).toBeTruthy();
+});
+
+it('loads an existing authorization on a fresh view without inferring it from imported channels', async () => {
+  const implementation=call.getMockImplementation()!;
+  call.mockImplementation(async (capability,args)=>capability==='connection.status'
+    ? {configured:true,authorized:true,subscription_count:12}
+    : implementation(capability,args));
+  render(<YouTubeView onModelSettings={()=>{}}/>);
+  fireEvent.click(screen.getByRole('button',{name:'订阅频道'}));
+  expect(await screen.findByRole('button',{name:'已连接 YouTube'})).toBeTruthy();
+  expect(screen.getByText('12 个订阅')).toBeTruthy();
+});
+
+it('reports unknown connection status on failure instead of showing a false connected badge',async()=>{
+  const implementation=call.getMockImplementation()!;
+  call.mockImplementation(async(capability,args)=>{
+    if(capability==='connection.status')throw new Error('Vault unavailable');
+    return implementation(capability,args);
+  });
+  render(<YouTubeView onModelSettings={()=>{}}/>);
+  fireEvent.click(screen.getByRole('button',{name:'订阅频道'}));
+  await screen.findByText('连接状态未知，请重试');
+  expect(screen.queryByRole('button',{name:'已连接 YouTube'})).toBeNull();
+});

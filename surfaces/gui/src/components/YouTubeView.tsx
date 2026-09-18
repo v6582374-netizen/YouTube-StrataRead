@@ -597,7 +597,11 @@ export function YouTubeView({
                   : () => void openPanel("connection")
               }
             >
-              {prefs.sources.length ? "清除筛选" : connection?.authorized ? "已连接 YouTube" : "连接 YouTube"}
+              {prefs.sources.length
+                ? "清除筛选"
+                : connection?.authorized
+                  ? "已连接 YouTube"
+                  : "连接 YouTube"}
             </button>
           </div>
         ) : (
@@ -937,14 +941,19 @@ export function YouTubeView({
                   </dd>
                   <dt>原始视频</dt>
                   <dd>
-                    <a
+                    <button
                       className="yp-link"
-                      href={selected.source_trace.video_url}
-                      target="_blank"
-                      rel="noreferrer"
+                      disabled={busy}
+                      onClick={() =>
+                        void panelAction(async () => {
+                          setPanelMessage("正在打开浏览器…");
+                        await call("sources.open", { video_id: selectedId });
+                          setPanelMessage("已在默认浏览器中打开原始视频。");
+                        })
+                      }
                     >
                       打开 YouTube
-                    </a>
+                    </button>
                   </dd>
                 </dl>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

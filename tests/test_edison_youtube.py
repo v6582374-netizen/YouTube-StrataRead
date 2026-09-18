@@ -230,3 +230,40 @@ def test_channel_exclusion_and_prompt_survive_restart_without_removing_documents
         assert service.dispatch("library.list", {"documents_only": True})["result"]["total"] == 1
     finally:
         service.close()
+
+
+def test_original_video_opens_via_macos_using_stored_identity(tmp_path, monkeypatch):
+    import subprocess
+
+    monkeypatch.setenv("YOUTUBE_WORKBENCH_WORKSPACE", str(tmp_path))
+    monkeypatch.setattr(youtube.YouTubeWorkbench, "_run", lambda self: None)
+    monkeypatch.setattr(youtube.sys, "platform", "darwin")
+    service = youtube.YouTubeWorkbench(SimpleNamespace())
+    service.workspace.add_candidate(
+        Candidate(
+            "XgqKqN_H-4M",
+            "channel",
+            "a16z",
+            "Title",
+            "https://www.youtube.com/watch?v=XgqKqN_H-4M",
+            "2026-09-16",
+            1789581609,
+        )
+    )
+    opened = []
+    monkeypatch.setattr(youtube.subprocess, "run", lambda args, **kwargs: opened.append(args))
+    try:
+        response = service.dispatch(
+            "sources.open", {"video_id": "XgqKqN_H-4M", "url": "file:///not-a-video"}
+        )
+        assert response["ok"]
+        assert opened == [["/usr/bin/open", "https://www.youtube.com/watch?v=XgqKqN_H-4M"]]
+        assert not service.dispatch("sources.open", {"video_id": "missing"})["ok"]
+
+        def rejected(*args, **kwargs):
+            raise subprocess.CalledProcessError(1, args)
+
+        monkeypatch.setattr(youtube.subprocess, "run", rejected)
+        assert not service.dispatch("sources.open", {"video_id": "XgqKqN_H-4M"})["ok"]
+    finally:
+        service.close()

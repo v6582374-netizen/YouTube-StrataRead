@@ -244,25 +244,42 @@ it("shows the verified connection on the channel button, including after authori
   ).toBeTruthy();
 });
 
-it('loads an existing authorization on a fresh view without inferring it from imported channels', async () => {
-  const implementation=call.getMockImplementation()!;
-  call.mockImplementation(async (capability,args)=>capability==='connection.status'
-    ? {configured:true,authorized:true,subscription_count:12}
-    : implementation(capability,args));
-  render(<YouTubeView onModelSettings={()=>{}}/>);
-  fireEvent.click(screen.getByRole('button',{name:'订阅频道'}));
-  expect(await screen.findByRole('button',{name:'已连接 YouTube'})).toBeTruthy();
-  expect(screen.getByText('12 个订阅')).toBeTruthy();
+it("loads an existing authorization on a fresh view without inferring it from imported channels", async () => {
+  const implementation = call.getMockImplementation()!;
+  call.mockImplementation(async (capability, args) =>
+    capability === "connection.status"
+      ? { configured: true, authorized: true, subscription_count: 12 }
+      : implementation(capability, args),
+  );
+  render(<YouTubeView onModelSettings={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
+  expect(
+    await screen.findByRole("button", { name: "已连接 YouTube" }),
+  ).toBeTruthy();
+  expect(screen.getByText("12 个订阅")).toBeTruthy();
 });
 
-it('reports unknown connection status on failure instead of showing a false connected badge',async()=>{
-  const implementation=call.getMockImplementation()!;
-  call.mockImplementation(async(capability,args)=>{
-    if(capability==='connection.status')throw new Error('Vault unavailable');
-    return implementation(capability,args);
+it("reports unknown connection status on failure instead of showing a false connected badge", async () => {
+  const implementation = call.getMockImplementation()!;
+  call.mockImplementation(async (capability, args) => {
+    if (capability === "connection.status")
+      throw new Error("Vault unavailable");
+    return implementation(capability, args);
   });
-  render(<YouTubeView onModelSettings={()=>{}}/>);
-  fireEvent.click(screen.getByRole('button',{name:'订阅频道'}));
-  await screen.findByText('连接状态未知，请重试');
-  expect(screen.queryByRole('button',{name:'已连接 YouTube'})).toBeNull();
+  render(<YouTubeView onModelSettings={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
+  await screen.findByText("连接状态未知，请重试");
+  expect(screen.queryByRole("button", { name: "已连接 YouTube" })).toBeNull();
+});
+
+it("hands the original video to the native browser capability rather than a webview popup", async () => {
+  render(<YouTubeView onModelSettings={() => {}} />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Prepared manuscript/ }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "打开 YouTube" }));
+  await waitFor(() =>
+    expect(call).toHaveBeenCalledWith("sources.open", { video_id: "one" }),
+  );
+  await screen.findByText("已在默认浏览器中打开原始视频。");
 });

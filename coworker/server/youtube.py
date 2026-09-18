@@ -6,6 +6,7 @@ No second model client, credential copy, or auxiliary server is introduced.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import threading
@@ -153,6 +154,21 @@ class YouTubeWorkbench:
                     "default_prompt": DEFAULT_PROMPT,
                 },
             }
+        if capability == "sources.open":
+            try:
+                asset = self.workspace.asset(str(arguments.get("video_id", "")))
+                video_id = str(asset["video_id"])
+                if sys.platform != "darwin" or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+                    raise ValueError("Unsupported source")
+                # Build from the retained identity, never a renderer-supplied URL.
+                subprocess.run(
+                    ["/usr/bin/open", f"https://www.youtube.com/watch?v={video_id}"],
+                    check=True,
+                    timeout=10,
+                )
+                return {"ok": True, "result": {"opened": True}}
+            except (KeyError, ValueError, subprocess.SubprocessError, OSError):
+                return {"ok": False, "error": "无法打开原始视频，请检查默认浏览器后重试。"}
         if capability == "documents.open":
             try:
                 document = self.library.document(str(arguments.get("video_id", "")))

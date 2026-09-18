@@ -13,6 +13,7 @@ for (const width of [800, 1100, 1440]) {
     let exclusions: string[] = [];
     let prompt = "将字幕整理为忠实的简体中文文档。";
     let opened = 0;
+    let sourceOpened = 0;
     await page.route("**/v1/youtube/capability", async (route) => {
       const { capability, arguments: args = {} } = route
         .request()
@@ -73,6 +74,10 @@ for (const width of [800, 1100, 1440]) {
           },
           generation_records: [],
         };
+      if (capability === "sources.open") {
+        sourceOpened++;
+        result = { opened: true };
+      }
       if (capability === "documents.open") {
         opened++;
         result = { opened: true };
@@ -111,6 +116,9 @@ for (const width of [800, 1100, 1440]) {
     const dialog = page.getByRole("dialog", { name: "文档信息" });
     await expect(dialog).toBeVisible();
     expect(opened).toBe(0);
+    expect(sourceOpened).toBe(0);
+    await dialog.getByRole("button", { name: "打开 YouTube" }).click();
+    await expect.poll(() => sourceOpened).toBe(1);
     await dialog.getByRole("button", { name: "用默认应用打开" }).click();
     await expect.poll(() => opened).toBe(1);
     await page.keyboard.press("Escape");

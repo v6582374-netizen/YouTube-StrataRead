@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from youtube_strataread.ai.base import get_provider
@@ -39,6 +40,13 @@ class PreparationService:
     workspace: LocalWorkspace
     captions: CaptionAcquirer
     manuscripts: ManuscriptGenerator
+    _claim_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+    _stopping: bool = field(default=False, init=False, repr=False)
+
+    def stop(self) -> None:
+        """Prevent new claims while allowing an already claimed asset to finish."""
+        with self._claim_lock:
+            self._stopping = True
 
     def request_drain_pause(self) -> dict[str, object]:
         self.workspace.set_meta("drain_paused", "1")
@@ -49,7 +57,10 @@ class PreparationService:
         return self.workspace.activity()
 
     def run_next(self) -> bool:
-        asset = self.workspace.claim_next_queued_asset()
+        with self._claim_lock:
+            if self._stopping:
+                return False
+            asset = self.workspace.claim_next_queued_asset()
         if asset is None:
             return False
         video_id = str(asset["video_id"])

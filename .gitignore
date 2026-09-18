@@ -13,3 +13,18 @@ desktop/src-tauri/target/
 desktop/src-tauri/gen/
 desktop/src-tauri/binaries/
 desktop/.sidecar-build/
+
+# Edison/Openworker build artifacts
+**/node_modules/
+**/target/
+**/dist/
+**/binaries/
+*.egg-info/
+.env
+
+**/test-results/
+**/playwright-report/
+surfaces/gui/src-tauri/gen/
+.claude/settings.local.json
+
+build/

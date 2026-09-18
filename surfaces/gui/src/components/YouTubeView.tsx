@@ -1,155 +1,1025 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { youtubeCapability as call } from "../api";
+import { Icon } from "./Icon";
 import { YouTubeIcon } from "./YouTubeIcon";
+import { Dialog } from "./youtube/Dialog";
+import { DocumentViews, ChannelAvatar } from "./youtube/DocumentViews";
+import {
+  Activity,
+  Asset,
+  Connection,
+  Inspection,
+  Layout,
+  Preferences,
+  Prompt,
+  Source,
+  dateLabel,
+} from "./youtube/types";
+import "./youtube/youtube.css";
 
-type ReadingState = "inbox" | "to-read" | "reading" | "read";
-type Asset = { video_id: string; channel_id: string; channel_title: string; title: string; url: string; published_at: string; preparation_state: string; failure_reason: string | null; reading_state: ReadingState; manuscript_version: number | null };
-type Inspection = Asset & { source_trace: { video_url: string; transcript_available: boolean }; generation_records: { manuscript_version: number; created_at: number }[] };
-type Activity = { queued: number; acquiring: number; generating: number; ready: number; failed: number; unavailable: number; drain_paused: boolean; batch: { completed: number; limit: number }; model: string; model_ready: boolean; discovery_error: string | null; volume: { transcript_characters: number; manuscript_characters: number }; failures: { video_id: string; title: string; reason: string; state: string }[] };
-type Connection = { configured: boolean; authorized: boolean; subscription_count: number };
-type Source = { channel_id: string; title: string };
-const states: Record<string, string> = { queued: "排队", acquiring: "获取字幕", generating: "生成稿件", ready: "就绪", failed: "失败", unavailable: "字幕不可用" };
-const tabs: [ReadingState | "all", string][] = [["inbox", "收件箱"], ["to-read", "待读"], ["reading", "阅读中"], ["read", "已读"], ["all", "全部稿件"]];
-const button = "rounded-lg border border-line px-3 py-2 text-xs text-ink bg-panel hover:bg-chromeHover disabled:opacity-50 whitespace-nowrap";
-const field = "rounded-lg border border-line bg-panel text-ink px-3 py-2 text-sm min-w-0";
-const formatError = (e: unknown) => e instanceof Error ? e.message : String(e);
+const layoutKey = "edison:youtube:layout";
+const layouts: [Layout, string][] = [
+  ["timeline", "时间流"],
+  ["library", "文档库"],
+  ["channels", "频道索引"],
+];
+const errorMessage = (e: unknown) =>
+  e instanceof Error ? e.message : String(e);
+function savedLayout(): Layout {
+  try {
+    const value = localStorage.getItem(layoutKey);
+    return layouts.some(([k]) => k === value) ? (value as Layout) : "timeline";
+  } catch {
+    return "timeline";
+  }
+}
 
-export function YouTubeView({ onModelSettings }: { onModelSettings: () => void }) {
-  const [view, setView] = useState<ReadingState | "all">("inbox");
+export function YouTubeView({
+  onModelSettings,
+}: {
+  onModelSettings: () => void;
+}) {
+  const [layout, setLayout] = useState<Layout>(savedLayout);
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [selected, setSelected] = useState<Inspection | null>(null);
+  const [prefs, setPrefs] = useState<Preferences>({
+    sources: [],
+    excluded_channels: [],
+  });
   const [activity, setActivity] = useState<Activity | null>(null);
-  const [connection, setConnection] = useState<Connection | null>(null);
-  const [sources, setSources] = useState<Source[]>([]);
   const [query, setQuery] = useState("");
-  const [transcript, setTranscript] = useState(false);
+  const [period, setPeriod] = useState("7");
   const [channel, setChannel] = useState("");
-  const [preparation, setPreparation] = useState("");
+  const [unread, setUnread] = useState(false);
   const [after, setAfter] = useState("");
   const [before, setBefore] = useState("");
-  const [pulse, setPulse] = useState(false);
-  const [connect, setConnect] = useState(false);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [panel, setPanel] = useState<
+    "channels" | "prompt" | "connection" | "document" | null
+  >(null);
+  const [panelMessage, setPanelMessage] = useState("");
+  const [panelLoading, setPanelLoading] = useState(false);
+  const [panelReady, setPanelReady] = useState(false);
+  const [excluded, setExcluded] = useState<string[]>([]);
+  const [channelSearch, setChannelSearch] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [defaultPrompt, setDefaultPrompt] = useState("");
+  const [savedPrompt, setSavedPrompt] = useState("");
+  const [connection, setConnection] = useState<Connection | null>(null);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [connectionMessage, setConnectionMessage] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const revision = useRef(0);
-  const connectionRevision = useRef(0);
-  const selection = useRef<string | null>(null);
-
+  const [selected, setSelected] = useState<Inspection | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pulse, setPulse] = useState(false);
+  const revision = useRef(0),
+    panelRevision = useRef(0);
+  const pulseRef = useRef<HTMLDivElement>(null);
+  const preferences = useCallback(async () => {
+    const value = await call<Preferences>("collection.preferences");
+    setPrefs(value);
+    return value;
+  }, []);
   const refresh = useCallback(async () => {
-    const current = ++revision.current;
-    const filters: Record<string, unknown> = { query, include_transcript: transcript };
-    if (view !== "all") filters.reading_state = view;
+    const version = ++revision.current;
+    const filters: Record<string, unknown> = {
+      query,
+      documents_only: true,
+      unread_only: unread,
+    };
     if (channel) filters.channel_id = channel;
-    if (preparation) filters.preparation_state = preparation;
-    if (after) filters.published_after = new Date(after).getTime() / 1000;
-    if (before) filters.published_before = new Date(`${before}T23:59:59`).getTime() / 1000;
-    const [list, progress] = await Promise.all([
-      call<{ assets: Asset[] }>("library.list", filters), call<Activity>("activity.snapshot"),
-    ]);
-    if (current !== revision.current) return;
-    setAssets(list.assets); setActivity(progress);
-    if (selection.current && !list.assets.some(x => x.video_id === selection.current)) {
-      selection.current = null; setSelected(null);
+    if (period === "custom") {
+      if (after)
+        filters.published_after =
+          new Date(`${after}T00:00:00`).getTime() / 1000;
+      if (before)
+        filters.published_before =
+          new Date(`${before}T23:59:59`).getTime() / 1000;
+      if (after && before && after > before) {
+        setMessage("开始日期不能晚于结束日期。");
+        setLoading(false);
+        return;
+      }
+    } else if (period !== "all") {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() - Number(period) + 1);
+      filters.published_after = start.getTime() / 1000;
     }
-  }, [view, query, transcript, channel, preparation, after, before]);
-
+    const [list, progress] = await Promise.all([
+      call<{ assets: Asset[] }>("library.list", filters),
+      call<Activity>("activity.snapshot"),
+    ]);
+    if (version !== revision.current) return;
+    setAssets(list.assets);
+    setSelected((current) => {
+      if (!current) return current;
+      const latest = list.assets.find(
+        (asset) => asset.video_id === current.video_id,
+      );
+      return latest ? { ...current, ...latest } : current;
+    });
+    setActivity(progress);
+    setLoading(false);
+  }, [query, period, channel, unread, after, before]);
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
     const update = async () => {
-      try { await refresh(); } catch (e) { if (alive) setMessage(formatError(e)); }
-      if (alive) timer = setTimeout(update, 3000);
+      try {
+        await refresh();
+      } catch (e) {
+        if (alive) {
+          setMessage(errorMessage(e));
+          setLoading(false);
+        }
+      }
+      if (alive) timer = setTimeout(update, 4000);
     };
     void update();
-    return () => { alive = false; revision.current++; clearTimeout(timer); };
+    return () => {
+      alive = false;
+      revision.current++;
+      clearTimeout(timer);
+    };
   }, [refresh]);
-  useEffect(() => { void call<{ sources: Source[] }>("collection.subscription_sources").then(x => setSources(x.sources)).catch(() => {}); }, []);
-
+  useEffect(() => {
+    void preferences().catch((e) => setMessage(errorMessage(e)));
+  }, [preferences]);
+  useEffect(() => {
+    if (!pulse) return;
+    const close = (e: PointerEvent) => {
+      if (!pulseRef.current?.contains(e.target as Node)) setPulse(false);
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPulse(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [pulse]);
   const action = async (work: () => Promise<void>) => {
-    setBusy(true); setMessage("");
-    try { await work(); await refresh(); } catch (e) { setMessage(formatError(e)); }
-    finally { setBusy(false); }
-  };
-  const inspect = async (asset: Asset) => {
-    selection.current = asset.video_id;
+    setBusy(true);
+    setMessage("");
     try {
-      const result = await call<Inspection>("library.inspect", { video_id: asset.video_id });
-      if (selection.current === asset.video_id) setSelected(result);
-    } catch (e) { setMessage(formatError(e)); }
+      await work();
+      await refresh();
+    } catch (e) {
+      setMessage(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
   };
-  const connectAction = async (capability: string, args = {}) => {
-    connectionRevision.current++;
-    setBusy(true); setConnectionMessage(capability === "connection.configure" ? "正在保存，请在 Automic Vault 中完成授权…" : "正在处理，请完成浏览器或 Vault 中的授权…");
+  const close = () => {
+    panelRevision.current++;
+    setPanel(null);
+    setPanelMessage("");
+    setConfirmDelete(false);
+  };
+  const openPanel = async (kind: NonNullable<typeof panel>, asset?: Asset) => {
+    const version = ++panelRevision.current;
+    setPanel(kind);
+    setPanelMessage("");
+    setPanelLoading(true);
+    setPanelReady(false);
+    setSelected(null);
+    setPrompt("");
+    setConfirmDelete(false);
     try {
+      if (kind === "channels") {
+        const value = await preferences();
+        if (version === panelRevision.current) {
+          setExcluded(value.excluded_channels);
+          setChannelSearch("");
+        }
+      }
+      if (kind === "prompt") {
+        const value = await call<Prompt>("generation.prompt");
+        if (version === panelRevision.current) {
+          setPrompt(value.prompt);
+          setSavedPrompt(value.prompt);
+          setDefaultPrompt(value.default_prompt);
+        }
+      }
+      if (kind === "connection") {
+        const value = await call<Connection>("connection.status");
+        if (version === panelRevision.current) setConnection(value);
+      }
+      if (kind === "document" && asset) {
+        const value = await call<Inspection>("library.inspect", {
+          video_id: asset.video_id,
+        });
+        if (version === panelRevision.current) setSelected(value);
+      }
+      if (version === panelRevision.current) setPanelReady(true);
+    } catch (e) {
+      if (version === panelRevision.current) setPanelMessage(errorMessage(e));
+    } finally {
+      if (version === panelRevision.current) setPanelLoading(false);
+    }
+  };
+  const panelAction = async (work: () => Promise<void>) => {
+    setBusy(true);
+    setPanelMessage("");
+    try {
+      await work();
+    } catch (e) {
+      setPanelMessage(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const connectAction = (capability: string, args = {}) =>
+    panelAction(async () => {
+      setPanelMessage(
+        capability === "connection.configure"
+          ? "正在保存，请在 Automic Vault 中完成授权…"
+          : "请完成浏览器或 Vault 中的授权…",
+      );
       setConnection(await call<Connection>(capability, args));
-      setClientSecret(""); setConnectionMessage("操作成功。");
-      setSources((await call<{ sources: Source[] }>("collection.subscription_sources")).sources);
-    } catch (e) { setConnectionMessage(formatError(e)); }
-    finally { setBusy(false); }
+      setClientSecret("");
+      await preferences();
+      setPanelMessage("操作成功。");
+    });
+  const selectLayout = (value: Layout) => {
+    setLayout(value);
+    try {
+      localStorage.setItem(layoutKey, value);
+    } catch {
+      /* Private browsing does not block the switch. */
+    }
   };
-  const openConnection = () => {
-    setConnect(true); setConnectionMessage("正在检查连接状态…");
-    const current = ++connectionRevision.current;
-    void call<Connection>("connection.status").then(status => {
-      if (current === connectionRevision.current) { setConnection(status); setConnectionMessage(""); }
-    }).catch(e => { if (current === connectionRevision.current) setConnectionMessage(formatError(e)); });
+  const sources: Source[] = [
+    ...new Map(
+      [
+        ...prefs.sources,
+        ...assets.map((a) => ({
+          channel_id: a.channel_id,
+          title: a.channel_title,
+        })),
+      ].map((s) => [s.channel_id, s]),
+    ).values(),
+  ];
+  const status = activity?.drain_paused
+    ? "更新已暂停"
+    : activity && !activity.model_ready
+      ? "等待模型设置"
+      : prefs.sources.length
+        ? "自动更新中"
+        : "尚未连接";
+  const clearFilters = () => {
+    setQuery("");
+    setPeriod("all");
+    setChannel("");
+    setUnread(false);
+    setAfter("");
+    setBefore("");
+    setMessage("");
   };
-  const move = (state: ReadingState) => action(async () => {
-    if (selected) setSelected(await call<Inspection>("library.set_reading_state", { video_id: selected.video_id, reading_state: state }));
-  });
-
-  return <main className="flex-1 min-w-0 overflow-y-auto bg-paper text-ink" aria-label="YouTube 资料库">
-    <div className="max-w-6xl mx-auto p-6 space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div><h1 className="flex items-center gap-2 text-xl font-semibold"><YouTubeIcon size={26} />YouTube</h1><p className="text-sm text-muted mt-1">订阅更新，整理为你的本地阅读资料库。</p></div>
-        <div className="flex gap-2 items-center">
-          <div className="relative">
-            <button className={button} onClick={() => setPulse(!pulse)} aria-expanded={pulse} aria-controls="youtube-activity">● 活动 {activity ? activity.queued + activity.acquiring + activity.generating : 0}</button>
-            {pulse && <section id="youtube-activity" aria-label="批处理活动" className="absolute z-30 right-0 top-full mt-2 w-80 max-w-[85vw] max-h-[65vh] overflow-y-auto rounded-xl border border-line bg-panel shadow-xl p-4 space-y-3">
-              <h2 className="font-semibold">批处理活动</h2>
-              <p className="text-sm text-muted">{activity?.drain_paused ? "已请求暂停，当前项完成后停止" : !activity?.model_ready ? "等待模型配置" : activity?.acquiring ? "正在获取字幕" : activity?.generating ? "正在生成稿件" : "等待新更新"}</p>
-              <dl className="grid grid-cols-2 gap-2 text-sm"><dt>本轮已处理 / 上限</dt><dd>{activity?.batch.completed ?? 0} / {activity?.batch.limit ?? 100}</dd><dt>就绪 / 失败 / 不可用</dt><dd>{activity?.ready ?? 0} / {activity?.failed ?? 0} / {activity?.unavailable ?? 0}</dd><dt>字幕 / 稿件字符</dt><dd>{activity?.volume.transcript_characters ?? 0} / {activity?.volume.manuscript_characters ?? 0}</dd></dl>
-              {activity?.failures.map(f => <div key={f.video_id} className="border-t border-line pt-2 text-xs"><strong>{f.title}</strong><p className="text-muted my-1 break-words">{f.reason}</p>{f.state === "failed" && <button className={button} disabled={busy} onClick={() => void action(async () => { await call("activity.retry", { video_id: f.video_id }); })}>重试此项</button>}</div>)}
-              <div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={() => void action(async () => { await call(activity?.drain_paused ? "activity.resume" : "activity.drain_pause"); })}>{activity?.drain_paused ? "恢复批次" : "排空后暂停"}</button><button className={button} disabled={busy || !activity?.failed} onClick={() => void action(async () => { await call("activity.retry_all_failed"); })}>重试全部失败项</button></div>
-            </section>}
+  const selectedId = selected?.video_id;
+  return (
+    <main className="yp-main" aria-label="YouTube 资料库">
+      <header className="yp-head">
+        <div className="yp-header">
+          <h1>
+            <YouTubeIcon size={25} />
+            YouTube
+          </h1>
+          <div className="yp-tools">
+            <div ref={pulseRef} style={{ position: "relative" }}>
+              <button
+                className="yp-sync"
+                onClick={() => setPulse(!pulse)}
+                aria-expanded={pulse}
+                aria-controls="youtube-activity"
+              >
+                <span
+                  className={`yp-dot ${activity?.drain_paused ? "pending" : ""}`}
+                />
+                {status}
+              </button>
+              {pulse && (
+                <section
+                  id="youtube-activity"
+                  className="yp-popover"
+                  aria-label="自动更新"
+                >
+                  <h2>自动更新</h2>
+                  <p>
+                    {activity?.drain_paused
+                      ? "当前文档完成后暂停后续更新。"
+                      : activity?.generating
+                        ? "正在生成阅读文档。"
+                        : activity?.acquiring
+                          ? "正在获取字幕。"
+                          : "等待新的订阅更新。"}
+                  </p>
+                  <div className="yp-summary">
+                    <span>待处理 {activity?.queued ?? 0} 篇</span>
+                    <span>已生成 {activity?.ready ?? 0} 篇</span>
+                  </div>
+                  {activity && !activity.model_ready && (
+                    <button className="yp-btn" onClick={onModelSettings}>
+                      连接生成模型
+                    </button>
+                  )}
+                  {activity?.discovery_error && (
+                    <p>{activity.discovery_error}</p>
+                  )}
+                  {activity?.failures.map((f) => (
+                    <div className="yp-job" key={f.video_id}>
+                      <div>
+                        {f.title}
+                        <small>{f.reason}</small>
+                      </div>
+                      {f.state === "failed" && (
+                        <button
+                          className="yp-link"
+                          disabled={busy}
+                          onClick={() =>
+                            void action(async () => {
+                              await call("activity.retry", {
+                                video_id: f.video_id,
+                              });
+                            })
+                          }
+                        >
+                          重试
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      className="yp-btn"
+                      disabled={busy}
+                      onClick={() =>
+                        void action(async () => {
+                          await call(
+                            activity?.drain_paused
+                              ? "activity.resume"
+                              : "activity.drain_pause",
+                          );
+                        })
+                      }
+                    >
+                      {activity?.drain_paused
+                        ? "恢复自动更新"
+                        : "完成当前文档后暂停"}
+                    </button>
+                    {!!activity?.failed && (
+                      <button
+                        className="yp-btn"
+                        disabled={busy}
+                        onClick={() =>
+                          void action(async () => {
+                            await call("activity.retry_all_failed");
+                          })
+                        }
+                      >
+                        重试失败项
+                      </button>
+                    )}
+                    <button
+                      className="yp-iconbtn"
+                      title="立即检查更新"
+                      aria-label="立即检查更新"
+                      disabled={busy}
+                      onClick={() =>
+                        void action(async () => {
+                          await call("collection.refresh_updates");
+                          setMessage("已检查订阅更新。");
+                        })
+                      }
+                    >
+                      <Icon name="refresh" />
+                    </button>
+                  </div>
+                </section>
+              )}
+            </div>
+            <button
+              className="yp-iconbtn yp-labeled"
+              onClick={() => void openPanel("channels")}
+            >
+              <Icon name="sidebar" />
+              订阅频道
+            </button>
+            <button
+              className="yp-iconbtn yp-labeled"
+              onClick={() => void openPanel("prompt")}
+            >
+              <Icon name="pencil" />
+              生成规则
+            </button>
           </div>
-          <button className={button} onClick={openConnection}>连接 YouTube</button>
         </div>
+        <div className="yp-subline">
+          <strong>阅读文档</strong>
+          <span>·</span>
+          <span>
+            {
+              prefs.sources.filter(
+                (s) => !prefs.excluded_channels.includes(s.channel_id),
+              ).length
+            }{" "}
+            个频道
+            {prefs.excluded_channels.length
+              ? ` · 已排除 ${prefs.excluded_channels.length} 个`
+              : ""}
+          </span>
+        </div>
+        <div className="yp-filterbar">
+          <label className="yp-search">
+            <Icon name="search" />
+            <input
+              type="search"
+              aria-label="搜索文档"
+              placeholder="搜索文档"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <select
+            aria-label="按时间筛选"
+            value={period}
+            onChange={(e) => {
+              setPeriod(e.target.value);
+              setMessage("");
+            }}
+          >
+            <option value="7">最近 7 天</option>
+            <option value="1">今天</option>
+            <option value="30">最近 30 天</option>
+            <option value="all">全部时间</option>
+            <option value="custom">自定时间</option>
+          </select>
+          {layout !== "channels" && (
+            <select
+              aria-label="按频道筛选"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+            >
+              <option value="">全部频道</option>
+              {sources.map((s) => (
+                <option key={s.channel_id} value={s.channel_id}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            aria-label="阅读筛选"
+            value={unread ? "unread" : "all"}
+            onChange={(e) => setUnread(e.target.value === "unread")}
+          >
+            <option value="all">全部文档</option>
+            <option value="unread">未读文档</option>
+          </select>
+          <span className="yp-count">{assets.length} 篇</span>
+          <div className="yp-layouts" role="group" aria-label="呈现形式">
+            {layouts.map(([value, label]) => (
+              <button
+                key={value}
+                aria-label={label}
+                title={label}
+                aria-pressed={layout === value}
+                onClick={() => selectLayout(value)}
+              >
+                <LayoutIcon kind={value} />
+              </button>
+            ))}
+          </div>
+        </div>
+        {period === "custom" && (
+          <div className="yp-filterbar" style={{ paddingTop: 12 }}>
+            <label>
+              从{" "}
+              <input
+                className="yp-time-input"
+                type="date"
+                aria-label="起始日期"
+                value={after}
+                onChange={(e) => {
+                  setAfter(e.target.value);
+                  setMessage("");
+                }}
+              />
+            </label>
+            <label>
+              至{" "}
+              <input
+                className="yp-time-input"
+                type="date"
+                aria-label="结束日期"
+                value={before}
+                onChange={(e) => {
+                  setBefore(e.target.value);
+                  setMessage("");
+                }}
+              />
+            </label>
+          </div>
+        )}
       </header>
-      <div className="flex flex-wrap justify-between items-center gap-2 text-xs text-muted"><span>生成模型：{activity?.model || "读取中"} · 沿用 Edison 设置</span><button className={button} onClick={onModelSettings}>模型设置</button></div>
-      {activity && !activity.model_ready && <p role="status" className="rounded-lg border border-line bg-panel p-3 text-sm">请先在模型设置中连接模型。新资料会保持排队，不会因缺少 API Key 而失败。</p>}
-      {(message || activity?.discovery_error) && <p role="status" className="text-sm break-words">{message || activity?.discovery_error}</p>}
-      <nav className="flex flex-wrap gap-2" aria-label="阅读状态">{tabs.map(([key,label]) => <button key={key} aria-pressed={view === key} className={`${button} ${view === key ? "font-semibold !bg-chromeHover" : ""}`} onClick={() => setView(key)}>{label}</button>)}</nav>
-      <div className="flex flex-wrap gap-2 items-center">
-        <input aria-label="搜索稿件" placeholder="搜索标题、频道或正文" className={`${field} flex-1 basis-48`} value={query} onChange={e => setQuery(e.target.value)} />
-        <select aria-label="频道" className={field} value={channel} onChange={e => setChannel(e.target.value)}><option value="">全部频道</option>{sources.map(s => <option key={s.channel_id} value={s.channel_id}>{s.title}</option>)}</select>
-        <select aria-label="准备状态" className={field} value={preparation} onChange={e => setPreparation(e.target.value)}><option value="">全部状态</option>{Object.entries(states).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select>
-        <label className="text-xs text-muted flex items-center gap-1"><input type="checkbox" checked={transcript} onChange={e => setTranscript(e.target.checked)} />包含原始字幕</label>
+      <div className="yp-content">
+        {message && (
+          <p className="yp-inline-status" role="status">
+            {message}
+          </p>
+        )}
+        {loading ? (
+          <p className="yp-inline-status">正在加载文档…</p>
+        ) : !assets.length && layout !== "channels" ? (
+          <div className="yp-empty">
+            <Icon name="file" size={28} />
+            <h2>
+              {prefs.sources.length
+                ? "没有找到文档"
+                : "把订阅更新，变成阅读文档"}
+            </h2>
+            <p>
+              {prefs.sources.length
+                ? "可以调整筛选，或查看自动更新的准备进度。"
+                : "连接 YouTube 后，自动处理你订阅的频道。"}
+            </p>
+            <button
+              className="yp-btn"
+              onClick={
+                prefs.sources.length
+                  ? clearFilters
+                  : () => void openPanel("connection")
+              }
+            >
+              {prefs.sources.length ? "清除筛选" : "连接 YouTube"}
+            </button>
+          </div>
+        ) : (
+          <DocumentViews
+            layout={layout}
+            assets={assets}
+            sources={sources}
+            channel={channel}
+            onChannel={setChannel}
+            onSelect={(a) => void openPanel("document", a)}
+            searching={!!query.trim()}
+          />
+        )}
       </div>
-      <div className="flex flex-wrap gap-2 items-center">
-        <label className="text-xs text-muted">发布自 <input type="date" aria-label="起始日期" className={field} value={after} onChange={e => setAfter(e.target.value)} /></label>
-        <label className="text-xs text-muted">至 <input type="date" aria-label="结束日期" className={field} value={before} onChange={e => setBefore(e.target.value)} /></label>
-        <button className={button} disabled={busy} onClick={() => void action(async () => { await call("collection.refresh_updates"); })}>刷新更新</button>
-        <button className={button} disabled={busy} onClick={() => void action(async () => { await call("collection.backfill_updates", {days:7,limit:100}); })}>导入最近 7 天</button>
-      </div>
-      <div className={`grid gap-5 ${selected ? "xl:grid-cols-[minmax(0,1fr)_280px]" : ""}`}>
-        <section aria-label="稿件列表" className="space-y-2 min-w-0">
-          {!assets.length && <div className="text-center py-20 text-muted"><YouTubeIcon size={32}/><h2 className="mt-4 text-ink">这里还没有资料</h2><p className="text-sm mt-2">连接订阅后，新更新会在本机准备。也可以调整搜索条件。</p></div>}
-          {assets.map(a => <button key={a.video_id} onClick={() => void inspect(a)} className={`w-full text-left p-4 rounded-xl border border-line bg-panel hover:bg-chromeHover ${selected?.video_id === a.video_id ? "ring-1 ring-current" : ""}`}><span className="text-xs text-muted">{states[a.preparation_state] || a.preparation_state} · {tabs.find(([k]) => k===a.reading_state)?.[1]}{a.manuscript_version ? ` · v${a.manuscript_version}` : ""}</span><h2 className="font-medium mt-1 break-words">{a.title}</h2><p className="text-xs text-muted mt-2">{a.channel_title} · {a.published_at ? new Date(a.published_at).toLocaleDateString() : "日期未知"}</p>{a.failure_reason && <p className="text-xs text-muted mt-2 break-words">{a.failure_reason}</p>}</button>)}
-        </section>
-        {selected && <aside aria-label="来源检查器" className="border border-line rounded-xl p-4 bg-panel space-y-3 self-start min-w-0">
-          <h2 className="font-semibold break-words">{selected.title}</h2><p className="text-xs text-muted">{selected.channel_title} · {states[selected.preparation_state]}</p>
-          <a className="text-sm underline break-all" href={selected.source_trace.video_url} target="_blank" rel="noreferrer">原始 YouTube 视频</a><p className="text-xs text-muted">定时字幕：{selected.source_trace.transcript_available ? "已保留" : "暂无"} · 稿件 {selected.manuscript_version ? `v${selected.manuscript_version}` : "尚未生成"}</p>
-          {!!selected.manuscript_version && <><div className="flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={() => void action(async () => { const d = await call<{markdown:string}>("documents.get", {video_id:selected.video_id}); await navigator.clipboard.writeText(d.markdown); setMessage("Markdown 已复制。"); })}>复制 Markdown</button><button className={button} disabled={busy} onClick={() => void action(async () => { await call("documents.open", {video_id:selected.video_id}); })}>用默认应用打开</button></div><label className="text-sm block">阅读状态<select className={`${field} block w-full mt-2`} value={selected.reading_state} onChange={e => void move(e.target.value as ReadingState)} disabled={busy}>{tabs.filter(([k]) => k!=="all").map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select></label></>}
-          <div className="flex flex-wrap gap-2"><button className={button} disabled={busy || ["queued","acquiring","generating"].includes(selected.preparation_state)} onClick={() => void action(async () => { setSelected(await call<Inspection>("library.regenerate", {video_id:selected.video_id})); })}>生成新版本</button><button className={button} disabled={busy} onClick={() => setDeleting(true)}>删除资料</button></div>
-          {deleting && <div className="text-sm space-y-2"><p>将删除这份资料及所有稿件和字幕。</p><button className={button} onClick={() => void action(async () => { await call("library.delete", {video_id:selected.video_id}); setSelected(null); selection.current=null; setDeleting(false); })}>确认删除</button><button className={button} onClick={() => setDeleting(false)}>取消</button></div>}
-        </aside>}
-      </div>
-    </div>
-    {connect && <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-5"><section role="dialog" aria-modal="true" aria-label="连接 YouTube" className="rounded-2xl border border-line bg-panel shadow-xl p-6 w-full max-w-md space-y-4"><div className="flex justify-between"><h2 className="font-semibold">连接 YouTube</h2><button onClick={() => setConnect(false)} aria-label="关闭">×</button></div><p className="text-sm text-muted">使用个人 Google OAuth 客户端。测试模式下，请在 Google Cloud 的测试用户名单中添加登录邮箱。</p>{connectionMessage && <p role="status" className="text-sm break-words">{connectionMessage}</p>}{!connection?.configured ? <form className="space-y-3" onSubmit={e => {e.preventDefault();void connectAction("connection.configure", {client_id:clientId,client_secret:clientSecret});}}><label className="block text-xs">Client ID<input className={`${field} block w-full mt-1`} required value={clientId} onChange={e=>setClientId(e.target.value)} /></label><label className="block text-xs">Client Secret<input className={`${field} block w-full mt-1`} type="password" required value={clientSecret} onChange={e=>setClientSecret(e.target.value)} /></label><button className={button} disabled={busy}>{busy ? "正在保存…" : "保存到 Automic Vault"}</button></form> : !connection.authorized ? <button className={button} disabled={busy} onClick={()=>void connectAction("connection.authorize")}>在浏览器中授权并导入订阅</button> : <><p>已连接 · {connection.subscription_count} 个订阅</p><button className={button} disabled={busy} onClick={()=>void connectAction("connection.disconnect")}>断开授权</button></>}</section></div>}
-  </main>;
+      {panel === "channels" && (
+        <Dialog
+          title="订阅频道"
+          subtitle="默认自动生成所有订阅频道的阅读文档。"
+          onClose={close}
+          footer={
+            <>
+              <span>
+                {
+                  prefs.sources.filter((s) => !excluded.includes(s.channel_id))
+                    .length
+                }{" "}
+                个频道已开启
+              </span>
+              <div>
+                <button className="yp-btn" onClick={close}>
+                  取消
+                </button>{" "}
+                <button
+                  className="yp-btn primary"
+                  disabled={busy || panelLoading || !panelReady}
+                  onClick={() =>
+                    void panelAction(async () => {
+                      setPrefs(
+                        await call<Preferences>("collection.set_exclusions", {
+                          excluded_channels: excluded,
+                        }),
+                      );
+                      close();
+                      setMessage("频道设置已保存。");
+                      await refresh();
+                    })
+                  }
+                >
+                  保存
+                </button>
+              </div>
+            </>
+          }
+        >
+          <div className="yp-inline-note">
+            关闭频道后，不再领取它的新文档；正在生成的文档会完成，已有文档仍保留。新导入的订阅默认开启。
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <button
+              className="yp-btn"
+              onClick={() => void openPanel("connection")}
+            >
+              连接 YouTube
+            </button>
+            <button
+              className="yp-btn"
+              disabled={busy}
+              onClick={() =>
+                void panelAction(async () => {
+                  await call("connection.refresh_subscriptions");
+                  const next = await preferences();
+                  setExcluded(next.excluded_channels);
+                  setPanelMessage("订阅已同步。");
+                })
+              }
+            >
+              同步订阅
+            </button>
+          </div>
+          <label className="yp-search">
+            <Icon name="search" />
+            <input
+              aria-label="搜索订阅频道"
+              placeholder="搜索订阅频道"
+              value={channelSearch}
+              onChange={(e) => setChannelSearch(e.target.value)}
+            />
+          </label>
+          {panelLoading ? (
+            <p>正在读取频道…</p>
+          ) : (
+            prefs.sources
+              .filter((s) =>
+                s.title.toLowerCase().includes(channelSearch.toLowerCase()),
+              )
+              .map((s) => (
+                <div className="yp-channel-row" key={s.channel_id}>
+                  <ChannelAvatar name={s.title} />
+                  <div>
+                    <strong>{s.title}</strong>
+                  </div>
+                  <label className="yp-switch">
+                    <input
+                      type="checkbox"
+                      aria-label={`自动生成 ${s.title}`}
+                      checked={!excluded.includes(s.channel_id)}
+                      onChange={(e) =>
+                        setExcluded(
+                          e.target.checked
+                            ? excluded.filter((x) => x !== s.channel_id)
+                            : [...excluded, s.channel_id],
+                        )
+                      }
+                    />
+                    <span />
+                  </label>
+                </div>
+              ))
+          )}
+          {!panelLoading && !prefs.sources.length && (
+            <p className="yp-inline-status">尚未导入订阅。请先连接 YouTube。</p>
+          )}
+          {panelMessage && (
+            <p className="yp-error" role="status">
+              {panelMessage}
+            </p>
+          )}
+        </Dialog>
+      )}
+      {panel === "prompt" && (
+        <Dialog
+          title="生成规则"
+          subtitle="决定新文档如何翻译、去重与组织内容。"
+          onClose={close}
+          footer={
+            <>
+              <span>
+                {prompt === savedPrompt ? "已保存的规则" : "有未保存的修改"}
+              </span>
+              <div>
+                <button className="yp-btn" onClick={close}>
+                  取消
+                </button>{" "}
+                <button
+                  className="yp-btn primary"
+                  disabled={
+                    busy || panelLoading || !panelReady || !prompt.trim()
+                  }
+                  onClick={() =>
+                    void panelAction(async () => {
+                      await call("generation.set_prompt", { prompt });
+                      close();
+                      setMessage("生成规则已保存。");
+                    })
+                  }
+                >
+                  保存规则
+                </button>
+              </div>
+            </>
+          }
+        >
+          <div className="yp-inline-note">
+            修改仅用于之后生成的文档。已有文档保持不变。
+          </div>
+          <label htmlFor="youtube-prompt">Prompt</label>
+          <textarea
+            id="youtube-prompt"
+            className="yp-textarea"
+            value={prompt}
+            maxLength={64000}
+            disabled={panelLoading || !panelReady}
+            onChange={(e) => setPrompt(e.target.value)}
+          />
+          <div className="yp-meta">
+            <button
+              className="yp-link"
+              disabled={panelLoading || !panelReady}
+              onClick={() => setPrompt(defaultPrompt)}
+            >
+              使用默认规则
+            </button>
+            <span>{prompt.length} 字</span>
+          </div>
+          {panelMessage && (
+            <p className="yp-error" role="status">
+              {panelMessage}
+            </p>
+          )}
+        </Dialog>
+      )}
+      {panel === "connection" && (
+        <Dialog
+          title="连接 YouTube"
+          subtitle="使用个人 Google OAuth 客户端，凭据保存在 Automic Vault。"
+          onClose={close}
+        >
+          {panelLoading ? (
+            <p>正在检查连接状态…</p>
+          ) : !connection?.configured ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void connectAction("connection.configure", {
+                  client_id: clientId,
+                  client_secret: clientSecret,
+                });
+              }}
+            >
+              <label>
+                Client ID
+                <input
+                  className="yp-modal-field"
+                  required
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+              </label>
+              <label>
+                Client Secret
+                <input
+                  className="yp-modal-field"
+                  required
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                />
+              </label>
+              <button
+                className="yp-btn primary"
+                style={{ marginTop: 16 }}
+                disabled={busy}
+              >
+                {busy ? "正在保存…" : "保存到 Automic Vault"}
+              </button>
+            </form>
+          ) : !connection.authorized ? (
+            <button
+              className="yp-btn primary"
+              disabled={busy}
+              onClick={() => void connectAction("connection.authorize")}
+            >
+              在浏览器中授权并导入订阅
+            </button>
+          ) : (
+            <>
+              <p>已连接 · {connection.subscription_count} 个订阅</p>
+              <button
+                className="yp-btn"
+                disabled={busy}
+                onClick={() => void connectAction("connection.disconnect")}
+              >
+                断开授权
+              </button>
+            </>
+          )}
+          <p className="yp-inline-status">
+            测试模式下，请将登录邮箱加入 Google Cloud 的测试用户名单。
+          </p>
+          {panelMessage && (
+            <p className="yp-inline-status" role="status">
+              {panelMessage}
+            </p>
+          )}
+        </Dialog>
+      )}
+      {panel === "document" && (
+        <Dialog
+          title="文档信息"
+          subtitle={selected?.channel_title}
+          detail
+          onClose={close}
+          footer={
+            selected && !panelLoading ? (
+              <>
+                <span>
+                  {selected.reading_state === "read" ? "已读" : "未读"} · v
+                  {selected.manuscript_version}
+                </span>
+                <button
+                  className="yp-link"
+                  disabled={busy}
+                  onClick={() =>
+                    void panelAction(async () => {
+                      setSelected(
+                        await call<Inspection>("library.set_reading_state", {
+                          video_id: selectedId,
+                          reading_state:
+                            selected.reading_state === "read"
+                              ? "inbox"
+                              : "read",
+                        }),
+                      );
+                      await refresh();
+                    })
+                  }
+                >
+                  {selected.reading_state === "read" ? "标为未读" : "标为已读"}
+                </button>
+              </>
+            ) : null
+          }
+        >
+          {panelLoading ? (
+            <p>正在读取文档信息…</p>
+          ) : (
+            selected && (
+              <>
+                <ChannelAvatar name={selected.channel_title} />
+                <h3>{selected.title}</h3>
+                <dl>
+                  <dt>发布日期</dt>
+                  <dd>{dateLabel(selected.published_at)}</dd>
+                  <dt>来源字幕</dt>
+                  <dd>
+                    {selected.source_trace.transcript_available
+                      ? "已保留时间戳"
+                      : "暂无"}
+                  </dd>
+                  <dt>原始视频</dt>
+                  <dd>
+                    <a
+                      className="yp-link"
+                      href={selected.source_trace.video_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      打开 YouTube
+                    </a>
+                  </dd>
+                </dl>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button
+                    className="yp-btn primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void panelAction(async () => {
+                        await call("documents.open", { video_id: selectedId });
+                        setPanelMessage("已交给默认应用打开。");
+                      })
+                    }
+                  >
+                    用默认应用打开
+                  </button>
+                  <button
+                    className="yp-btn"
+                    disabled={busy}
+                    onClick={() =>
+                      void panelAction(async () => {
+                        const d = await call<{ markdown: string }>(
+                          "documents.get",
+                          { video_id: selectedId },
+                        );
+                        await navigator.clipboard.writeText(d.markdown);
+                        setPanelMessage("Markdown 已复制。");
+                      })
+                    }
+                  >
+                    <Icon name="copy" />
+                    复制正文
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: 16, marginTop: 22 }}>
+                  <button
+                    className="yp-link"
+                    disabled={
+                      busy ||
+                      ["queued", "acquiring", "generating"].includes(
+                        selected.preparation_state,
+                      )
+                    }
+                    onClick={() =>
+                      void panelAction(async () => {
+                        setSelected(
+                          await call<Inspection>("library.regenerate", {
+                            video_id: selectedId,
+                          }),
+                        );
+                        setPanelMessage("已排队生成新版本，旧版本仍保留。");
+                        await refresh();
+                      })
+                    }
+                  >
+                    生成新版本
+                  </button>
+                  <button
+                    className="yp-link"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    删除文档
+                  </button>
+                </div>
+                {confirmDelete && (
+                  <div className="yp-inline-note" style={{ marginTop: 16 }}>
+                    删除这份资料及全部稿件和字幕？
+                    <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                      <button
+                        className="yp-btn"
+                        onClick={() => setConfirmDelete(false)}
+                      >
+                        取消
+                      </button>
+                      <button
+                        className="yp-btn"
+                        disabled={busy}
+                        onClick={() =>
+                          void panelAction(async () => {
+                            await call("library.delete", {
+                              video_id: selectedId,
+                            });
+                            close();
+                            await refresh();
+                          })
+                        }
+                      >
+                        确认删除
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          )}
+          {panelMessage && (
+            <p className="yp-inline-status" role="status">
+              {panelMessage}
+            </p>
+          )}
+        </Dialog>
+      )}
+    </main>
+  );
+}
+function LayoutIcon({ kind }: { kind: Layout }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      aria-hidden="true"
+    >
+      {kind === "timeline" ? (
+        <>
+          <path d="M6 4h11M6 10h11M6 16h11" />
+          <circle cx="2.5" cy="4" r=".8" />
+          <circle cx="2.5" cy="10" r=".8" />
+          <circle cx="2.5" cy="16" r=".8" />
+        </>
+      ) : kind === "library" ? (
+        <>
+          <rect x="2" y="2" width="6" height="6" rx="1" />
+          <rect x="12" y="2" width="6" height="6" rx="1" />
+          <rect x="2" y="12" width="6" height="6" rx="1" />
+          <rect x="12" y="12" width="6" height="6" rx="1" />
+        </>
+      ) : (
+        <>
+          <rect x="2" y="2" width="16" height="16" rx="2" />
+          <path d="M8 2v16M11 6h4M11 10h4M11 14h4" />
+        </>
+      )}
+    </svg>
+  );
 }

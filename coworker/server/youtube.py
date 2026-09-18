@@ -15,8 +15,12 @@ from typing import Any
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from youtube_strataread.ai.prompts import load_prompt
-from youtube_strataread.workbench.connection import ConnectionService, GoogleOAuthGateway
+from youtube_strataread.ai.prompts import DEFAULT_PROMPT, load_prompt
+from youtube_strataread.workbench.connection import (
+    ConnectionError,
+    ConnectionService,
+    GoogleOAuthGateway,
+)
 from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeAtomFeeds
 from youtube_strataread.workbench.library import (
     AutomaticBatch,
@@ -30,15 +34,19 @@ from youtube_strataread.workbench.workspace import LocalWorkspace, workspace_roo
 
 
 class HostManuscripts:
-    def __init__(self, manager: Any) -> None:
+    def __init__(self, manager: Any, workspace: LocalWorkspace | None = None) -> None:
         self.manager = manager
+        self.workspace = workspace
 
     def generate(self, transcript: str) -> str:
+        prompt = (
+            self.workspace.meta("generation_prompt") if self.workspace else None
+        ) or load_prompt()
         try:
             turn = self.manager.provider_complete(
                 self.manager.model,
                 [
-                    {"role": "system", "content": load_prompt()},
+                    {"role": "system", "content": prompt},
                     {"role": "user", "content": transcript},
                 ],
                 tools=None,
@@ -60,7 +68,9 @@ class YouTubeWorkbench:
         )
         self.discovery = SubscriptionDiscovery(workspace=self.workspace, feeds=YouTubeAtomFeeds())
         self.preparation = PreparationService(
-            workspace=self.workspace, captions=YtDlpCaptions(), manuscripts=HostManuscripts(manager)
+            workspace=self.workspace,
+            captions=YtDlpCaptions(),
+            manuscripts=HostManuscripts(manager, self.workspace),
         )
         self.library = LibraryService(workspace=self.workspace, preparation=self.preparation)
         self.batch = AutomaticBatch(preparation=self.preparation)
@@ -68,12 +78,14 @@ class YouTubeWorkbench:
         self.thread = threading.Thread(target=self._run, name="edison-youtube", daemon=True)
         self.discovery_lock = threading.Lock()
         self.discovery_error: str | None = None
+        self.refresh_requested = threading.Event()
         self.thread.start()
 
     def _run(self) -> None:
         next_discovery = 0.0
         while not self.stop.wait(1):
-            if time.monotonic() >= next_discovery:
+            if time.monotonic() >= next_discovery or self.refresh_requested.is_set():
+                self.refresh_requested.clear()
                 next_discovery = time.monotonic() + 15 * 60
                 try:
                     with self.discovery_lock:
@@ -102,6 +114,45 @@ class YouTubeWorkbench:
         self.thread.join(timeout=1)
 
     def dispatch(self, capability: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        if capability == "connection.refresh_subscriptions":
+            try:
+                result = self.connection.refresh_subscription_sources().as_result()
+                self.refresh_requested.set()
+                return {"ok": True, "result": result}
+            except ConnectionError as error:
+                return {"ok": False, "error": str(error)}
+        if capability in {"collection.preferences", "collection.set_exclusions"}:
+            if capability == "collection.set_exclusions":
+                channels = arguments.get("excluded_channels")
+                if (
+                    not isinstance(channels, list)
+                    or len(channels) > 10000
+                    or any(
+                        not isinstance(c, str) or not c.strip() or len(c) > 256 for c in channels
+                    )
+                ):
+                    return {"ok": False, "error": "频道设置格式无效。"}
+                self.workspace.set_excluded_channels(channels)
+            return {
+                "ok": True,
+                "result": {
+                    "sources": self.workspace.subscription_sources(),
+                    "excluded_channels": self.workspace.excluded_channels(),
+                },
+            }
+        if capability in {"generation.prompt", "generation.set_prompt"}:
+            if capability == "generation.set_prompt":
+                prompt = arguments.get("prompt")
+                if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 64000:
+                    return {"ok": False, "error": "请输入 1–64000 字的生成规则。"}
+                self.workspace.set_meta("generation_prompt", prompt.strip())
+            return {
+                "ok": True,
+                "result": {
+                    "prompt": self.workspace.meta("generation_prompt") or load_prompt(),
+                    "default_prompt": DEFAULT_PROMPT,
+                },
+            }
         if capability == "documents.open":
             try:
                 document = self.library.document(str(arguments.get("video_id", "")))
@@ -128,6 +179,8 @@ class YouTubeWorkbench:
                 self.discovery,
                 self.library,
             )
+        if response.get("ok") and capability == "connection.authorize":
+            self.refresh_requested.set()
         if response.get("ok") and capability == "activity.snapshot":
             response["result"].update(
                 {

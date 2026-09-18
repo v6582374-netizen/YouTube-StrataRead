@@ -55,3 +55,36 @@ def test_discovery_creates_idempotent_queued_inbox_candidates(tmp_path: Path) ->
             "failure_reason": None,
         }
     ]
+
+
+def test_excluded_channels_are_not_fetched_and_new_subscriptions_default_on(tmp_path):
+    workspace = LocalWorkspace.open(tmp_path)
+    workspace.replace_subscription_sources(
+        [
+            SubscriptionSource(channel_id="excluded", title="Excluded"),
+            SubscriptionSource(channel_id="new", title="New subscription"),
+        ]
+    )
+    workspace.set_excluded_channels(["excluded"])
+    fetched = []
+
+    class Feeds:
+        def fetch(self, source):
+            fetched.append(source.channel_id)
+            return [
+                Candidate(
+                    "new-video",
+                    source.channel_id,
+                    source.title,
+                    "New update",
+                    "https://www.youtube.com/watch?v=new-video",
+                    "2026-09-18",
+                    1789728000,
+                )
+            ]
+
+    result = SubscriptionDiscovery(workspace=workspace, feeds=Feeds()).refresh()
+    assert fetched == ["new"]
+    assert result.discovered == 1
+    assert result.scanned_sources == 1
+    assert workspace.claim_next_queued_asset()["video_id"] == "new-video"

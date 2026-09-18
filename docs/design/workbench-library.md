@@ -1,21 +1,23 @@
-# Workbench library design
+# YouTube 阅读文档
 
-The workbench is a local Markdown library for YouTube manuscripts. Its purpose is to make a large subscription feed scannable and to preserve the person's attention for deliberate choices.
+YouTube 模块自动获取用户订阅更新并生成阅读文档。主页面直接呈现已生成的文档，不要求用户理解收件箱、队列或模型路由；生成中的工作和失败收在“自动更新”面板。模型未就绪时才提供必要的设置入口。
 
-The main workspace has four library views: Inbox, To Read, Read, and All Manuscripts. Inbox is the default surface for newly prepared documents; moving an item to To Read is an explicit commitment of attention. Each document card shows source channel, preparation time, manuscript state and a short non-authoritative excerpt. The inspector shows provenance and document status, never embeds the manuscript as a second reader.
+## 同一份资料库的三个视图
 
-Manuscripts are portable Markdown documents. The two primary document actions are Copy Markdown Source and Open with Default Application. The workbench retains source links and timed transcript provenance so the document can lead back to YouTube when the person needs to verify it.
+时间流按视频发布日期分组；文档库强调标题、正文摘录与估算阅读时长；频道索引以来源导航组织文档。三者使用同一份查询结果、时间／频道／未读筛选和文档操作。视图偏好保存在本机，切换不清空筛选或修改资料。
 
-The visual language follows normal desktop conventions: neutral system materials, light and dark modes, system typography, restrained blue for selection and action, and no themed color cast. The interface uses translucent structural chrome for hierarchy and immediate press feedback; it respects reduced-motion preferences.
+页面沿用 Edison 的字体、字号、色彩和明暗材料变量。选择器位于筛选栏右侧，键盘可达、具有明确标签。高频筛选与视图切换即时响应，不加等待动画。
 
-The workbench excludes embedded long-form reading, note-taking, annotation, and cloud synchronization.
+## 订阅与生成规则
 
-## Search and retrieval
+默认处理全部订阅。用户明确排除的频道会持久化；未在排除名单的新订阅默认开启。同步订阅导入最新列表，连接成功后立即唤醒更新发现。
 
-Default search covers manuscript title, channel identity and Markdown text. Timed raw transcripts stay outside ordinary search and are included only by an explicit user choice. Results rank by textual relevance and then publication time.
+排除频道阻止新的发现和队列领取，正在处理的文档会完成，已有文档不会被删除。恢复频道后，其保留的待处理更新可继续生成。排除不是历史文档的隐藏筛选。
 
-The complete first-release filter set is reading state, channel, publication time and preparation state. Every result card shows channel, publication time, reading state, preparation state and manuscript version. Selecting a result returns the person to that asset in the library and exposes its inspection and Markdown-handoff actions; it never opens an external application automatically.
+Prompt 在独立对话框编辑并显式保存到资料库。空内容拒绝保存；取消不写入；恢复默认规则仍需点击保存。每次生成开始时读取已保存规则，修改不会改变已开始的调用或覆写现有版本。模型与凭据继续使用 Edison 全局设置。
 
-## Activity center
+## 文档交接
 
-Automatic preparation is visible through a compact status control in the library toolbar. It expands from that control into an anchored translucent panel showing active work, completed work, failure causes, drain-pause state, single-item retry and retry-all-failures. This quiet-pulse pattern makes status available without reserving a permanent dashboard region. Affected assets still show their own preparation state in the library.
+选择文档打开紧凑的信息面板：来源、发布日期、定时字幕、版本与阅读标记；不自动启动外部应用，也不内嵌长文阅读器。正文可复制，文件可用 macOS 默认应用打开。重新生成创建新版本；删除需明确确认。
+
+主文档查询以“已有稿件”为准，所以重新生成期间旧版本仍可查阅。既有阅读状态保留兼容，界面统一显示已读／未读。

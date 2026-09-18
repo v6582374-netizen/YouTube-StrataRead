@@ -155,7 +155,8 @@ def _filters(arguments: Mapping[str, Any]) -> dict[str, object]:
         value = arguments.get(name)
         if value is not None:
             result[name] = float(value)
-    result["include_transcript"] = bool(arguments.get("include_transcript", False))
+    for flag in ("include_transcript", "documents_only", "unread_only"):
+        result[flag] = bool(arguments.get(flag, False))
     return result
 
 

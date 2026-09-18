@@ -98,7 +98,8 @@ class LocalWorkspace:
                 INSERT OR IGNORE INTO candidates
                     (video_id, channel_id, channel_title, title, url, published_at, published_ts,
                      discovered_at, preparation_state, failure_reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', NULL)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'queued', NULL
+                WHERE NOT EXISTS (SELECT 1 FROM excluded_channels WHERE channel_id = ?)
                 """,
                 (
                     candidate.video_id,
@@ -109,9 +110,29 @@ class LocalWorkspace:
                     candidate.published_at,
                     candidate.published_ts,
                     time.time(),
+                    candidate.channel_id,
                 ),
             )
         return cursor.rowcount > 0
+
+    def excluded_channels(self) -> list[str]:
+        with sqlite3.connect(self.database_path) as connection:
+            return [
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT channel_id FROM excluded_channels ORDER BY channel_id"
+                )
+            ]
+
+    def set_excluded_channels(self, channels: list[str]) -> None:
+        # Share SQLite's write ordering with queue claims. Already-claimed work
+        # completes; existing documents are never removed by subscription settings.
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute("DELETE FROM excluded_channels")
+            connection.executemany(
+                "INSERT INTO excluded_channels (channel_id) VALUES (?)",
+                [(channel,) for channel in sorted(set(channels))],
+            )
 
     def claim_next_queued_asset(self) -> dict[str, object] | None:
         """Atomically honour drain pause and claim exactly one queued asset."""
@@ -128,6 +149,7 @@ class LocalWorkspace:
                 """
                 SELECT video_id, channel_id, channel_title, title, url, published_at
                 FROM candidates WHERE preparation_state = 'queued'
+                  AND channel_id NOT IN (SELECT channel_id FROM excluded_channels)
                 ORDER BY discovered_at ASC LIMIT 1
                 """
             ).fetchone()
@@ -308,6 +330,8 @@ class LocalWorkspace:
         *,
         query: str = "",
         include_transcript: bool = False,
+        documents_only: bool = False,
+        unread_only: bool = False,
         reading_state: str | None = None,
         channel_id: str | None = None,
         preparation_state: str | None = None,
@@ -316,6 +340,10 @@ class LocalWorkspace:
     ) -> list[dict[str, object]]:
         clauses: list[str] = []
         values: list[object] = []
+        if documents_only:
+            clauses.append("c.manuscript_version IS NOT NULL")
+        if unread_only:
+            clauses.append("c.reading_state != 'read'")
         if reading_state:
             clauses.append("c.reading_state = ?")
             values.append(reading_state)
@@ -347,6 +375,8 @@ class LocalWorkspace:
                 SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at,
                        c.preparation_state, c.failure_reason, c.reading_state, c.manuscript_version,
                        c.manuscript_path, c.preparation_completed_at,
+                       SUBSTR(m.markdown, 1, 400) AS excerpt,
+                       LENGTH(m.markdown) AS manuscript_characters,
                        CASE WHEN t.video_id IS NULL THEN 0 ELSE 1 END AS transcript_available
                 FROM candidates c
                 LEFT JOIN manuscripts m ON m.video_id = c.video_id AND m.version = c.manuscript_version
@@ -358,7 +388,13 @@ class LocalWorkspace:
                      CASE WHEN m.markdown LIKE ? COLLATE NOCASE THEN 1 ELSE 0 END)
                 END DESC, COALESCE(c.published_ts, 0) DESC, c.discovered_at DESC
                 """,
-                [*values, query.strip(), f"%{query.strip()}%", f"%{query.strip()}%", f"%{query.strip()}%"],
+                [
+                    *values,
+                    query.strip(),
+                    f"%{query.strip()}%",
+                    f"%{query.strip()}%",
+                    f"%{query.strip()}%",
+                ],
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -375,7 +411,11 @@ class LocalWorkspace:
             ).fetchone()
         if row is None:
             raise KeyError(f"asset has no manuscript: {video_id}")
-        return {"path": str(row["path"]), "markdown": str(row["markdown"]), "version": row["version"]}
+        return {
+            "path": str(row["path"]),
+            "markdown": str(row["markdown"]),
+            "version": row["version"],
+        }
 
     def delete_asset(self, video_id: str) -> None:
         with sqlite3.connect(self.database_path) as connection:
@@ -390,7 +430,10 @@ class LocalWorkspace:
     def activity(self) -> dict[str, object]:
         with sqlite3.connect(self.database_path) as connection:
             rows = connection.execute(
-                "SELECT preparation_state, COUNT(*) FROM candidates GROUP BY preparation_state"
+                """SELECT preparation_state, COUNT(*) FROM candidates
+                WHERE preparation_state != 'queued' OR channel_id NOT IN
+                    (SELECT channel_id FROM excluded_channels)
+                GROUP BY preparation_state"""
             ).fetchall()
             transcript_characters = connection.execute(
                 "SELECT COALESCE(SUM(LENGTH(content)), 0) FROM transcripts"
@@ -421,7 +464,12 @@ class LocalWorkspace:
             # Provider pricing is not stable enough to present an invented estimate.
             "cost_estimate": None,
             "failures": [
-                {"video_id": str(row[0]), "title": str(row[1]), "state": str(row[2]), "reason": row[3]}
+                {
+                    "video_id": str(row[0]),
+                    "title": str(row[1]),
+                    "state": str(row[2]),
+                    "reason": row[3],
+                }
                 for row in failure_rows
             ],
             "batch": {
@@ -443,7 +491,9 @@ class LocalWorkspace:
 
     def meta(self, key: str) -> str | None:
         with sqlite3.connect(self.database_path) as connection:
-            row = connection.execute("SELECT value FROM workspace_meta WHERE key = ?", (key,)).fetchone()
+            row = connection.execute(
+                "SELECT value FROM workspace_meta WHERE key = ?", (key,)
+            ).fetchone()
         return str(row[0]) if row is not None else None
 
     def _asset_directory(self, video_id: str) -> Path:
@@ -501,6 +551,9 @@ class LocalWorkspace:
             connection.execute("PRAGMA foreign_keys=ON")
             connection.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS excluded_channels (
+                    channel_id TEXT PRIMARY KEY
+                );
                 CREATE TABLE IF NOT EXISTS workspace_meta (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL

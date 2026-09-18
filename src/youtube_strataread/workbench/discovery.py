@@ -113,7 +113,10 @@ class SubscriptionDiscovery:
             raise ConnectionError("Discovery limit must be between 1 and 100")
         discovered = 0
         scanned_sources = 0
+        excluded = set(self.workspace.excluded_channels())
         for source_data in self.workspace.subscription_sources():
+            if source_data["channel_id"] in excluded:
+                continue
             source = SubscriptionSource(
                 channel_id=str(source_data["channel_id"]),
                 title=str(source_data["title"]),

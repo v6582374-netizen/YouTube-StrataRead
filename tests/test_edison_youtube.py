@@ -149,3 +149,84 @@ def test_shutdown_during_discovery_cannot_start_a_new_asset(tmp_path, monkeypatc
         service.thread.join(3)
     assert not calls
     assert service.workspace.asset("one")["preparation_state"] == "queued"
+
+
+def test_channel_exclusion_and_prompt_survive_restart_without_removing_documents(
+    tmp_path, monkeypatch
+):
+    from youtube_strataread.workbench.connection import SubscriptionSource
+    from youtube_strataread.workbench.workspace import LocalWorkspace
+
+    monkeypatch.setenv("YOUTUBE_WORKBENCH_WORKSPACE", str(tmp_path / "youtube"))
+    monkeypatch.setattr(youtube.YouTubeWorkbench, "_run", lambda self: None)
+    provider = Provider()
+    manager = SimpleNamespace(
+        model="host-model",
+        get_settings=lambda: {"model_ready": True},
+        provider_complete=lambda m, msgs, tools: provider.complete(
+            model=m, messages=msgs, tools=tools
+        ),
+    )
+    service = youtube.YouTubeWorkbench(manager)
+    try:
+        ws = service.workspace
+        ws.replace_subscription_sources(
+            [SubscriptionSource("a", "A"), SubscriptionSource("b", "B")]
+        )
+        assert service.dispatch("collection.preferences", {})["result"]["excluded_channels"] == []
+        for id in ["ready", "waiting"]:
+            ws.add_candidate(
+                Candidate(
+                    id,
+                    "a",
+                    "A",
+                    id,
+                    "https://www.youtube.com/watch?v=" + id,
+                    "2026-09-18",
+                    1789728000,
+                )
+            )
+        service.preparation.captions = SimpleNamespace(
+            acquire=lambda url: SubtitleResult(
+                "ready", "Title", "en", False, "1\n00:00:00,000 --> 00:00:02,000\nSource\n"
+            )
+        )
+        assert service.prepare_one()
+        original = service.library.document("ready")["markdown"]
+        assert service.dispatch("collection.set_exclusions", {"excluded_channels": ["a"]})["ok"]
+        assert not service.prepare_one()
+        assert service.library.document("ready")["markdown"] == original
+        ws.replace_subscription_sources(
+            [
+                SubscriptionSource("a", "A"),
+                SubscriptionSource("b", "B"),
+                SubscriptionSource("new", "New"),
+            ]
+        )
+        assert service.dispatch("collection.preferences", {})["result"]["excluded_channels"] == [
+            "a"
+        ]
+        assert not ws.add_candidate(
+            Candidate(
+                "blocked",
+                "a",
+                "A",
+                "Blocked",
+                "https://www.youtube.com/watch?v=blocked",
+                "2026-09-18",
+                1789728000,
+            )
+        )
+        assert service.dispatch(
+            "generation.set_prompt", {"prompt": "使用简体中文，不添加原文以外的事实。"}
+        )["ok"]
+        reopened = LocalWorkspace.open(ws.root)
+        youtube.HostManuscripts(manager, reopened).generate("next source")
+        assert provider.calls[-1][1][0]["content"] == "使用简体中文，不添加原文以外的事实。"
+        assert reopened.excluded_channels() == ["a"]
+        assert service.library.document("ready")["markdown"] == original
+        assert not service.dispatch("generation.set_prompt", {"prompt": " "})["ok"]
+        assert not service.dispatch("collection.set_exclusions", {"excluded_channels": "a"})["ok"]
+        assert service.dispatch("library.list", {"documents_only": True})["result"]["total"] == 1
+    finally:
+        service.close()

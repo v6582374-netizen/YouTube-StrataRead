@@ -136,6 +136,8 @@ interface Props {
   // Grouped-nav gear entry point (§7). "Manage coworkers…" moved to the composer's
   // setup-row picker (UX-029).
   onOpenPersona: (id: string) => void;
+  onOpenCurriculum?: () => void;
+  curriculumActive?: boolean;
   onOpenYouTube?: () => void;
   youtubeActive?: boolean;
   onOpenScheduled: () => void;
@@ -1054,6 +1056,11 @@ export function Sidebar(props: Props) {
       </div>
 
       <div className="px-2.5 mt-1">
+        <button data-testid="nav-curriculum" aria-current={props.curriculumActive ? "page" : undefined}
+          className={"w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover " + (props.curriculumActive ? "text-ink bg-chromeHover" : "text-muted")}
+          onClick={props.onOpenCurriculum}>
+          <Icon name="table" size={18} /><span>Curriculum</span>
+        </button>
         <button data-testid="nav-youtube" aria-current={props.youtubeActive ? "page" : undefined}
           className={"w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover " + (props.youtubeActive ? "text-ink bg-chromeHover" : "text-muted")}
           onClick={props.onOpenYouTube}>

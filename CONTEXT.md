@@ -1,4 +1,4 @@
-# Context: YouTube Reading Workbench
+# Edison
 
 ## Glossary
 
@@ -33,3 +33,17 @@
 - **Library facets**: Reading state, channel, publication time and preparation state are the complete first-release filter set.
 - **Search result context**: Every result exposes channel, publication time, reading state, preparation state and manuscript version before it is selected.
 - **Quiet pulse activity center**: The selected activity-center pattern. A compact toolbar status control expands into an anchored material panel for batch progress, drain pause and retry actions; affected assets retain their own visible state in the library.
+
+## Curriculum language
+
+**Curriculum（课程周览）**:
+The person's weekly view of university courses, combining their timetable, academic calendar, and class period times. Personal tasks and schedule editing are outside this module's scope.
+_Avoid_: Task planner, schedule editor
+
+**Course occurrence（一次课程安排）**:
+A course scheduled on a particular date and time, with its assigned classroom and teacher. Separate occurrences of the same course may have different rooms or teachers.
+_Avoid_: Course definition, personal task
+
+**Course-free interval（无课时段）**:
+A gap between known course commitments within a covered timetable period. It does not establish availability for other commitments.
+_Avoid_: Guaranteed availability, missing timetable

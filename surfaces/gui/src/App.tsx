@@ -58,6 +58,7 @@ import { InboxItemCard, approvalItemFromParked } from "./components/InboxItemCar
 import { chooseFolder, isTauri, platformOS, startWindowDrag } from "./tauri";
 import { Icon } from "./components/Icon";
 import { YouTubeView } from "./components/YouTubeView";
+import { CurriculumView } from "./components/CurriculumView";
 import { Sidebar } from "./components/Sidebar";
 import { ThinkingBlock, Transcript } from "./components/Transcript";
 import { Composer } from "./components/Composer";
@@ -275,7 +276,7 @@ export function App() {
   // load; corrected by loadSettings.
   const [modelReady, setModelReady] = useState(true);
   const [surface, setSurface] = useState<
-    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings" | "youtube"
+    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings" | "youtube" | "curriculum"
   >("session");
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
@@ -1738,6 +1739,8 @@ export function App() {
         onOpenPersona={(id) => {
           openPersona(id, "session");
         }}
+        onOpenCurriculum={() => setSurface("curriculum")}
+        curriculumActive={surface === "curriculum"}
         onOpenYouTube={() => setSurface("youtube")}
         youtubeActive={surface === "youtube"}
         onOpenScheduled={() => setSurface("scheduled")}
@@ -1758,6 +1761,8 @@ export function App() {
       />
       {surface === "youtube" ? (
         <YouTubeView onModelSettings={() => openSettings("models")} />
+      ) : surface === "curriculum" ? (
+        <CurriculumView />
       ) : surface === "scheduled" ? (
         <ScheduledView
           onOpenRun={openRunSession}

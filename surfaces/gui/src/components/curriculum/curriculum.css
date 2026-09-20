@@ -1,0 +1,72 @@
+.curriculum { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; padding: 32px 32px 16px; color: var(--ink); background: var(--canvas); }
+.curriculum-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
+.curriculum-eyebrow { display: flex; gap: 16px; align-items: center; margin: 0 0 8px; color: var(--muted); font-size: var(--fs-label); letter-spacing: .06em; }
+.curriculum-eyebrow span { color: var(--faint); font-variant-numeric: tabular-nums; }
+.curriculum h1 { margin: 0; font-size: var(--fs-title); font-weight: 600; letter-spacing: -.025em; }
+.curriculum-subtitle { margin: 6px 0 0; font-size: var(--fs-ui); color: var(--muted); }
+.curriculum-semester { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: var(--fs-mono); white-space: nowrap; }
+.curriculum-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+.curriculum-week-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+.curriculum h2 { margin: 0; font-size: var(--fs-heading); font-weight: 600; }
+.curriculum-week-title > span { font-size: var(--fs-ui); color: var(--muted); }
+.curriculum-controls { display: flex; align-items: center; gap: 8px; }
+.curriculum-control, .curriculum-date, .curriculum-arrows { border: 1px solid var(--line-strong); background: var(--canvas); border-radius: 7px; font-size: var(--fs-mono); color: var(--ink); height: 32px; }
+.curriculum-control { padding: 0 12px; }
+.curriculum-date { padding: 0 8px; width: 140px; font-variant-numeric: tabular-nums; }
+.curriculum-arrows { display: flex; align-items: stretch; }
+.curriculum-arrows button { display: grid; place-items: center; width: 30px; border-radius: 6px; }
+.curriculum button { cursor: pointer; }
+.curriculum button:disabled { opacity: .4; cursor: default; }
+.curriculum-control:hover, .curriculum-arrows button:hover { background: var(--chrome-hover); }
+.curriculum-back { transform: rotate(180deg); }
+.curriculum :is(button, input, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.curriculum-summary { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: var(--fs-label); color: var(--muted); }
+.curriculum-summary > :last-child { color: var(--faint); }
+.curriculum-scroll { flex: 1; min-height: 180px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); scrollbar-width: thin; }
+.curriculum-board { min-width: 1000px; }
+.curriculum-day-headings { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); position: sticky; top: 0; z-index: 3; background: var(--canvas); border-bottom: 1px solid var(--line); }
+.curriculum-time-heading { color: var(--faint); font-size: var(--fs-label); display: flex; align-items: center; justify-content: center; }
+.curriculum-day-heading { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 78px; flex-direction: column; gap: 5px; padding: 8px 3px; border-left: 1px solid var(--line); font-size: var(--fs-mono); color: var(--muted); }
+.curriculum-day-heading time { font-size: var(--fs-ui); font-weight: 600; color: var(--ink); }
+.curriculum-day-heading.is-today time { background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); padding: 5px 8px; border-radius: 7px; }
+.curriculum-grid { display: grid; grid-template-columns: 64px repeat(7, minmax(0, 1fr)); height: 820px; margin-top: 10px; margin-bottom: 12px; }
+.curriculum-axis { position: relative; }
+.curriculum-axis > span { position: absolute; right: 9px; display: flex; align-items: baseline; gap: 5px; transform: translateY(-50%); color: var(--muted); font-size: var(--fs-label); }
+.curriculum-axis b { font-weight: 400; font-variant-numeric: tabular-nums; }
+.curriculum-axis small { font-size: var(--fs-label); color: var(--faint); width: 10px; text-align: right; }
+.curriculum-day { position: relative; border-left: 1px solid var(--line); min-width: 0; }
+.curriculum-day.is-today { background: color-mix(in srgb, var(--accent) 2.5%, transparent); }
+.curriculum-period-line { position: absolute; width: 100%; border-top: 1px solid var(--line); pointer-events: none; }
+.curriculum-course { position: absolute; left: 5px; right: 5px; width: calc(100% - 10px); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 7px 8px; border: 1px solid color-mix(in srgb, var(--course-color) 24%, var(--line)); border-left: 3px solid var(--course-color); border-radius: 6px; background: color-mix(in srgb, var(--course-color) 12%, var(--canvas)); color: var(--ink); text-align: left; overflow: hidden; }
+.curriculum-course:hover { background: color-mix(in srgb, var(--course-color) 20%, var(--canvas)); }
+.curriculum-course-time { font-size: var(--fs-label); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.curriculum-course strong { font-size: var(--fs-ui); line-height: 1.4; font-weight: 500; overflow-wrap: anywhere; }
+.curriculum-course-room { font-size: var(--fs-label); color: var(--muted); margin-top: auto; }
+.curriculum-free { position: absolute; top: 42px; left: 0; right: 0; text-align: center; font-size: var(--fs-mono); color: var(--faint); }
+.curriculum-footer { padding-top: 12px; font-size: var(--fs-label); color: var(--faint); }
+@media (max-width: 900px) { .curriculum { padding: 24px 18px 12px; } .curriculum-header { margin-bottom: 20px; } }
+@media (max-width: 600px) { .curriculum { padding: 18px 12px 10px; } .curriculum-semester { display: none; } .curriculum-controls { flex-wrap: wrap; } }
+
+.curriculum-day-label { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 30px; }
+.curriculum-day-events { min-height: 16px; font-size: var(--fs-label); color: var(--muted); text-align: center; }
+.curriculum-day-events span { display: block; }
+.curriculum-notes { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 12px; font-size: var(--fs-mono); color: var(--muted); }
+.curriculum-notes > span { display: inline-flex; align-items: center; gap: 5px; }
+
+.curriculum-empty { min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); padding: 40px; text-align: center; }
+.curriculum-empty h3 { color: var(--ink); font-size: var(--fs-heading); font-weight: 500; margin: 0; }
+.curriculum-empty p { font-size: var(--fs-ui); margin: 0; }
+
+.curriculum-details { margin: auto; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; border: 1px solid var(--line); border-radius: 14px; padding: 24px; color: var(--ink); background: var(--canvas); box-shadow: 0 24px 80px #0003; }
+.curriculum-details::backdrop { background: var(--scrim); }
+.curriculum-details header { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: var(--fs-mono); margin-bottom: 20px; }
+.curriculum-details header button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 5px; }
+.curriculum-details header button:hover { background: var(--chrome-hover); }
+.curriculum-details h2 { font-size: var(--fs-heading); }
+.curriculum-details-date { color: var(--muted); font-size: var(--fs-ui); margin: 8px 0 22px; }
+.curriculum-details dl { display: grid; grid-template-columns: 86px 1fr; gap: 18px 16px; font-size: var(--fs-ui); }
+.curriculum-details dt { color: var(--muted); }
+.curriculum-details dd { margin: 0; font-weight: 500; }
+.curriculum-details small { display: block; color: var(--muted); font-weight: 400; font-size: var(--fs-mono); margin-top: 4px; }
+.curriculum-details-note { background: var(--accent-soft); color: var(--ink); padding: 10px; border-radius: 6px; margin-top: 20px; font-size: var(--fs-ui); }
+.curriculum-details footer { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 14px; font-size: var(--fs-label); color: var(--faint); }

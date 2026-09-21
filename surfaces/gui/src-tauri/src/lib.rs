@@ -818,6 +818,7 @@ pub fn run() {
                     .title("Edison")
                     .inner_size(1360.0, 900.0)
                     .min_inner_size(980.0, 640.0)
+                    .maximized(true)
                     // Let the WEBVIEW receive OS file drags: Tauri's own drag-drop handler
                     // otherwise intercepts them, so the composer's HTML5 onDrop (attach by
                     // dragging a file in) never fired in the desktop shell — browser dev
@@ -831,7 +832,7 @@ pub fn run() {
                     .title_bar_style(tauri::TitleBarStyle::Overlay)
                     .hidden_title(true)
                     // Nudge the traffic lights down + in so they sit vertically centered in a
-                    // roomier top strip, aligned with the sidebar toggle and title rather than
+                    // roomier top strip, aligned with the title rather than
                     // jammed against the top edge.
                     .traffic_light_position(tauri::LogicalPosition::new(19.0, 24.0));
             }

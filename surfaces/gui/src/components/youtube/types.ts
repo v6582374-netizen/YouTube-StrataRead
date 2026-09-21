@@ -1,3 +1,5 @@
+import { yt } from "./text";
+import { getCurrentLanguage } from "../../i18n";
 export type Layout = "timeline" | "library" | "channels";
 export type Asset = {
   video_id: string;
@@ -6,6 +8,7 @@ export type Asset = {
   title: string;
   url: string;
   published_at: string;
+  duration_seconds?: number | null;
   preparation_state: string;
   reading_state: string;
   manuscript_version: number | null;
@@ -14,7 +17,7 @@ export type Asset = {
   manuscript_characters?: number;
 };
 export type Inspection = Asset & {
-  source_trace: { video_url: string; transcript_available: boolean };
+  source_trace: { video_url: string; transcript_available: boolean; translation_available?: boolean };
   generation_records: { manuscript_version: number; created_at: number }[];
 };
 export type Source = {
@@ -23,13 +26,22 @@ export type Source = {
   description?: string;
 };
 export type Preferences = { sources: Source[]; excluded_channels: string[] };
-export type Prompt = { prompt: string; default_prompt: string };
 export type Connection = {
   configured: boolean;
   authorized: boolean;
   subscription_count: number;
 };
 export type Activity = {
+  document_count?: number;
+  cancelled?: number;
+  filtered?: number;
+  awaiting_classification?: number;
+  rate_limited?: number;
+  youtube_requests?: { cooldown_until: number; strikes: number };
+  current?: CurrentPreparation[];
+  events?: ProgressEvent[];
+  console?: ConsoleEntry[];
+  runtime?: {heartbeat_at: number | null; worker_alive: boolean; discovering: boolean};
   queued: number;
   acquiring: number;
   generating: number;
@@ -49,17 +61,44 @@ export type Activity = {
 };
 export const readingTime = (asset: Asset) =>
   asset.manuscript_characters
-    ? `约 ${Math.max(1, Math.ceil(asset.manuscript_characters / 500))} 分钟阅读`
+    ? yt("预计阅读 {{value1}} 分钟", { value1: Math.max(1, Math.ceil(asset.manuscript_characters / 500)) })
     : "";
+
+export const publicationLabel = (value?: string | null) => {
+  const date = new Date(value || "");
+  if (!value || Number.isNaN(date.getTime())) return yt("发布日期未知");
+  // A date-only source has no timezone; retain its calendar date.
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : [
+    date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+  return yt("发布于 {{date}}", { date: day });
+};
+
+export const videoDurationLabel = (value?: number | null) => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+    return yt("时长未知");
+  const total = Math.max(1, Math.round(value));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor(total % 3600 / 60);
+  const seconds = total % 60;
+  if (hours) return yt("视频 {{hours}} 小时 {{minutes}} 分 {{seconds}} 秒", { hours, minutes, seconds });
+  if (minutes) return yt("视频 {{minutes}} 分 {{seconds}} 秒", { minutes, seconds });
+  return yt("视频 {{seconds}} 秒", { seconds });
+};
+
+export const videoMetadataText = (video: {
+  channel_title: string; published_at?: string | null; duration_seconds?: number | null;
+}) => [video.channel_title, publicationLabel(video.published_at), videoDurationLabel(video.duration_seconds)].filter(Boolean).join(" · ");
 export const dateLabel = (value: string) => {
   const date = new Date(value);
-  if (!value || Number.isNaN(date.getTime())) return "日期未知";
+  if (!value || Number.isNaN(date.getTime())) return yt("日期未知");
   const now = new Date();
   const yesterday = new Date();
   yesterday.setDate(now.getDate() - 1);
-  if (date.toDateString() === now.toDateString()) return "今天";
-  if (date.toDateString() === yesterday.toDateString()) return "昨天";
-  return date.toLocaleDateString(undefined, {
+  if (date.toDateString() === now.toDateString()) return yt("今天");
+  if (date.toDateString() === yesterday.toDateString()) return yt("昨天");
+  return date.toLocaleDateString(getCurrentLanguage(), {
     month: "long",
     day: "numeric",
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
@@ -72,3 +111,22 @@ export const excerpt = (value = "") =>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 110);
+
+export type ProgressEvent = {
+  sequence: number; video_id: string; title: string; stage: string; detail: string; occurred_at: number;
+};
+export type CurrentPreparation = {
+  video_id: string; title: string; channel_title: string; preparation_state: string;
+  published_at?: string; duration_seconds?: number | null;
+  observed_stages?: string[];
+  preparation_stage: string | null; preparation_started_at: number | null; stage_updated_at: number | null;
+};
+export type QueueItem = {
+  video_id: string; title: string; channel_title: string; preparation_state: string;
+  published_at?: string; duration_seconds?: number | null;
+  failure_reason: string | null; manuscript_version: number | null;
+};
+
+export type ConsoleEntry = {
+  sequence: number; video_id: string; message: string; occurred_at: number;
+};

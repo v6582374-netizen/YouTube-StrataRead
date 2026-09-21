@@ -149,6 +149,60 @@ def test_verify_ark_profile_endpoint_override(monkeypatch):
     assert cap["url"] == "https://gateway.example/ark/v3/responses"
 
 
+@pytest.mark.parametrize("base_url", [None, "https://proxy.example/coding/v3/"])
+def test_verify_coding_plan_uses_chat_inference(monkeypatch, base_url):
+    cap: dict = {}
+    _patch_post(monkeypatch, capture=cap)
+    assert verify_provider_key(
+        "ark-coding-plan-cn", api_key="coding-key", base_url=base_url
+    ) == {"ok": True}
+    expected = (base_url or "https://ark.cn-beijing.volces.com/api/coding/v3").rstrip("/")
+    assert cap["url"] == expected + "/chat/completions"
+    assert cap["headers"]["Authorization"] == "Bearer coding-key"
+    assert cap["json"] == {
+        "model": "ark-code-latest",
+        "messages": [{"role": "user", "content": "Reply with OK."}],
+        "max_tokens": 1,
+    }
+
+
+def test_coding_plan_settings_save_reload_and_remove(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from coworker.server import SessionManager, create_app
+
+    manager = SessionManager(data_dir=tmp_path)
+    client = TestClient(create_app(manager))
+    name = "ark-coding-plan-cn"
+    rows = {p["name"]: p for p in client.get("/v1/providers").json()}
+    assert rows[name]["suggested_models"] == ["ark-code-latest"]
+    assert not rows[name]["configured"]
+    cap: dict = {}
+    _patch_post(monkeypatch, status=401, capture=cap)
+    body = {"name": name, "fields": {"api_key": "coding-key"}}
+    assert not client.post("/v1/providers/verify", json=body).json()["ok"]
+    _patch_post(monkeypatch, capture=cap)
+    assert client.post("/v1/providers/verify", json=body).json()["ok"]
+    assert cap["url"] == "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions"
+    assert cap["headers"]["Authorization"] == "Bearer coding-key"
+    assert not manager.secrets.get(f"provider:{name}")  # Testing never saves.
+    for provider, key in [("ark-agent-plan-cn", "agent-key"), (name, "coding-key")]:
+        assert client.post("/v1/providers", json={
+            "name": provider, "fields": {"api_key": key},
+        }).json()["ok"]
+
+    reloaded = SessionManager(data_dir=tmp_path)
+    rows = {p["name"]: p for p in reloaded.get_providers()}
+    assert rows[name]["configured"]
+    assert "api_key" not in rows[name]["values"]
+    assert reloaded.secrets.get(f"provider:{name}")["api_key"] == "coding-key"
+    assert f"{name}:ark-code-latest" in client.get("/v1/settings").json()["models"]
+    assert client.delete(f"/v1/providers/{name}").json()["ok"]
+    assert manager.secrets.get("provider:ark-agent-plan-cn")["api_key"] == "agent-key"
+    rows = {p["name"]: p for p in client.get("/v1/providers").json()}
+    assert not rows[name]["configured"]
+
+
 def test_verify_network_error_is_clean(monkeypatch):
     _patch_get(monkeypatch, raise_exc=ConnectionError("boom"))
     res = verify_provider_key("openai", api_key="sk-x")

@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from youtube_strataread.downloader.request_policy import YouTubeRateLimited, YouTubeRequestsStopped
 from youtube_strataread.workbench.connection import (
     ConnectionError,
     ConnectionService,
@@ -95,6 +96,27 @@ def handle_request(
             return _response(request_id, result=library.delete(_video_id(arguments)))
         if library is not None and capability == "documents.get":
             return _response(request_id, result=library.document(_video_id(arguments)))
+        if library is not None and capability in {"activity.cancel", "activity.restore"}:
+            video_ids = arguments.get("video_ids")
+            if (
+                not isinstance(video_ids, list)
+                or not 1 <= len(video_ids) <= 100
+                or any(not isinstance(v, str) or not v.strip() or len(v) > 256 for v in video_ids)
+            ):
+                raise ValueError("请选择 1–100 个视频。")
+            return _response(
+                request_id,
+                result=workspace.change_queue(video_ids, restore=capability == "activity.restore"),
+            )
+        if library is not None and capability == "activity.list":
+            return _response(
+                request_id,
+                result=workspace.activity_items(
+                    str(arguments.get("state", "queued")),
+                    arguments.get("offset", 0),
+                    arguments.get("limit", 50),
+                ),
+            )
         if library is not None and capability == "activity.snapshot":
             return _response(request_id, result=library.activity())
         if library is not None and capability == "diagnostics.snapshot":
@@ -133,7 +155,7 @@ def handle_request(
             return _response(request_id, result=connection.authorize_and_import().as_result())
         if capability == "connection.disconnect":
             return _response(request_id, result=connection.disconnect().as_result())
-    except (ConnectionError, KeyError, ValueError) as error:
+    except (ConnectionError, KeyError, ValueError, YouTubeRateLimited, YouTubeRequestsStopped) as error:
         return _response(request_id, error=str(error))
     return _response(request_id, error=f"unknown capability: {capability!r}")
 
@@ -185,7 +207,9 @@ def main() -> int:
         vault=_vault(),
         oauth=GoogleOAuthGateway(),
     )
-    discovery = SubscriptionDiscovery(workspace=workspace, feeds=YouTubeAtomFeeds())
+    discovery = SubscriptionDiscovery(
+        workspace=workspace, feeds=YouTubeAtomFeeds(requests=workspace.youtube_requests)
+    )
     preparation = PreparationService(
         workspace=workspace, captions=YtDlpCaptions(), manuscripts=ConfiguredManuscripts()
     )

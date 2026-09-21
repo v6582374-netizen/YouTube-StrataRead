@@ -1,0 +1,143 @@
+--- upstream/LaunchHero.upstream.tsx
++++ edison/LaunchHero.tsx
+@@ -1,80 +1,47 @@
+-function PrototypeLaunchHero({
+-  launch,
+-  status,
+-}: {
+-  launch: DiscoveryLaunch | null;
+-  status: DiscoveryLaunchStatus | null;
++// Adapted directly from Vegapunk PrototypeLaunchHero. See docs/upstream/vegapunk-discovery.
++export type Milestone = { id: string; label: string; summary?: string; state: "done" | "active" | "pending" };
++export function LaunchHero({ live, offline, observedStage, signalCopy, milestones, metrics }: {
++  live: boolean; offline: boolean; observedStage: string; signalCopy: string;
++  milestones: Milestone[]; metrics: {label: string; value: string | number; note: string}[];
+ }) {
+-  const standby = !launch;
+-  const milestones = status?.timeline.milestones ?? [];
+-  const currentMilestoneId = status?.timeline.current_milestone_id;
+-  const currentMilestone = milestones.find(
+-    (milestone) => milestone.id === currentMilestoneId || prototypeMilestoneState(milestone, currentMilestoneId) === "active",
+-  );
+-  const observedState = String(status?.state ?? launch?.state ?? "preparation");
+-  const observedStage = standby
+-    ? "Preparation"
+-    : prototypeLaunchStageLabel(status, currentMilestone?.summary ?? currentMilestone?.label ?? launch?.stage ?? "Preparation");
+-  const stateLabel = standby ? "Ready to launch" : prototypeLaunchStateLabel(observedState);
+-  const signalCopy =
+-    standby
+-      ? "Preparation is the current state. Confirm a Launch from Preparation when you are ready to begin."
+-      : observedState === "awaiting_review"
+-      ? "The run is paused at a deliberate human seam. Review the read-only bundle before resuming."
+-      : observedState === "failed"
+-        ? launch?.error
+-          ? `The Launch failed: ${launch.error}`
+-          : "The Launch failed before it produced a trusted terminal outcome. Open Current Launch for details."
+-      : observedState === "interrupted"
+-        ? "The worker stopped unexpectedly. Review the durable checkpoint before resuming."
+-      : observedState === "stopped"
+-        ? "The Launch was stopped at a durable checkpoint. Resume it when you are ready."
+-      : observedState === "completed"
+-        ? "The run is complete. Its timeline and artifacts remain available as immutable history."
+-        : "Evidence is moving through the current seam. The Launch remains interruptible and durable artifacts stay preserved.";
+   return (
+-    <section className={`discovery-prototype-panel discovery-hero-panel discovery-beacon-hero ${standby ? "is-standby" : ""} ${observedState === "failed" || observedState === "interrupted" ? "is-error" : ""}`} aria-label="Current Discovery Launch">
++    <section className={`discovery-prototype-panel discovery-hero-panel discovery-beacon-hero ${!live ? "is-standby" : ""} ${offline ? "is-error" : ""}`} aria-label="当前处理概览">
+       <div className="discovery-beacon-signal">
+         <div className="discovery-beacon-signal-head">
+           <div className="discovery-beacon-orb" aria-hidden="true"><span /></div>
+           <div className="min-w-0">
+             <div className="discovery-beacon-eyebrow">
+-              {standby ? "CURRENT OBSERVATION · PREPARATION" : `Live observation · round ${String(launch?.round ?? 0).padStart(2, "0")}`}
++              {live ? "正在处理" : "处理进度"}
+             </div>
+             <h2 className="discovery-launch-title discovery-beacon-title">{observedStage}</h2>
+             <p className="discovery-beacon-copy">{signalCopy}</p>
+           </div>
+         </div>
+-        <div className="discovery-beacon-track" aria-label="Launch timeline">
+-          <div className="discovery-beacon-track-head"><strong>Launch timeline</strong><span>semantic state rail</span></div>
++        <div className="discovery-beacon-track" aria-label="处理阶段">
++          <div className="discovery-beacon-track-head"><strong>处理阶段</strong><span>实际阶段</span></div>
+           <div className="discovery-beacon-stage-list">
+             {milestones.length ? milestones.map((milestone) => {
+-              const state = prototypeMilestoneState(milestone, currentMilestoneId);
++              const state = milestone.state;
+               return (
+                 <div key={milestone.id} className={`discovery-beacon-stage is-${state}`}>
+                   <strong>{milestone.label}</strong>
+-                  <span>{milestone.summary ?? (state === "done" ? "Completed" : state === "active" ? "In progress" : "Awaiting start")}</span>
+-                  <em>{state === "done" ? "DONE" : state === "active" ? "LIVE" : "NEXT"}</em>
++                  <span>{milestone.summary ?? (state === "done" ? "已完成" : state === "active" ? "进行中" : "等待开始")}</span>
++                  <em>{state === "done" ? "完成" : state === "active" ? "进行中" : "待处理"}</em>
+                 </div>
+               );
+             }) : (
+-              <div className={`discovery-beacon-stage ${standby ? "is-standby" : "is-active"}`}>
++              <div className={`discovery-beacon-stage ${"is-standby"}`}>
+                 <strong>{observedStage}</strong>
+-                <span>{standby ? "Waiting for a confirmed Launch" : "Waiting for the first durable timeline snapshot"}</span>
+-                <em>{standby ? "READY" : "LIVE"}</em>
++                <span>尚无当前任务</span>
++                <em>等待</em>
+               </div>
+             )}
+           </div>
+         </div>
+-        {launch && <span className="sr-only">Launch {prototypeLaunchShortId(launch)}</span>}
+-        <span className="sr-only">{observedState}</span>
+-        {observedState === "awaiting_review" && <span className="sr-only">Execution inactive</span>}
++
+       </div>
+       <div className="discovery-beacon-metrics">
+-        <div className="discovery-beacon-metric"><span>State</span><strong>{stateLabel}</strong><small>server-authoritative</small></div>
+-        <div className="discovery-beacon-metric"><span>Elapsed</span><strong>{launch ? prototypeLaunchElapsed(launch) : "—"}</strong><small>since Launch start</small></div>
+-        <div className="discovery-beacon-metric"><span>Current seam</span><strong>{currentMilestone ? `${String(currentMilestone.position).padStart(2, "0")} / ${String(milestones.length).padStart(2, "0")}` : "—"}</strong><small>{currentMilestone?.label ?? observedStage}</small></div>
+-        <div className="discovery-beacon-metric"><span>Artifacts</span><strong>{status?.produced_outputs.length ?? 0}</strong><small>read-only references</small></div>
++        {metrics.map(metric => <div className="discovery-beacon-metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.note}</small></div>)}
+       </div>
+     </section>
+   );
+--- upstream/RuntimeEvent.upstream.tsx
++++ edison/RuntimeEvents.tsx
+@@ -1,10 +1,23 @@
++// Event rendering extracted from Vegapunk PrototypeRuntimeDesk; newest-first host contract.
++import type { ProgressEvent } from "../types";
++export function RuntimeEvents({ events, labels }: {events: ProgressEvent[]; labels: Record<string, string>}) {
++  return <div className="discovery-runtime-desk is-live"><section className="discovery-runtime-pulse-panel">
++    <div className="discovery-runtime-events">
++      {events.length ? events.map(item => {
++        const tone = item.stage === "failed" ? "danger" : item.stage === "unavailable" ? "warn" : "normal";
++        const label = labels[item.stage] || item.stage;
++        const stateLabel = label;
+             return (
+               <div key={item.sequence} className={`discovery-runtime-event discovery-runtime-event-in ${tone}`}>
+-                <span className="discovery-runtime-event-time">{prototypeActivityTime(item.occurred_at, item.sequence)}</span>
++                <span className="discovery-runtime-event-time">{new Date(item.occurred_at * 1000).toLocaleTimeString()}</span>
+                 <div className="discovery-runtime-event-copy">
+-                  <strong>{item.text}</strong>
+-                  <span>{milestone?.summary ?? (item.milestone_id ? `Milestone: ${item.milestone_id}` : "Launch event")}</span>
++                  <strong>{item.title}</strong>
++                  <span>{item.detail || label}</span>
+                 </div>
+                 <span className="discovery-runtime-event-state">{stateLabel}</span>
+               </div>
+             );
++      }) : <p className="discovery-runtime-empty">尚无处理事件，新活动会出现在这里。</p>}
++    </div>
++  </section></div>;
++}
+--- upstream/discovery.upstream.css
++++ edison/discovery.css
+@@ -1,3 +1,4 @@
++/* Extracted from Vegapunk styles.css; source and licenses in docs/upstream/vegapunk-discovery. */
+ .discovery-prototype-panel {
+   border: 1px solid var(--line);
+   border-radius: 12px;
+--- upstream/hierarchy.upstream.css
++++ edison/hierarchy.css
+@@ -1,3 +1,4 @@
++/* Retained upstream flat surface hierarchy. */
+ .ui-surface-hierarchy--ma .discovery-stage-strip-layout-ma {
+   gap: 0;
+ }

@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { yt } from "./text";
 import { Icon } from "../Icon";
 import {
   Asset,
@@ -6,6 +8,8 @@ import {
   dateLabel,
   excerpt,
   readingTime,
+  publicationLabel,
+  videoDurationLabel,
 } from "./types";
 
 export function ChannelAvatar({ name }: { name: string }) {
@@ -22,6 +26,7 @@ function Row({
   asset: Asset;
   onSelect: (a: Asset) => void;
 }) {
+  useTranslation();
   return (
     <button className="yp-row" onClick={() => onSelect(asset)}>
       <ChannelAvatar name={asset.channel_title} />
@@ -29,12 +34,13 @@ function Row({
         <h3>{asset.title}</h3>
         <p>
           <span>{asset.channel_title}</span>
-          <span>{dateLabel(asset.published_at)}</span>
-          {asset.reading_state === "read" && <span>已读</span>}
+          <span>{publicationLabel(asset.published_at)}</span>
+          <span>{videoDurationLabel(asset.duration_seconds)}</span>
+          {asset.reading_state === "read" && <span>{yt("已读")}</span>}
         </p>
+        <p>{readingTime(asset)}</p>
       </span>
       <span className="yp-rowmeta">
-        <span>{readingTime(asset)}</span>
         <Icon name="file" />
       </span>
     </button>
@@ -57,6 +63,7 @@ export function DocumentViews({
   onSelect: (a: Asset) => void;
   searching: boolean;
 }) {
+  useTranslation();
   if (layout === "library")
     return (
       <div className="yp-grid">
@@ -77,7 +84,8 @@ export function DocumentViews({
             <h2>{a.title}</h2>
             <p>{excerpt(a.excerpt)}</p>
             <footer>
-              <span>{dateLabel(a.published_at)}</span>
+              <span>{publicationLabel(a.published_at)}</span>
+              <span>{videoDurationLabel(a.duration_seconds)}</span>
               <span>{readingTime(a)}</span>
             </footer>
           </button>
@@ -87,13 +95,12 @@ export function DocumentViews({
   if (layout === "channels")
     return (
       <div className="yp-source-layout">
-        <nav className="yp-source-nav" aria-label="按频道浏览">
+        <nav className="yp-source-nav" aria-label={yt("按频道浏览")}>
           <button
             className={!channel ? "chosen" : ""}
             onClick={() => onChannel("")}
           >
-            全部频道
-          </button>
+            {yt("全部频道")}</button>
           {sources.map((s) => (
             <button
               key={s.channel_id}
@@ -109,23 +116,23 @@ export function DocumentViews({
           <div className="yp-source-heading">
             <h2>
               {sources.find((s) => s.channel_id === channel)?.title ||
-                "所有频道的文档"}
+                yt("所有频道的文档")}
             </h2>
-            <span>{assets.length} 篇</span>
+            <span>{assets.length} {yt("篇")}</span>
           </div>
           {assets.length ? (
             assets.map((a) => (
               <Row key={a.video_id} asset={a} onSelect={onSelect} />
             ))
           ) : (
-            <p className="yp-inline-status">当前筛选下没有文档。</p>
+            <p className="yp-inline-status">{yt("当前筛选下没有文档。")}</p>
           )}
         </section>
       </div>
     );
   const groups = new Map<string, Asset[]>();
   for (const a of assets) {
-    const key = searching ? "搜索结果" : dateLabel(a.published_at);
+    const key = searching ? yt("搜索结果") : dateLabel(a.published_at);
     groups.set(key, [...(groups.get(key) || []), a]);
   }
   return (
@@ -134,7 +141,7 @@ export function DocumentViews({
         <section className="yp-day" key={day}>
           <h2>
             {day}
-            <span>{items.length} 篇</span>
+            <span>{items.length} {yt("篇")}</span>
           </h2>
           {items.map((a) => (
             <Row key={a.video_id} asset={a} onSelect={onSelect} />

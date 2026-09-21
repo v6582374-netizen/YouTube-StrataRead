@@ -1,6 +1,6 @@
 [package]
 name = "edison-desktop"
-version = "0.1.0"
+version = "0.2.1"
 description = "Edison desktop workspace"
 edition = "2021"
 rust-version = "1.77"
@@ -25,3 +25,8 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 uuid = { version = "1", features = ["v4"] }
 # Kept outside the Tauri shell so another product can depend on the same local STT engine.
 ocw-stt = { path = "../../../stt" }
+
+# Rust's implicit debuginfo stripping can produce misaligned Mach-O string pools
+# rejected by current macOS dyld (including build-time proc-macro libraries).
+[profile.release]
+strip = "none"

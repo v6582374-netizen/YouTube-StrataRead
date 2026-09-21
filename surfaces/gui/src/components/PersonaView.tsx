@@ -182,7 +182,7 @@ export function PersonaView({
           {/* identity + enable (no coworker glyph — owner 2026-08-21) */}
           <header className="flex items-start gap-3.5">
             <div className="min-w-0">
-              <h1 className="text-[20px] font-semibold tracking-tight">
+              <h1 className="editorial-heading text-[20px] tracking-tight">
                 {fullPersonaName(detail.name, personaId)}
               </h1>
               <p className="text-[13px] text-muted mt-0.5">{detail.tagline}</p>

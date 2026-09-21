@@ -560,8 +560,8 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         blurb="Runs models inside your own Google Cloud project. Gemini and Claude use "
         "their native APIs; open-weight models go through the Vertex MaaS endpoint.",
     ),
-    # Ark has two intentionally separate provider identities. BytePlus pay-as-you-go and
-    # Volcengine Agent Plan use different regions, endpoints, credentials, and model catalogs;
+    # Ark products keep separate provider identities. BytePlus pay-as-you-go and
+    # Volcengine subscription plans use different endpoints, credentials, and model catalogs;
     # combining them would let one provider profile route a model to the wrong service.
     _responses_compat(
         "ark",
@@ -579,6 +579,15 @@ DESCRIPTORS: list[ProviderDescriptor] = [
         recommended_model="doubao-seed-evolving",
         env_key="ARK_AGENT_PLAN_CN_API_KEY",
         endpoint_help="Volcengine Ark Agent Plan's China (Beijing) endpoint. It requires an Agent Plan API key.",
+    ),
+    _compat(
+        "ark-coding-plan-cn",
+        "Volcengine Ark Coding Plan",
+        base_url="https://ark.cn-beijing.volces.com/api/coding/v3",
+        recommended_model="ark-code-latest",
+        env_key="ARK_CODING_PLAN_CN_API_KEY",
+        endpoint_help="Requires a Coding Plan API key and the Coding Plan endpoint. "
+        "ark-code-latest follows your model selection in the Volcengine console.",
     ),
     # OpenAI-compatible vendors, listed as first-class providers so users don't need to know the
     # "point the OpenAI slot at a different endpoint" trick (owner call, 2026-07-04). Each keeps
@@ -970,6 +979,22 @@ def verify_provider_key(
         elif name == "ollama":
             base = _normalize_ollama_url(base_url)
             resp = httpx.get(base.rstrip("/") + "/models", timeout=timeout)
+        elif name == "ark-coding-plan-cn":
+            default_base = next(
+                f.default for f in d.fields if f.key == "base_url"
+            )
+            base = (base_url or "").strip().rstrip("/") or default_base
+            # Test the same inference route used by this subscription, not /models.
+            resp = httpx.post(
+                base + "/chat/completions",
+                headers={"Authorization": f"Bearer {key}"},
+                json={
+                    "model": d.recommended_model,
+                    "messages": [{"role": "user", "content": "Reply with OK."}],
+                    "max_tokens": 1,
+                },
+                timeout=timeout,
+            )
         elif name in ("ark", "ark-agent-plan-cn"):
             default_base = next(
                 (f.default for f in d.fields if f.key == "base_url" and f.default), ""

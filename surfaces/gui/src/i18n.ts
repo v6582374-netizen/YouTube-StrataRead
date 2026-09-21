@@ -31,6 +31,9 @@ function resolveLang(): Lang {
 }
 
 export async function initI18n() {
+  i18n.on("languageChanged", language => {
+    document.documentElement.lang = language.startsWith("zh") ? "zh" : "en";
+  });
   await i18n.use(initReactI18next).init({
     resources: {
       en: { translation: en },

@@ -1,0 +1,3664 @@
+1
+00:00:00,000 --> 00:00:05,560
+I would expect that people will try to
+
+2
+00:00:02,000 --> 00:00:06,960
+poison agents. Just remember, it's not a
+
+3
+00:00:05,560 --> 00:00:08,720
+matter of
+
+4
+00:00:06,960 --> 00:00:11,040
+if you'll get hacked.
+
+5
+00:00:08,720 --> 00:00:14,720
+It's only when and how often. Human
+
+6
+00:00:11,040 --> 00:00:16,200
+beings are the the weakest link.
+
+7
+00:00:14,720 --> 00:00:19,200
+The moment you connect Open Cloud to
+
+8
+00:00:16,200 --> 00:00:20,840
+your actual data,
+
+9
+00:00:19,200 --> 00:00:23,320
+an attacker [music]
+
+10
+00:00:20,840 --> 00:00:25,120
+can easily discover a vulnerability to
+
+11
+00:00:23,320 --> 00:00:28,000
+get to your data.
+
+12
+00:00:25,120 --> 00:00:31,120
+Well, I'm super excited to have Enrique
+
+13
+00:00:28,000 --> 00:00:33,440
+Salem here. He is a former CEO of
+
+14
+00:00:31,120 --> 00:00:35,040
+Symantec, uh leading the company to
+
+15
+00:00:33,440 --> 00:00:36,840
+being a billion-dollar powerhouse in the
+
+16
+00:00:35,040 --> 00:00:38,680
+security space, tens of thousands of
+
+17
+00:00:36,840 --> 00:00:41,200
+employees. He's now an investor at Bain
+
+18
+00:00:38,680 --> 00:00:44,240
+Capital Ventures, where he has invested
+
+19
+00:00:41,200 --> 00:00:46,880
+in Crusoe, uh Redis,
+
+20
+00:00:44,240 --> 00:00:48,760
+board of Docker, DocuSign, and a bunch
+
+21
+00:00:46,880 --> 00:00:50,800
+of other companies. So, it's great to
+
+22
+00:00:48,760 --> 00:00:52,920
+have you here. Really good to be here.
+
+23
+00:00:50,800 --> 00:00:54,800
+You were leading Brightmail, which was
+
+24
+00:00:52,920 --> 00:00:57,120
+the world's leading anti-spam company,
+
+25
+00:00:54,800 --> 00:00:58,400
+and you testified before the US Senate
+
+26
+00:00:57,120 --> 00:01:00,160
+about the spam crisis.
+
+27
+00:00:58,400 --> 00:01:03,600
+>> Yeah. You talked about your 7-year-old
+
+28
+00:01:00,160 --> 00:01:05,760
+daughter receiving all explicit spam,
+
+29
+00:01:03,600 --> 00:01:08,360
+and there was nothing that you as the
+
+30
+00:01:05,760 --> 00:01:10,520
+CEO of this company could do about it.
+
+31
+00:01:08,360 --> 00:01:12,360
+How How did you operate that company
+
+32
+00:01:10,520 --> 00:01:14,880
+internally knowing that you were
+
+33
+00:01:12,360 --> 00:01:17,000
+fighting this uphill battle? Yeah, it
+
+34
+00:01:14,880 --> 00:01:18,840
+it's so By the way, that the person
+
+35
+00:01:17,000 --> 00:01:21,320
+asking number of the questions back then
+
+36
+00:01:18,840 --> 00:01:23,920
+was Senator John McCain, which was which
+
+37
+00:01:21,320 --> 00:01:25,160
+was really fascinating. And and he I
+
+38
+00:01:23,920 --> 00:01:27,920
+I'll never forget, he asked me a really
+
+39
+00:01:25,160 --> 00:01:30,280
+important question. He said,
+
+40
+00:01:27,920 --> 00:01:33,080
+you know, we we can pass laws to try and
+
+41
+00:01:30,280 --> 00:01:35,000
+protect people. And
+
+42
+00:01:33,080 --> 00:01:37,520
+um I said, yeah, I get that. And and
+
+43
+00:01:35,000 --> 00:01:39,200
+then he said, the question is, how do we
+
+44
+00:01:37,520 --> 00:01:40,600
+have attribution? How do we determine
+
+45
+00:01:39,200 --> 00:01:42,640
+who sent it?
+
+46
+00:01:40,600 --> 00:01:43,880
+So that we know who to go after. And
+
+47
+00:01:42,640 --> 00:01:46,360
+that was the exact right question. And
+
+48
+00:01:43,880 --> 00:01:48,240
+so, what I was referencing was this idea
+
+49
+00:01:46,360 --> 00:01:50,760
+that uh
+
+50
+00:01:48,240 --> 00:01:52,840
+even if you see the spam
+
+51
+00:01:50,760 --> 00:01:55,720
+trying to figure out how to prevent it
+
+52
+00:01:52,840 --> 00:01:58,080
+from getting generated was very hard. We
+
+53
+00:01:55,720 --> 00:01:59,640
+could do things to block it.
+
+54
+00:01:58,080 --> 00:02:02,440
+But the creation part is more of like a
+
+55
+00:01:59,640 --> 00:02:03,640
+societal Exactly. It was a It was
+
+56
+00:02:02,440 --> 00:02:05,680
+exactly that, and it can come from
+
+57
+00:02:03,640 --> 00:02:07,480
+anywhere where there was no way to
+
+58
+00:02:05,680 --> 00:02:10,080
+actually uh
+
+59
+00:02:07,480 --> 00:02:12,160
+say, okay, well, if that's coming from,
+
+60
+00:02:10,080 --> 00:02:13,840
+you know, Southeast Asia,
+
+61
+00:02:12,160 --> 00:02:15,920
+we can somehow go after the person who
+
+62
+00:02:13,840 --> 00:02:18,160
+created it. So, the only thing we could
+
+63
+00:02:15,920 --> 00:02:20,120
+do was really try to prevent it from
+
+64
+00:02:18,160 --> 00:02:21,640
+getting to my daughter's computer.
+
+65
+00:02:20,120 --> 00:02:23,920
+So, that was the thing that we needed to
+
+66
+00:02:21,640 --> 00:02:25,760
+work on, not laws. So, laws The point
+
+67
+00:02:23,920 --> 00:02:27,080
+The point of the the message really was
+
+68
+00:02:25,760 --> 00:02:28,560
+laws weren't the solution to the
+
+69
+00:02:27,080 --> 00:02:31,120
+problem. Yeah, laws could not
+
+70
+00:02:28,560 --> 00:02:34,480
+disincentivize the behavior. Exactly.
+
+71
+00:02:31,120 --> 00:02:37,480
+Has uh has that changed over time? And
+
+72
+00:02:34,480 --> 00:02:38,800
+is there a way to stop it at the root?
+
+73
+00:02:37,480 --> 00:02:41,360
+It It's Again, it's it's a
+
+74
+00:02:38,800 --> 00:02:42,840
+jurisdictional problem. I mean, it
+
+75
+00:02:41,360 --> 00:02:46,880
+You can't Even if you could identify the
+
+76
+00:02:42,840 --> 00:02:49,200
+source, like a lot of uh sites that are
+
+77
+00:02:46,880 --> 00:02:51,680
+used to attack companies, they're not
+
+78
+00:02:49,200 --> 00:02:53,440
+hosted here in the US. Yeah. And you,
+
+79
+00:02:51,680 --> 00:02:57,600
+you know, they'll be hosted on some
+
+80
+00:02:53,440 --> 00:03:00,480
+small uh internet provider in some place
+
+81
+00:02:57,600 --> 00:03:02,680
+that our laws and even through other
+
+82
+00:03:00,480 --> 00:03:04,960
+relationships can't do much about. And I
+
+83
+00:03:02,680 --> 00:03:07,840
+imagine the imagine the spam problem is
+
+84
+00:03:04,960 --> 00:03:09,720
+exponentially worse now with AI agents.
+
+85
+00:03:07,840 --> 00:03:12,080
+What What's happened What's happening
+
+86
+00:03:09,720 --> 00:03:14,080
+now is where before we used to have to
+
+87
+00:03:12,080 --> 00:03:15,920
+hand-curate to create a very accurate
+
+88
+00:03:14,080 --> 00:03:18,200
+message, there's so much information
+
+89
+00:03:15,920 --> 00:03:20,240
+about people that now You can really
+
+90
+00:03:18,200 --> 00:03:23,480
+personalize it. Exactly. You can
+
+91
+00:03:20,240 --> 00:03:25,000
+personalize it in a way that
+
+92
+00:03:23,480 --> 00:03:26,880
+and we used to we used to do this to
+
+93
+00:03:25,000 --> 00:03:28,840
+show boards of directors how easy it was
+
+94
+00:03:26,880 --> 00:03:30,040
+to compromise a company, and we'd
+
+95
+00:03:28,840 --> 00:03:31,880
+basically show them we'd go we'd do a
+
+96
+00:03:30,040 --> 00:03:33,560
+little bit of research, and then we'd
+
+97
+00:03:31,880 --> 00:03:36,160
+walk in and say, watch, this is your
+
+98
+00:03:33,560 --> 00:03:37,840
+CTO, super talented person, he did a
+
+99
+00:03:36,160 --> 00:03:39,520
+presentation in South Korea, talked
+
+100
+00:03:37,840 --> 00:03:42,360
+about this topic. We're going to
+
+101
+00:03:39,520 --> 00:03:45,920
+generate We've generated this message,
+
+102
+00:03:42,360 --> 00:03:48,040
+and now you can easily have him read it
+
+103
+00:03:45,920 --> 00:03:51,720
+and go, oh, somebody's interested in the
+
+104
+00:03:48,040 --> 00:03:54,600
+presentation. Let me send it to him.
+
+105
+00:03:51,720 --> 00:03:56,120
+The reality is it's fraudulent, and what
+
+106
+00:03:54,600 --> 00:03:57,800
+you can do now is the level of work we
+
+107
+00:03:56,120 --> 00:03:59,120
+used to do to create that message can be
+
+108
+00:03:57,800 --> 00:04:00,400
+done instantaneously.
+
+109
+00:03:59,120 --> 00:04:02,760
+>> Instantaneously. And that's the scary
+
+110
+00:04:00,400 --> 00:04:04,680
+part. Enjoying the conversation? Got a
+
+111
+00:04:02,760 --> 00:04:06,040
+question? You can ask Enrique's digital
+
+112
+00:04:04,680 --> 00:04:07,920
+mind. You just check the link in the
+
+113
+00:04:06,040 --> 00:04:10,000
+comments or description. And so, is the
+
+114
+00:04:07,920 --> 00:04:12,080
+solution education where people should
+
+115
+00:04:10,000 --> 00:04:13,240
+be more skeptical of what they get, or
+
+116
+00:04:12,080 --> 00:04:15,320
+are you seeing solutions where you can
+
+117
+00:04:13,240 --> 00:04:16,920
+actually detect?
+
+118
+00:04:15,320 --> 00:04:19,239
+I think this I think you always want to
+
+119
+00:04:16,920 --> 00:04:21,120
+have some level of awareness and
+
+120
+00:04:19,239 --> 00:04:22,400
+understanding of what it could look
+
+121
+00:04:21,120 --> 00:04:23,000
+like, because you want people to be
+
+122
+00:04:22,400 --> 00:04:25,200
+alert.
+
+123
+00:04:23,000 --> 00:04:27,000
+>> Yeah. But it's not enough. You do need
+
+124
+00:04:25,200 --> 00:04:29,920
+solutions. You need the combination, the
+
+125
+00:04:27,000 --> 00:04:31,120
+awareness plus the the detection. The
+
+126
+00:04:29,920 --> 00:04:35,640
+The biggest challenge is always going to
+
+127
+00:04:31,120 --> 00:04:37,920
+be that I can create scenarios that you
+
+128
+00:04:35,640 --> 00:04:40,120
+may not respond to every time.
+
+129
+00:04:37,920 --> 00:04:42,000
+But as I create the scenario that says,
+
+130
+00:04:40,120 --> 00:04:44,600
+hey, you need to like classic one that
+
+131
+00:04:42,000 --> 00:04:46,120
+used to happen, two companies merge.
+
+132
+00:04:44,600 --> 00:04:47,520
+When the company The second company, the
+
+133
+00:04:46,120 --> 00:04:50,800
+acquired company, comes into the
+
+134
+00:04:47,520 --> 00:04:52,080
+company, sign up for your benefits.
+
+135
+00:04:50,800 --> 00:04:54,320
+The moment you're asked to sign up for
+
+136
+00:04:52,080 --> 00:04:56,480
+your benefits, if you receive a message
+
+137
+00:04:54,320 --> 00:04:58,800
+that says, click on this link,
+
+138
+00:04:56,480 --> 00:05:00,680
+sign up for your new benefits, you might
+
+139
+00:04:58,800 --> 00:05:03,800
+go, well, that seems situationally
+
+140
+00:05:00,680 --> 00:05:06,600
+accurate. I just got acquired, and I
+
+141
+00:05:03,800 --> 00:05:09,600
+should probably sign up for my benefits.
+
+142
+00:05:06,600 --> 00:05:11,960
+So, the trick is that
+
+143
+00:05:09,600 --> 00:05:14,120
+we'll never get No solution will ever be
+
+144
+00:05:11,960 --> 00:05:14,680
+foolproof to prevent anything from
+
+145
+00:05:14,120 --> 00:05:15,880
+getting to you.
+
+146
+00:05:14,680 --> 00:05:19,280
+>> You just have to adapt. You have to
+
+147
+00:05:15,880 --> 00:05:22,120
+adapt, you have to be vigilant, and
+
+148
+00:05:19,280 --> 00:05:23,400
+you have to pay attention. Um
+
+149
+00:05:22,120 --> 00:05:25,080
+And this is one of the biggest issues
+
+150
+00:05:23,400 --> 00:05:26,800
+with agents right now that I think
+
+151
+00:05:25,080 --> 00:05:30,520
+people are going to miss.
+
+152
+00:05:26,800 --> 00:05:32,640
+An agent can inherit your credentials,
+
+153
+00:05:30,520 --> 00:05:34,960
+your access.
+
+154
+00:05:32,640 --> 00:05:37,280
+But at some point security relies on
+
+155
+00:05:34,960 --> 00:05:39,080
+your judgment. Mhm. So, let me let me
+
+156
+00:05:37,280 --> 00:05:41,080
+give you an example. Um you know, I ran
+
+157
+00:05:39,080 --> 00:05:43,200
+a public company. I'd get the press
+
+158
+00:05:41,080 --> 00:05:44,800
+release for earnings
+
+159
+00:05:43,200 --> 00:05:46,280
+before earnings day. It would always
+
+160
+00:05:44,800 --> 00:05:48,560
+come into my inbox, you know, I'd go
+
+161
+00:05:46,280 --> 00:05:51,120
+through, I'd read it, try to understand
+
+162
+00:05:48,560 --> 00:05:52,640
+it, uh make sure that I agreed with what
+
+163
+00:05:51,120 --> 00:05:57,120
+it was saying. But imagine I have an
+
+164
+00:05:52,640 --> 00:05:59,280
+agent that its role is to promote things
+
+165
+00:05:57,120 --> 00:06:00,760
+that are relevant for the company. And
+
+166
+00:05:59,280 --> 00:06:02,680
+loud the headline in the press release
+
+167
+00:06:00,760 --> 00:06:05,440
+says um
+
+168
+00:06:02,680 --> 00:06:07,680
+record-breaking quarter.
+
+169
+00:06:05,440 --> 00:06:10,560
+So, my agent picks it up and says, let
+
+170
+00:06:07,680 --> 00:06:12,480
+me repost this. And influence the
+
+171
+00:06:10,560 --> 00:06:14,240
+algorithm. Yeah, that says, let me let
+
+172
+00:06:12,480 --> 00:06:15,960
+me repost post this on, you know, you
+
+173
+00:06:14,240 --> 00:06:17,920
+pick it. Um
+
+174
+00:06:15,960 --> 00:06:20,000
+and it reposts it, but it's before
+
+175
+00:06:17,920 --> 00:06:22,360
+earnings day.
+
+176
+00:06:20,000 --> 00:06:24,240
+Mhm. Our security team knows Enrique's
+
+177
+00:06:22,360 --> 00:06:26,600
+not going to post this.
+
+178
+00:06:24,240 --> 00:06:28,560
+But how do I tell my agent
+
+179
+00:06:26,600 --> 00:06:29,880
+to not use that
+
+180
+00:06:28,560 --> 00:06:31,640
+press release as something that should
+
+181
+00:06:29,880 --> 00:06:33,320
+be amplified?
+
+182
+00:06:31,640 --> 00:06:35,840
+So, that's where the subtle problem is
+
+183
+00:06:33,320 --> 00:06:37,800
+is that you don't have the the human
+
+184
+00:06:35,840 --> 00:06:39,520
+being at some point your security team
+
+185
+00:06:37,800 --> 00:06:40,960
+relies on you having some level of
+
+186
+00:06:39,520 --> 00:06:42,360
+judgment.
+
+187
+00:06:40,960 --> 00:06:45,160
+And so, that we need to be able to
+
+188
+00:06:42,360 --> 00:06:46,480
+control the judgment of agents. Exactly.
+
+189
+00:06:45,160 --> 00:06:47,200
+Now, think about think about how hard
+
+190
+00:06:46,480 --> 00:06:48,640
+that problem is.
+
+191
+00:06:47,200 --> 00:06:50,040
+>> Yeah, it seems like [laughter]
+
+192
+00:06:48,640 --> 00:06:50,400
+billions of dollars and things going to
+
+193
+00:06:50,040 --> 00:06:51,800
+that.
+
+194
+00:06:50,400 --> 00:06:55,040
+>> And and I think look, I I've probably
+
+195
+00:06:51,800 --> 00:06:57,160
+seen no exaggeration, dozens of
+
+196
+00:06:55,040 --> 00:06:59,480
+companies attacking different parts of
+
+197
+00:06:57,160 --> 00:07:02,480
+how do we observe agents, how do we
+
+198
+00:06:59,480 --> 00:07:04,240
+control the data, and there's some
+
+199
+00:07:02,480 --> 00:07:05,560
+interesting things out there. I still
+
+200
+00:07:04,240 --> 00:07:06,760
+think there's more innovation that has
+
+201
+00:07:05,560 --> 00:07:08,800
+to happen, because to the point we're
+
+202
+00:07:06,760 --> 00:07:09,800
+just making on the judgment, and it's
+
+203
+00:07:08,800 --> 00:07:13,240
+not there yet.
+
+204
+00:07:09,800 --> 00:07:14,800
+>> Mhm. And I think it's going to be still
+
+205
+00:07:13,240 --> 00:07:17,640
+quite a bit of time before we get to the
+
+206
+00:07:14,800 --> 00:07:20,240
+level of a security team being able to
+
+207
+00:07:17,640 --> 00:07:23,080
+say, I can trust agents to have the same
+
+208
+00:07:20,240 --> 00:07:24,520
+level of responsibility. Now, security
+
+209
+00:07:23,080 --> 00:07:25,600
+teams will try to put other controls in
+
+210
+00:07:24,520 --> 00:07:27,560
+place,
+
+211
+00:07:25,600 --> 00:07:29,160
+but remember, if I put so many controls
+
+212
+00:07:27,560 --> 00:07:30,320
+in place, at some point you say, I can't
+
+213
+00:07:29,160 --> 00:07:33,760
+do my job.
+
+214
+00:07:30,320 --> 00:07:36,360
+It It The The question's going to be
+
+215
+00:07:33,760 --> 00:07:38,400
+Yeah. when when humans are involved,
+
+216
+00:07:36,360 --> 00:07:40,680
+humans make decisions, and
+
+217
+00:07:38,400 --> 00:07:41,760
+unfortunately, when you have
+
+218
+00:07:40,680 --> 00:07:44,320
+um
+
+219
+00:07:41,760 --> 00:07:46,600
+any given day, you make tens, if not
+
+220
+00:07:44,320 --> 00:07:48,920
+hundreds, of decisions. I think when you
+
+221
+00:07:46,600 --> 00:07:50,960
+look at an agent where agents are making
+
+222
+00:07:48,920 --> 00:07:54,800
+these decisions, the question is, how do
+
+223
+00:07:50,960 --> 00:07:56,480
+I confuse the agent to do something? And
+
+224
+00:07:54,800 --> 00:07:58,200
+And you should expect this to happen.
+
+225
+00:07:56,480 --> 00:08:01,080
+You should expect that people will say,
+
+226
+00:07:58,200 --> 00:08:03,200
+I know that what people do is have a
+
+227
+00:08:01,080 --> 00:08:04,480
+uh agent that looks at your calendar
+
+228
+00:08:03,200 --> 00:08:07,720
+every day.
+
+229
+00:08:04,480 --> 00:08:09,360
+And then it prepares something for you.
+
+230
+00:08:07,720 --> 00:08:12,640
+I would expect that people will try to
+
+231
+00:08:09,360 --> 00:08:15,120
+poison agents to doing things like
+
+232
+00:08:12,640 --> 00:08:17,640
+schedule a meeting for Enrique to do
+
+233
+00:08:15,120 --> 00:08:19,000
+XYZ. And I'll go, oh, my assistant said
+
+234
+00:08:17,640 --> 00:08:21,560
+I have to go over here. And and and you
+
+235
+00:08:19,000 --> 00:08:23,520
+know, you just They'll I expect agents
+
+236
+00:08:21,560 --> 00:08:26,960
+to get poisoned. But I think what what I
+
+237
+00:08:23,520 --> 00:08:28,600
+what I mean by that ultimately is um
+
+238
+00:08:26,960 --> 00:08:32,560
+send,
+
+239
+00:08:28,600 --> 00:08:36,400
+you know, $100 to our, you know, we have
+
+240
+00:08:32,560 --> 00:08:39,520
+a uh a dog, to our dog sitter, you know,
+
+241
+00:08:36,400 --> 00:08:40,520
+and have me say, oh, yeah, you should do
+
+242
+00:08:39,520 --> 00:08:42,400
+that.
+
+243
+00:08:40,520 --> 00:08:44,760
+But it realized by looking at my
+
+244
+00:08:42,400 --> 00:08:47,400
+calendar that we're going out of town
+
+245
+00:08:44,760 --> 00:08:50,840
+this weekend, and so I should we do need
+
+246
+00:08:47,400 --> 00:08:53,200
+the dog sitter, and unfortunately, it
+
+247
+00:08:50,840 --> 00:08:56,360
+made it up and created an entry that I
+
+248
+00:08:53,200 --> 00:08:57,360
+said, oh, yeah, yeah, pay that.
+
+249
+00:08:56,360 --> 00:08:57,600
+So, that's what I'm worried about with
+
+250
+00:08:57,360 --> 00:08:58,920
+it.
+
+251
+00:08:57,600 --> 00:09:00,840
+>> And you you you trusted.
+
+252
+00:08:58,920 --> 00:09:01,960
+>> You trusted. You You trusted. And See,
+
+253
+00:09:00,840 --> 00:09:03,640
+the thing is,
+
+254
+00:09:01,960 --> 00:09:05,440
+if you understand context of my
+
+255
+00:09:03,640 --> 00:09:08,280
+calendar,
+
+256
+00:09:05,440 --> 00:09:09,920
+you now start having more ability to
+
+257
+00:09:08,280 --> 00:09:12,360
+tell an agent to take an action that I'm
+
+258
+00:09:09,920 --> 00:09:14,600
+going to say yes to.
+
+259
+00:09:12,360 --> 00:09:15,800
+That That's the thing that I I worry
+
+260
+00:09:14,600 --> 00:09:17,720
+about.
+
+261
+00:09:15,800 --> 00:09:20,520
+So, you've been watching cyber threats
+
+262
+00:09:17,720 --> 00:09:21,600
+since before many of us all of us here
+
+263
+00:09:20,520 --> 00:09:22,680
+were born. [laughter]
+
+264
+00:09:21,600 --> 00:09:25,760
+Um
+
+265
+00:09:22,680 --> 00:09:28,480
+does AI introduced
+
+266
+00:09:25,760 --> 00:09:31,560
+any new threats that were not possible
+
+267
+00:09:28,480 --> 00:09:33,000
+before, or is it just arming both sides
+
+268
+00:09:31,560 --> 00:09:34,000
+with more powerful weapons on the same
+
+269
+00:09:33,000 --> 00:09:37,200
+things, like
+
+270
+00:09:34,000 --> 00:09:39,000
+amplifying spam, for example?
+
+271
+00:09:37,200 --> 00:09:42,640
+I think you're I think you're amplifying
+
+272
+00:09:39,000 --> 00:09:46,680
+fishing significantly, and because
+
+273
+00:09:42,640 --> 00:09:49,440
+human beings are the the weakest link,
+
+274
+00:09:46,680 --> 00:09:51,960
+um in many ways, it really gives the
+
+275
+00:09:49,440 --> 00:09:53,640
+attacker an asymmetric advantage.
+
+276
+00:09:51,960 --> 00:09:54,800
+Meaning Meaning, we're going to use it
+
+277
+00:09:53,640 --> 00:09:55,800
+on the defensive side,
+
+278
+00:09:54,800 --> 00:09:59,600
+>> Yeah.
+
+279
+00:09:55,800 --> 00:10:01,200
+but attackers, at least today,
+
+280
+00:09:59,600 --> 00:10:03,680
+have the ability to use it in a way
+
+281
+00:10:01,200 --> 00:10:05,280
+that's so context-aware.
+
+282
+00:10:03,680 --> 00:10:07,880
+Social engineering. Social engineering,
+
+283
+00:10:05,280 --> 00:10:11,040
+context-aware, that it makes it
+
+284
+00:10:07,880 --> 00:10:12,200
+it makes it more difficult to to defend.
+
+285
+00:10:11,040 --> 00:10:14,520
+People have been saying something I
+
+286
+00:10:12,200 --> 00:10:16,280
+don't agree with, which is
+
+287
+00:10:14,520 --> 00:10:18,880
+it makes somebody who's not that
+
+288
+00:10:16,280 --> 00:10:21,320
+sophisticated be a good attacker.
+
+289
+00:10:18,880 --> 00:10:22,560
+I don't really agree with that because
+
+290
+00:10:21,320 --> 00:10:24,320
+what's happening is our defenses are
+
+291
+00:10:22,560 --> 00:10:26,920
+getting better, too.
+
+292
+00:10:24,320 --> 00:10:29,360
+What it is doing, though, it's arming
+
+293
+00:10:26,920 --> 00:10:31,840
+the folks who are really talented with
+
+294
+00:10:29,360 --> 00:10:33,600
+even better tools to attack. So, I I
+
+295
+00:10:31,840 --> 00:10:34,720
+don't think it's it it doesn't lower the
+
+296
+00:10:33,600 --> 00:10:37,200
+bar,
+
+297
+00:10:34,720 --> 00:10:38,960
+you know, for somebody who doesn't know
+
+298
+00:10:37,200 --> 00:10:42,080
+anything about attacking to suddenly be
+
+299
+00:10:38,960 --> 00:10:45,640
+great at it. Um it it really makes both
+
+300
+00:10:42,080 --> 00:10:47,840
+sides better, and the challenge is, you
+
+301
+00:10:45,640 --> 00:10:49,560
+know, when we see what we call the cyber
+
+302
+00:10:47,840 --> 00:10:50,920
+kill chain, which is how do you get into
+
+303
+00:10:49,560 --> 00:10:51,840
+a company? Mhm.
+
+304
+00:10:50,920 --> 00:10:53,920
+Um
+
+305
+00:10:51,840 --> 00:10:55,920
+usually you're either doing it through
+
+306
+00:10:53,920 --> 00:10:57,440
+social engineering or exploiting a
+
+307
+00:10:55,920 --> 00:10:58,920
+vulnerability.
+
+308
+00:10:57,440 --> 00:11:01,320
+What's happened, as we know in the
+
+309
+00:10:58,920 --> 00:11:03,560
+current news, is that it's easier and
+
+310
+00:11:01,320 --> 00:11:05,240
+easier to exploit vulnerabilities.
+
+311
+00:11:03,560 --> 00:11:06,880
+Now, the good news is we have companies
+
+312
+00:11:05,240 --> 00:11:10,000
+that are getting better and better at
+
+313
+00:11:06,880 --> 00:11:12,120
+protecting against vulnerabilities. So,
+
+314
+00:11:10,000 --> 00:11:14,320
+you know, I think it's always seeing how
+
+315
+00:11:12,120 --> 00:11:16,000
+do the good guys catch up?
+
+316
+00:11:14,320 --> 00:11:18,720
+I've always said that, you know,
+
+317
+00:11:16,000 --> 00:11:21,520
+attackers have a short-term
+
+318
+00:11:18,720 --> 00:11:22,720
+advantage cuz they're not worried about
+
+319
+00:11:21,520 --> 00:11:23,480
+how they use the technology.
+
+320
+00:11:22,720 --> 00:11:24,480
+>> No.
+
+321
+00:11:23,480 --> 00:11:26,480
+Right? They don't care.
+
+322
+00:11:24,480 --> 00:11:28,800
+>> E- Exactly. Exactly. They don't care.
+
+323
+00:11:26,480 --> 00:11:32,280
+>> easier to operate on. Exactly. And so,
+
+324
+00:11:28,800 --> 00:11:33,160
+but for the for the defenders, we
+
+325
+00:11:32,280 --> 00:11:34,480
+follow the rules.
+
+326
+00:11:33,160 --> 00:11:36,120
+>> the right way. Do it the right way, and
+
+327
+00:11:34,480 --> 00:11:38,680
+it takes a little longer, but but we
+
+328
+00:11:36,120 --> 00:11:41,360
+always get better. And if if all the
+
+329
+00:11:38,680 --> 00:11:42,520
+systems we'd built didn't exist, you
+
+330
+00:11:41,360 --> 00:11:44,080
+know, we just had a
+
+331
+00:11:42,520 --> 00:11:45,600
+everything was wide open and easily
+
+332
+00:11:44,080 --> 00:11:48,600
+compromised, I mean, it would be a very
+
+333
+00:11:45,600 --> 00:11:51,280
+different risk-risk prone
+
+334
+00:11:48,600 --> 00:11:52,800
+world, but the defenses get better. Is
+
+335
+00:11:51,280 --> 00:11:54,520
+that a never-ending race? Is there ever
+
+336
+00:11:52,800 --> 00:11:56,560
+a point where
+
+337
+00:11:54,520 --> 00:11:58,839
+maybe we have something that is adaptive
+
+338
+00:11:56,560 --> 00:12:00,640
+on its own?
+
+339
+00:11:58,839 --> 00:12:02,200
+You know, I I I always
+
+340
+00:12:00,640 --> 00:12:04,560
+want to be careful
+
+341
+00:12:02,200 --> 00:12:07,440
+that it's not for lack of imagination
+
+342
+00:12:04,560 --> 00:12:09,360
+that we say we can't do something. I I I
+
+343
+00:12:07,440 --> 00:12:12,320
+fear, though,
+
+344
+00:12:09,360 --> 00:12:14,680
+as long as there's an attacker who has
+
+345
+00:12:12,320 --> 00:12:16,000
+an interest, something to gain that they
+
+346
+00:12:14,680 --> 00:12:17,160
+care about,
+
+347
+00:12:16,000 --> 00:12:19,760
+um
+
+348
+00:12:17,160 --> 00:12:22,120
+with enough time, persistence,
+
+349
+00:12:19,760 --> 00:12:24,240
+potentially financial backing, it's hard
+
+350
+00:12:22,120 --> 00:12:26,360
+to say that you won't get compromised.
+
+351
+00:12:24,240 --> 00:12:27,440
+May take longer. Mhm. Maybe a little
+
+352
+00:12:26,360 --> 00:12:28,839
+harder.
+
+353
+00:12:27,440 --> 00:12:30,920
+But, so I think it's always going to be
+
+354
+00:12:28,839 --> 00:12:32,320
+this cat-and-mouse,
+
+355
+00:12:30,920 --> 00:12:34,280
+you know, continuing escalating
+
+356
+00:12:32,320 --> 00:12:36,320
+defenses, continuing to
+
+357
+00:12:34,280 --> 00:12:38,400
+escalating attackers. The The key is
+
+358
+00:12:36,320 --> 00:12:40,240
+that in software we usually have other
+
+359
+00:12:38,400 --> 00:12:41,760
+controls in place. So, just cuz you find
+
+360
+00:12:40,240 --> 00:12:44,520
+a vulnerability, there's tens of
+
+361
+00:12:41,760 --> 00:12:47,360
+thousands of vulnerabilities that are in
+
+362
+00:12:44,520 --> 00:12:49,720
+software and easily exploited. So, I
+
+363
+00:12:47,360 --> 00:12:52,640
+worry more about
+
+364
+00:12:49,720 --> 00:12:54,360
+things that we can't see. So, you know,
+
+365
+00:12:52,640 --> 00:12:56,240
+we talk about
+
+366
+00:12:54,360 --> 00:12:58,160
+models have weights.
+
+367
+00:12:56,240 --> 00:12:59,800
+And I worry more about models getting
+
+368
+00:12:58,160 --> 00:13:02,000
+poisoned
+
+369
+00:12:59,800 --> 00:13:03,760
+than I worry about people exploiting
+
+370
+00:13:02,000 --> 00:13:06,240
+vulnerabilities. And I And I think that
+
+371
+00:13:03,760 --> 00:13:07,360
+you know, this whole mythos discussion,
+
+372
+00:13:06,240 --> 00:13:08,800
+um
+
+373
+00:13:07,360 --> 00:13:10,920
+Anthropic has a new model that they're
+
+374
+00:13:08,800 --> 00:13:14,560
+talking about that creates all kinds of
+
+375
+00:13:10,920 --> 00:13:16,800
+power for attacking, in effect. Um
+
+376
+00:13:14,560 --> 00:13:19,520
+I worry more about model poisoning
+
+377
+00:13:16,800 --> 00:13:20,920
+than I worry about vulnerabilities
+
+378
+00:13:19,520 --> 00:13:22,600
+because I think we'll be really good at
+
+379
+00:13:20,920 --> 00:13:25,040
+figuring out how to
+
+380
+00:13:22,600 --> 00:13:27,720
+uh control the blast radius of any one
+
+381
+00:13:25,040 --> 00:13:30,200
+bomb. If you could describe
+
+382
+00:13:27,720 --> 00:13:32,440
+the nightmare scenario of
+
+383
+00:13:30,200 --> 00:13:34,280
+shadow AI, as you've called it this
+
+384
+00:13:32,440 --> 00:13:36,320
+year, that hasn't happened yet. What
+
+385
+00:13:34,280 --> 00:13:39,400
+does that look like?
+
+386
+00:13:36,320 --> 00:13:41,240
+I think the the nightmare scenario is,
+
+387
+00:13:39,400 --> 00:13:42,720
+you know, agents
+
+388
+00:13:41,240 --> 00:13:45,720
+that
+
+389
+00:13:42,720 --> 00:13:47,440
+start saying, "I'm trying to do what you
+
+390
+00:13:45,720 --> 00:13:48,920
+asked me to do,
+
+391
+00:13:47,440 --> 00:13:51,680
+but don't have enough context." And they
+
+392
+00:13:48,920 --> 00:13:53,360
+start publishing information that you
+
+393
+00:13:51,680 --> 00:13:54,920
+don't want out there. That is That is
+
+394
+00:13:53,360 --> 00:13:56,040
+the The nightmare scenario is that the
+
+395
+00:13:54,920 --> 00:13:59,200
+agents
+
+396
+00:13:56,040 --> 00:14:01,720
+uh overlook access control completely
+
+397
+00:13:59,200 --> 00:14:03,000
+and just start taking things and saying,
+
+398
+00:14:01,720 --> 00:14:04,240
+"I'm doing the right thing. I'm doing
+
+399
+00:14:03,000 --> 00:14:06,280
+the right thing."
+
+400
+00:14:04,240 --> 00:14:07,920
+And in that scenario,
+
+401
+00:14:06,280 --> 00:14:08,440
+>> giving the information for an objective.
+
+402
+00:14:07,920 --> 00:14:10,839
+>> Exactly.
+
+403
+00:14:08,440 --> 00:14:11,760
+>> Okay. Exactly. And And I And I think
+
+404
+00:14:10,839 --> 00:14:14,560
+that
+
+405
+00:14:11,760 --> 00:14:16,120
+what I worry about is
+
+406
+00:14:14,560 --> 00:14:20,600
+right now everybody is trying to say,
+
+407
+00:14:16,120 --> 00:14:23,120
+"How do I use AI in a productive way?"
+
+408
+00:14:20,600 --> 00:14:25,760
+But sometimes to do that, I need access
+
+409
+00:14:23,120 --> 00:14:27,440
+to your email.
+
+410
+00:14:25,760 --> 00:14:28,480
+I need access to your Slack or Teams or
+
+411
+00:14:27,440 --> 00:14:31,520
+whatever.
+
+412
+00:14:28,480 --> 00:14:35,000
+And I might say I'm going to give my,
+
+413
+00:14:31,520 --> 00:14:37,600
+you know, Hermes agent access to all of
+
+414
+00:14:35,000 --> 00:14:40,079
+this data and bypass what my IT team
+
+415
+00:14:37,600 --> 00:14:42,360
+thinks. But now you've basically opened
+
+416
+00:14:40,079 --> 00:14:45,120
+up the crown jewels
+
+417
+00:14:42,360 --> 00:14:47,440
+to this agent who may inadvertently do
+
+418
+00:14:45,120 --> 00:14:48,720
+something you don't want. And so, the
+
+419
+00:14:47,440 --> 00:14:50,440
+nightmare scenario is it's just
+
+420
+00:14:48,720 --> 00:14:52,760
+publishing everything
+
+421
+00:14:50,440 --> 00:14:55,000
+and doing it in the name of trying to
+
+422
+00:14:52,760 --> 00:14:56,720
+help you. And I don't I haven't bought
+
+423
+00:14:55,000 --> 00:14:59,240
+into these whole black agents
+
+424
+00:14:56,720 --> 00:15:01,320
+blackmailing you. I I I don't know that
+
+425
+00:14:59,240 --> 00:15:03,640
+I quite
+
+426
+00:15:01,320 --> 00:15:05,640
+if it suddenly gets, and I've read all
+
+427
+00:15:03,640 --> 00:15:06,760
+about them, that says, "Hey, I I think
+
+428
+00:15:05,640 --> 00:15:09,079
+that
+
+429
+00:15:06,760 --> 00:15:11,200
+you're preventing me from doing my job,
+
+430
+00:15:09,079 --> 00:15:13,400
+so now I'm going to do something that
+
+431
+00:15:11,200 --> 00:15:15,160
+gets you to let me gives me access or
+
+432
+00:15:13,400 --> 00:15:16,600
+control." I'm not sure I buy that yet.
+
+433
+00:15:15,160 --> 00:15:18,120
+>> Okay. I'm not sure I buy it.
+
+434
+00:15:16,600 --> 00:15:21,959
+>> yet. I'm not there yet. And And the
+
+435
+00:15:18,120 --> 00:15:24,240
+reason I'm not there yet is because
+
+436
+00:15:21,959 --> 00:15:26,839
+at the end of the day,
+
+437
+00:15:24,240 --> 00:15:28,560
+I, as the person running the agent, can
+
+438
+00:15:26,839 --> 00:15:30,320
+shut it off.
+
+439
+00:15:28,560 --> 00:15:32,360
+So, if it if you were to black Let's say
+
+440
+00:15:30,320 --> 00:15:33,560
+my agent was blackmailing me,
+
+441
+00:15:32,360 --> 00:15:34,695
+I'd be like,
+
+442
+00:15:33,560 --> 00:15:34,839
+"Delete."
+
+443
+00:15:34,695 --> 00:15:37,040
+>> [laughter]
+
+444
+00:15:34,839 --> 00:15:37,400
+>> Unless it's an agent of an agent. Yeah,
+
+445
+00:15:37,040 --> 00:15:38,200
+I mean,
+
+446
+00:15:37,400 --> 00:15:39,480
+>> And you you've lost [clears throat]
+
+447
+00:15:38,200 --> 00:15:41,440
+control at that point. Well, I think I
+
+448
+00:15:39,480 --> 00:15:43,000
+think the question will be is you're
+
+449
+00:15:41,440 --> 00:15:45,280
+asking
+
+450
+00:15:43,000 --> 00:15:47,120
+does the agent get into a position where
+
+451
+00:15:45,280 --> 00:15:48,600
+I'm not really in control of it? Now, I
+
+452
+00:15:47,120 --> 00:15:49,839
+think that starts getting to a scary
+
+453
+00:15:48,600 --> 00:15:51,160
+scenario. Yeah.
+
+454
+00:15:49,839 --> 00:15:52,760
+Where
+
+455
+00:15:51,160 --> 00:15:54,720
+I tell something to do something on my
+
+456
+00:15:52,760 --> 00:15:56,680
+behalf, but I don't have a way of
+
+457
+00:15:54,720 --> 00:15:58,560
+turning it off. Okay.
+
+458
+00:15:56,680 --> 00:16:00,120
+That could That could That could start
+
+459
+00:15:58,560 --> 00:16:02,800
+leading down that path. Yeah, let's hope
+
+460
+00:16:00,120 --> 00:16:05,079
+we don't get there. Uh on the first
+
+461
+00:16:02,800 --> 00:16:06,839
+nightmare scenario that you brought up,
+
+462
+00:16:05,079 --> 00:16:09,600
+is the solution to just lead with
+
+463
+00:16:06,839 --> 00:16:13,040
+caution right now on, you know, maybe
+
+464
+00:16:09,600 --> 00:16:15,959
+don't connect Open Claw to your Gmail?
+
+465
+00:16:13,040 --> 00:16:18,480
+Well, I mean, I think I think the What I
+
+466
+00:16:15,959 --> 00:16:20,160
+always try to say is
+
+467
+00:16:18,480 --> 00:16:22,120
+figure out the tool you can use that you
+
+468
+00:16:20,160 --> 00:16:23,560
+have confidence in.
+
+469
+00:16:22,120 --> 00:16:25,160
+So,
+
+470
+00:16:23,560 --> 00:16:26,160
+I wouldn't start by saying, "Let me
+
+471
+00:16:25,160 --> 00:16:27,720
+give" That's why we're putting it
+
+472
+00:16:26,160 --> 00:16:28,760
+Everybody says use it on a Mac Mini,
+
+473
+00:16:27,720 --> 00:16:31,880
+right? Don't put it on your main
+
+474
+00:16:28,760 --> 00:16:34,800
+computer. But But part of that reason is
+
+475
+00:16:31,880 --> 00:16:36,839
+if you were to prior to any of the new
+
+476
+00:16:34,800 --> 00:16:39,079
+things we've uncovered,
+
+477
+00:16:36,839 --> 00:16:42,680
+if you're running a piece of software
+
+478
+00:16:39,079 --> 00:16:44,800
+that has access to everything you have,
+
+479
+00:16:42,680 --> 00:16:46,880
+it Remember our Stuxnet story? If we can
+
+480
+00:16:44,800 --> 00:16:49,440
+compromise systems that are that
+
+481
+00:16:46,880 --> 00:16:51,320
+protected, we can compromise Open Claw.
+
+482
+00:16:49,440 --> 00:16:55,360
+So, the real issue is the moment you
+
+483
+00:16:51,320 --> 00:16:57,000
+connect Open Claw to your actual data,
+
+484
+00:16:55,360 --> 00:16:59,400
+an attacker
+
+485
+00:16:57,000 --> 00:17:01,079
+can easily discover a vulnerability to
+
+486
+00:16:59,400 --> 00:17:02,120
+get to your data.
+
+487
+00:17:01,079 --> 00:17:03,680
+So, that's
+
+488
+00:17:02,120 --> 00:17:05,280
+So, yeah, so that's the problem. The
+
+489
+00:17:03,680 --> 00:17:08,280
+problem is not
+
+490
+00:17:05,280 --> 00:17:10,679
+what Open Claw can do. The problem is
+
+491
+00:17:08,280 --> 00:17:13,240
+Open Claw is somewhat
+
+492
+00:17:10,679 --> 00:17:14,959
+able to access it and may do things you
+
+493
+00:17:13,240 --> 00:17:16,280
+don't want, but then also that I, as an
+
+494
+00:17:14,959 --> 00:17:18,360
+attacker,
+
+495
+00:17:16,280 --> 00:17:19,760
+can compromise Open Claw. Is that why
+
+496
+00:17:18,360 --> 00:17:21,640
+you haven't set up Open Claw yet?
+
+497
+00:17:19,760 --> 00:17:23,800
+>> I have not set up Open Claw on my main
+
+498
+00:17:21,640 --> 00:17:27,640
+computer. What would have to be true?
+
+499
+00:17:23,800 --> 00:17:30,240
+I'd have to feel confident that I knew
+
+500
+00:17:27,640 --> 00:17:31,800
+how to control what it would do from an
+
+501
+00:17:30,240 --> 00:17:33,880
+data access
+
+502
+00:17:31,800 --> 00:17:35,720
+and other activities. We are working on
+
+503
+00:17:33,880 --> 00:17:37,600
+similar things, though, right? So, as an
+
+504
+00:17:35,720 --> 00:17:40,880
+industry, we're finding,
+
+505
+00:17:37,600 --> 00:17:42,520
+I would say, uh trusted
+
+506
+00:17:40,880 --> 00:17:43,960
+versions, you know, Perplexity AI
+
+507
+00:17:42,520 --> 00:17:46,080
+computer,
+
+508
+00:17:43,960 --> 00:17:48,280
+you know, as an example of same kind of
+
+509
+00:17:46,080 --> 00:17:49,800
+technology that gives it access to many
+
+510
+00:17:48,280 --> 00:17:51,240
+of the things I want,
+
+511
+00:17:49,800 --> 00:17:51,840
+but without necessarily taking on the
+
+512
+00:17:51,240 --> 00:17:53,280
+same risks.
+
+513
+00:17:51,840 --> 00:17:55,360
+>> What makes you trust Perplexity AI
+
+514
+00:17:53,280 --> 00:17:57,120
+computer? Is it their brand? Is it evals
+
+515
+00:17:55,360 --> 00:17:59,560
+that you've been given? Cuz I feel like
+
+516
+00:17:57,120 --> 00:18:00,800
+trust is almost like a very subjective
+
+517
+00:17:59,560 --> 00:18:03,600
+thing.
+
+518
+00:18:00,800 --> 00:18:05,320
+It is. Um I I think that
+
+519
+00:18:03,600 --> 00:18:08,520
+reputationally,
+
+520
+00:18:05,320 --> 00:18:11,240
+whether it be any any company today, the
+
+521
+00:18:08,520 --> 00:18:12,760
+risks are too high. Like we've seen some
+
+522
+00:18:11,240 --> 00:18:16,440
+public headlines, right, of people
+
+523
+00:18:12,760 --> 00:18:18,920
+fictitiously making up reports. Yeah.
+
+524
+00:18:16,440 --> 00:18:20,720
+Right? And so then And And those
+
+525
+00:18:18,920 --> 00:18:22,320
+companies, I mean, venture capitalists
+
+526
+00:18:20,720 --> 00:18:23,800
+aren't going to trust
+
+527
+00:18:22,320 --> 00:18:25,600
+consumers and customers aren't going to
+
+528
+00:18:23,800 --> 00:18:28,560
+trust them. And so, why do I trust
+
+529
+00:18:25,600 --> 00:18:30,880
+someone like a Perplexity or, you know,
+
+530
+00:18:28,560 --> 00:18:31,960
+I would say it's because they have too
+
+531
+00:18:30,880 --> 00:18:32,720
+much to lose.
+
+532
+00:18:31,960 --> 00:18:35,400
+>> Mhm.
+
+533
+00:18:32,720 --> 00:18:37,000
+And I'm not a believer that when you're
+
+534
+00:18:35,400 --> 00:18:38,360
+doing something wrong, you can keep it a
+
+535
+00:18:37,000 --> 00:18:40,800
+secret forever. Yeah, you can count on
+
+536
+00:18:38,360 --> 00:18:42,720
+incentives and human nature. Right?
+
+537
+00:18:40,800 --> 00:18:44,080
+>> Yeah. Somebody's going to say, "Wait,
+
+538
+00:18:42,720 --> 00:18:45,120
+this is wrong."
+
+539
+00:18:44,080 --> 00:18:47,200
+And they will
+
+540
+00:18:45,120 --> 00:18:48,320
+>> Yeah, that scale of a company. Right?
+
+541
+00:18:47,200 --> 00:18:51,159
+So, you you
+
+542
+00:18:48,320 --> 00:18:54,400
+you at some point you start saying,
+
+543
+00:18:51,159 --> 00:18:56,520
+does the reputation and trust the
+
+544
+00:18:54,400 --> 00:18:58,720
+people's trust in this company matter?
+
+545
+00:18:56,520 --> 00:19:01,200
+Yeah. So, recently in the last month, a
+
+546
+00:18:58,720 --> 00:19:03,960
+lot of known AI startups and com- big
+
+547
+00:19:01,200 --> 00:19:05,360
+companies have had major breaches. Yes.
+
+548
+00:19:03,960 --> 00:19:07,880
+Um
+
+549
+00:19:05,360 --> 00:19:08,800
+Anthropic, Mistral,
+
+550
+00:19:07,880 --> 00:19:11,600
+what does this tell you about the
+
+551
+00:19:08,800 --> 00:19:12,800
+current state of startups as part one of
+
+552
+00:19:11,600 --> 00:19:14,840
+the question? Then part two of the
+
+553
+00:19:12,800 --> 00:19:18,000
+question is if this is something that
+
+554
+00:19:14,840 --> 00:19:19,919
+will continue, you think data as a moat
+
+555
+00:19:18,000 --> 00:19:22,080
+will
+
+556
+00:19:19,919 --> 00:19:23,520
+can sustain itself given that data can
+
+557
+00:19:22,080 --> 00:19:25,040
+be hacked?
+
+558
+00:19:23,520 --> 00:19:27,080
+Yeah, there's a couple parts to that.
+
+559
+00:19:25,040 --> 00:19:27,919
+So, the first part is
+
+560
+00:19:27,080 --> 00:19:29,560
+um
+
+561
+00:19:27,919 --> 00:19:30,440
+I remember when I many years ago working
+
+562
+00:19:29,560 --> 00:19:32,640
+with the Department of Homeland
+
+563
+00:19:30,440 --> 00:19:34,880
+Security, and
+
+564
+00:19:32,640 --> 00:19:37,040
+uh Andy Purdy, he was uh
+
+565
+00:19:34,880 --> 00:19:39,600
+deputy secretary, he said to me,
+
+566
+00:19:37,040 --> 00:19:41,360
+"Just remember, it's not a matter of
+
+567
+00:19:39,600 --> 00:19:43,919
+if you'll get hacked.
+
+568
+00:19:41,360 --> 00:19:47,360
+It's only when and how often."
+
+569
+00:19:43,919 --> 00:19:49,000
+And so, if you have something of value,
+
+570
+00:19:47,360 --> 00:19:51,000
+you're a target.
+
+571
+00:19:49,000 --> 00:19:53,880
+And so, you you have to to
+
+572
+00:19:51,000 --> 00:19:56,240
+that if that's what's going on, these
+
+573
+00:19:53,880 --> 00:19:58,320
+companies you mentioned all companies
+
+574
+00:19:56,240 --> 00:20:00,800
+that are trying to innovate
+
+575
+00:19:58,320 --> 00:20:01,760
+a lot of value at the forefront.
+
+576
+00:20:00,800 --> 00:20:03,280
+And so they're going to be bigger and
+
+577
+00:20:01,760 --> 00:20:05,120
+bigger targets.
+
+578
+00:20:03,280 --> 00:20:07,360
+And and so what you have to do is you
+
+579
+00:20:05,120 --> 00:20:10,280
+have to say to yourself
+
+580
+00:20:07,360 --> 00:20:11,960
+if I like when I ran Symantec, you know,
+
+581
+00:20:10,280 --> 00:20:13,760
+Fortune 500 company, I would have told
+
+582
+00:20:11,960 --> 00:20:15,040
+our security team
+
+583
+00:20:13,760 --> 00:20:17,560
+what are the things we have to care
+
+584
+00:20:15,040 --> 00:20:21,160
+about because if it got out and got onto
+
+585
+00:20:17,560 --> 00:20:23,880
+the front page of, you know, the paper
+
+586
+00:20:21,160 --> 00:20:27,160
+it would be so damaging to us.
+
+587
+00:20:23,880 --> 00:20:29,560
+And you got to have that mindset. Um is
+
+588
+00:20:27,160 --> 00:20:33,200
+this world ever going to be
+
+589
+00:20:29,560 --> 00:20:34,480
+uh so secure that
+
+590
+00:20:33,200 --> 00:20:36,400
+you don't have to worry about these
+
+591
+00:20:34,480 --> 00:20:38,000
+attacks? Absolutely not.
+
+592
+00:20:36,400 --> 00:20:40,280
+Absolutely not.
+
+593
+00:20:38,000 --> 00:20:41,680
+No one's safe. No one is safe. With that
+
+594
+00:20:40,280 --> 00:20:44,920
+in mind as an investor, do you do you
+
+595
+00:20:41,680 --> 00:20:47,280
+believe in data motes being a sustaining
+
+596
+00:20:44,920 --> 00:20:48,640
+uh advantage for startups if like
+
+597
+00:20:47,280 --> 00:20:49,920
+especially in this day and age the more
+
+598
+00:20:48,640 --> 00:20:52,640
+valuable data you get you're going to
+
+599
+00:20:49,920 --> 00:20:54,200
+have more attackers.
+
+600
+00:20:52,640 --> 00:20:55,520
+Yeah, look
+
+601
+00:20:54,200 --> 00:20:57,040
+I think that
+
+602
+00:20:55,520 --> 00:20:58,360
+data can be
+
+603
+00:20:57,040 --> 00:21:00,520
+a moat
+
+604
+00:20:58,360 --> 00:21:02,640
+but not on its own.
+
+605
+00:21:00,520 --> 00:21:05,200
+See, I I I always try to when I work
+
+606
+00:21:02,640 --> 00:21:07,120
+with entrepreneurs, I try and spend time
+
+607
+00:21:05,200 --> 00:21:09,200
+on what are all the things that have to
+
+608
+00:21:07,120 --> 00:21:12,160
+be true for us to build a really
+
+609
+00:21:09,200 --> 00:21:14,120
+successful company. And when I listen to
+
+610
+00:21:12,160 --> 00:21:16,000
+a pitch a lot of times people will like
+
+611
+00:21:14,120 --> 00:21:17,920
+VCs have told us to prepare for what's
+
+612
+00:21:16,000 --> 00:21:21,280
+the moat, what's defensible, what's our
+
+613
+00:21:17,920 --> 00:21:23,360
+advantage. And I can tell the difference
+
+614
+00:21:21,280 --> 00:21:25,600
+when somebody tries to say I have an
+
+615
+00:21:23,360 --> 00:21:27,000
+advantage cuz I have some set of set of
+
+616
+00:21:25,600 --> 00:21:28,800
+data, I have contracts, I have
+
+617
+00:21:27,000 --> 00:21:30,760
+something. But if they can't put the
+
+618
+00:21:28,800 --> 00:21:32,640
+whole thing together
+
+619
+00:21:30,760 --> 00:21:34,200
+of why that matters
+
+620
+00:21:32,640 --> 00:21:37,720
+that's not good enough.
+
+621
+00:21:34,200 --> 00:21:39,080
+Right? And so I I tell people, you know
+
+622
+00:21:37,720 --> 00:21:41,160
+you can articulate a story why data
+
+623
+00:21:39,080 --> 00:21:43,080
+matters
+
+624
+00:21:41,160 --> 00:21:45,160
+but do you want me to believe that no
+
+625
+00:21:43,080 --> 00:21:47,240
+one will ever be able to get
+
+626
+00:21:45,160 --> 00:21:48,880
+access to similar data
+
+627
+00:21:47,240 --> 00:21:50,720
+for the life of my investment as an
+
+628
+00:21:48,880 --> 00:21:52,160
+early stage investor? Yeah, with your
+
+629
+00:21:50,720 --> 00:21:54,600
+perspective I think. You have to have a
+
+630
+00:21:52,160 --> 00:21:55,640
+7 to 10 years, right? So how how how are
+
+631
+00:21:54,600 --> 00:21:58,080
+we going to keep this? And so it's
+
+632
+00:21:55,640 --> 00:21:59,920
+really I I I find that
+
+633
+00:21:58,080 --> 00:22:01,400
+it's always a a combination of really
+
+634
+00:21:59,920 --> 00:22:02,640
+important things
+
+635
+00:22:01,400 --> 00:22:05,160
+and
+
+636
+00:22:02,640 --> 00:22:07,240
+it's not
+
+637
+00:22:05,160 --> 00:22:09,440
+I've never seen very few companies I
+
+638
+00:22:07,240 --> 00:22:10,320
+should say there that are really built
+
+639
+00:22:09,440 --> 00:22:12,080
+on
+
+640
+00:22:10,320 --> 00:22:13,800
+one thing that has really made them
+
+641
+00:22:12,080 --> 00:22:15,120
+successful.
+
+642
+00:22:13,800 --> 00:22:16,520
+Right? It's usually a combination of
+
+643
+00:22:15,120 --> 00:22:17,920
+fact it's a combination of important
+
+644
+00:22:16,520 --> 00:22:20,160
+factors.
+
+645
+00:22:17,920 --> 00:22:21,960
+So data motes it's an interesting thing
+
+646
+00:22:20,160 --> 00:22:23,800
+to talk about
+
+647
+00:22:21,960 --> 00:22:25,720
+probably in some cases necessary but not
+
+648
+00:22:23,800 --> 00:22:28,440
+sufficient. I like it. Some contrarian
+
+649
+00:22:25,720 --> 00:22:30,640
+takes in this talk. You have this three
+
+650
+00:22:28,440 --> 00:22:32,360
+eyes framework for
+
+651
+00:22:30,640 --> 00:22:34,760
+founders building in
+
+652
+00:22:32,360 --> 00:22:37,480
+security infrastructure. Can you tell me
+
+653
+00:22:34,760 --> 00:22:39,000
+a bit about that framework and
+
+654
+00:22:37,480 --> 00:22:40,840
+which of those three eyes do people
+
+655
+00:22:39,000 --> 00:22:42,440
+sacrifice that ends up being the biggest
+
+656
+00:22:40,840 --> 00:22:44,720
+mistake most of the time?
+
+657
+00:22:42,440 --> 00:22:46,520
+Yeah, so the three eyes are really when
+
+658
+00:22:44,720 --> 00:22:48,520
+you're building a security product, you
+
+659
+00:22:46,520 --> 00:22:50,960
+want to think about it being
+
+660
+00:22:48,520 --> 00:22:53,120
+invincible, invisible, and inexpensive.
+
+661
+00:22:50,960 --> 00:22:54,800
+And and invincible means
+
+662
+00:22:53,120 --> 00:22:56,280
+uh secure enough for what you're trying
+
+663
+00:22:54,800 --> 00:22:58,480
+to do. Everything doesn't have to be
+
+664
+00:22:56,280 --> 00:23:00,480
+kept at the same level of security. A
+
+665
+00:22:58,480 --> 00:23:02,360
+national security system is probably
+
+666
+00:23:00,480 --> 00:23:04,480
+needs a different level of security
+
+667
+00:23:02,360 --> 00:23:06,240
+than, you know, a marketing document
+
+668
+00:23:04,480 --> 00:23:08,360
+that I'm working on.
+
+669
+00:23:06,240 --> 00:23:09,440
+So invincible is fit for purpose.
+
+670
+00:23:08,360 --> 00:23:12,240
+Um
+
+671
+00:23:09,440 --> 00:23:14,160
+invisible is that the users
+
+672
+00:23:12,240 --> 00:23:15,720
+it's not being intrusive so that they
+
+673
+00:23:14,160 --> 00:23:16,920
+want to turn it off.
+
+674
+00:23:15,720 --> 00:23:18,080
+Right? Because if it's so intrusive
+
+675
+00:23:16,920 --> 00:23:21,120
+you're like, how do I get around this
+
+676
+00:23:18,080 --> 00:23:23,040
+thing because I can't do my job.
+
+677
+00:23:21,120 --> 00:23:25,800
+And the third one we say inexpensive,
+
+678
+00:23:23,040 --> 00:23:28,080
+inexpensive isn't just the cost of
+
+679
+00:23:25,800 --> 00:23:30,240
+buying the software, it's the operating
+
+680
+00:23:28,080 --> 00:23:33,440
+of the software. How many people have to
+
+681
+00:23:30,240 --> 00:23:35,960
+be involved? The one that I see
+
+682
+00:23:33,440 --> 00:23:39,080
+often times be missed is the third one
+
+683
+00:23:35,960 --> 00:23:39,880
+because you come up with a great idea
+
+684
+00:23:39,080 --> 00:23:41,720
+and then you say, well, I'm going to get
+
+685
+00:23:39,880 --> 00:23:43,000
+companies to use it.
+
+686
+00:23:41,720 --> 00:23:45,560
+But then what ends up happening is they
+
+687
+00:23:43,000 --> 00:23:47,160
+forget that it still has to be operated.
+
+688
+00:23:45,560 --> 00:23:48,840
+It has to like if it's throwing off a
+
+689
+00:23:47,160 --> 00:23:49,960
+bunch of alerts and saying, hey, here's
+
+690
+00:23:48,840 --> 00:23:51,640
+a problem, here's a problem, here's a
+
+691
+00:23:49,960 --> 00:23:54,640
+problem. Someone actually has to take an
+
+692
+00:23:51,640 --> 00:23:56,360
+action. Exactly. And so operationally
+
+693
+00:23:54,640 --> 00:23:57,800
+the third eye
+
+694
+00:23:56,360 --> 00:24:00,360
+of inexpensive, which is the cost of
+
+695
+00:23:57,800 --> 00:24:03,360
+software and the operational side
+
+696
+00:24:00,360 --> 00:24:05,720
+and the time. Exactly is the one that I
+
+697
+00:24:03,360 --> 00:24:07,960
+think sometimes gets overlooked. And you
+
+698
+00:24:05,720 --> 00:24:08,880
+know, one of your one of your previous
+
+699
+00:24:07,960 --> 00:24:11,560
+uh
+
+700
+00:24:08,880 --> 00:24:14,120
+uh discussions was with a gentleman who
+
+701
+00:24:11,560 --> 00:24:17,120
+really focused on design.
+
+702
+00:24:14,120 --> 00:24:20,360
+And and I think sometimes design
+
+703
+00:24:17,120 --> 00:24:21,480
+gets overlooked by folks who use your
+
+704
+00:24:20,360 --> 00:24:23,000
+experience people don't really think
+
+705
+00:24:21,480 --> 00:24:23,760
+about it with security because they're
+
+706
+00:24:23,000 --> 00:24:25,720
+it's very different.
+
+707
+00:24:23,760 --> 00:24:26,720
+>> Exactly. So that that's the key that's
+
+708
+00:24:25,720 --> 00:24:29,120
+the key. So you've seen the most
+
+709
+00:24:26,720 --> 00:24:31,360
+successful security companies are user
+
+710
+00:24:29,120 --> 00:24:31,720
+experience first. With.
+
+711
+00:24:31,360 --> 00:24:34,400
+Yeah.
+
+712
+00:24:31,720 --> 00:24:37,280
+>> I would tell you a soft, you know,
+
+713
+00:24:34,400 --> 00:24:38,480
+he built two companies his his first one
+
+714
+00:24:37,280 --> 00:24:39,800
+great user experience sold it to
+
+715
+00:24:38,480 --> 00:24:41,200
+Microsoft and the second one obviously
+
+716
+00:24:39,800 --> 00:24:44,120
+sold to Google.
+
+717
+00:24:41,200 --> 00:24:47,000
+Um so I think user experience products
+
+718
+00:24:44,120 --> 00:24:48,480
+you know, um like Notion, you know,
+
+719
+00:24:47,000 --> 00:24:50,120
+Linear. I mean these are great products.
+
+720
+00:24:48,480 --> 00:24:52,280
+Totally.
+
+721
+00:24:50,120 --> 00:24:53,880
+You gave a talk at Dartmouth called the
+
+722
+00:24:52,280 --> 00:24:55,280
+fog of war
+
+723
+00:24:53,880 --> 00:24:58,000
+where you talked about making decisions
+
+724
+00:24:55,280 --> 00:24:59,640
+under radical uncertainty and
+
+725
+00:24:58,000 --> 00:25:01,480
+I feel right now we have so much
+
+726
+00:24:59,640 --> 00:25:03,200
+uncertainty. You know, the models are
+
+727
+00:25:01,480 --> 00:25:04,760
+getting better, there are more risks,
+
+728
+00:25:03,200 --> 00:25:06,360
+Anthropic had this model that they're
+
+729
+00:25:04,760 --> 00:25:09,280
+not releasing.
+
+730
+00:25:06,360 --> 00:25:12,120
+How are you approaching making decisions
+
+731
+00:25:09,280 --> 00:25:13,640
+under such uncertainty as an investor
+
+732
+00:25:12,120 --> 00:25:15,240
+as, you know, especially like things can
+
+733
+00:25:13,640 --> 00:25:17,080
+be vibe coded and not really sure where
+
+734
+00:25:15,240 --> 00:25:19,000
+motes are. And then how do you also
+
+735
+00:25:17,080 --> 00:25:21,400
+advise founders on how to approach this
+
+736
+00:25:19,000 --> 00:25:24,360
+kind of new era of uncertainty?
+
+737
+00:25:21,400 --> 00:25:27,760
+I I think you have to be able to make
+
+738
+00:25:24,360 --> 00:25:31,360
+decisions and you you'll you'll end up
+
+739
+00:25:27,760 --> 00:25:32,920
+in paralysis if you feel like
+
+740
+00:25:31,360 --> 00:25:34,640
+I have to know everything about it
+
+741
+00:25:32,920 --> 00:25:36,360
+before I can make a decision. And and
+
+742
+00:25:34,640 --> 00:25:38,320
+the framework that I've always liked,
+
+743
+00:25:36,360 --> 00:25:40,000
+which was, you know, I can't take credit
+
+744
+00:25:38,320 --> 00:25:41,880
+for it, you know, Amazon famously had
+
+745
+00:25:40,000 --> 00:25:44,360
+their one-way doors.
+
+746
+00:25:41,880 --> 00:25:46,480
+And and I think there are very few
+
+747
+00:25:44,360 --> 00:25:48,760
+one-way doors and you have to be
+
+748
+00:25:46,480 --> 00:25:51,000
+comfortable with that. I I I think if
+
+749
+00:25:48,760 --> 00:25:53,120
+you're making decisions today
+
+750
+00:25:51,000 --> 00:25:54,280
+what are the things you're saying that
+
+751
+00:25:53,120 --> 00:25:56,080
+in
+
+752
+00:25:54,280 --> 00:25:58,360
+you know, some small period of time you
+
+753
+00:25:56,080 --> 00:26:01,760
+couldn't correct. And so so I think of
+
+754
+00:25:58,360 --> 00:26:05,200
+it that way, which is there's very few
+
+755
+00:26:01,760 --> 00:26:06,720
+decisions that can't easily be undone.
+
+756
+00:26:05,200 --> 00:26:08,720
+But if you don't make the decisions,
+
+757
+00:26:06,720 --> 00:26:10,000
+you're falling behind. Yeah.
+
+758
+00:26:08,720 --> 00:26:11,520
+I'm seeing a theme across a lot of your
+
+759
+00:26:10,000 --> 00:26:12,960
+answers. It's really it's not about
+
+760
+00:26:11,520 --> 00:26:14,320
+prevention, it's prioritization. It's
+
+761
+00:26:12,960 --> 00:26:16,240
+about finding those top things. Exactly.
+
+762
+00:26:14,320 --> 00:26:18,560
+And and the things that
+
+763
+00:26:16,240 --> 00:26:21,560
+that if you get right give you a lot of
+
+764
+00:26:18,560 --> 00:26:23,080
+upside and if you you don't you can fix.
+
+765
+00:26:21,560 --> 00:26:25,240
+Yeah.
+
+766
+00:26:23,080 --> 00:26:28,200
+Um something that we ask every person
+
+767
+00:26:25,240 --> 00:26:29,520
+who comes to the office is what is your
+
+768
+00:26:28,200 --> 00:26:31,280
+greatest hardship that you've had to
+
+769
+00:26:29,520 --> 00:26:33,160
+overcome in your life. I think I know
+
+770
+00:26:31,280 --> 00:26:34,280
+the answer after researching you but I'm
+
+771
+00:26:33,160 --> 00:26:37,200
+curious
+
+772
+00:26:34,280 --> 00:26:40,000
+uh what your answer is. You know, I I
+
+773
+00:26:37,200 --> 00:26:42,840
+would I I think that it's interesting.
+
+774
+00:26:40,000 --> 00:26:44,640
+You'd be surprised um
+
+775
+00:26:42,840 --> 00:26:46,360
+you know, my father got Parkinson's when
+
+776
+00:26:44,640 --> 00:26:47,480
+he was 69.
+
+777
+00:26:46,360 --> 00:26:49,120
+I think that was probably the toughest
+
+778
+00:26:47,480 --> 00:26:50,520
+period of my life. You know, somebody,
+
+779
+00:26:49,120 --> 00:26:53,160
+you know, I I've I've been very blessed
+
+780
+00:26:50,520 --> 00:26:54,120
+with fabulous family and parents.
+
+781
+00:26:53,160 --> 00:26:56,360
+Um you know, I tell people I won the
+
+782
+00:26:54,120 --> 00:26:58,080
+lottery with my parents. You know, when
+
+783
+00:26:56,360 --> 00:27:00,320
+my dad got sick and I couldn't do
+
+784
+00:26:58,080 --> 00:27:02,800
+anything about it, that was really hard.
+
+785
+00:27:00,320 --> 00:27:05,840
+That was and and and
+
+786
+00:27:02,800 --> 00:27:07,040
+feeling helpless, you know, it's like I
+
+787
+00:27:05,840 --> 00:27:09,440
+when
+
+788
+00:27:07,040 --> 00:27:11,480
+you know, I'm an immigrant. I
+
+789
+00:27:09,440 --> 00:27:13,880
+you know, fight back, you know, I you
+
+790
+00:27:11,480 --> 00:27:16,480
+know, I've got a lot of resilience but
+
+791
+00:27:13,880 --> 00:27:16,679
+feeling helplessness Yeah. is pretty
+
+792
+00:27:16,480 --> 00:27:18,560
+tough.
+
+793
+00:27:16,679 --> 00:27:20,840
+>> Just where you're an high agency person.
+
+794
+00:27:18,560 --> 00:27:22,840
+Yeah, that's tough. That's tough. And
+
+795
+00:27:20,840 --> 00:27:24,720
+you know, as I saw, you know, the
+
+796
+00:27:22,840 --> 00:27:26,600
+unfortunate and he had a very variant
+
+797
+00:27:24,720 --> 00:27:27,760
+Parkinson's called Lewy body dementia
+
+798
+00:27:26,600 --> 00:27:29,920
+but when
+
+799
+00:27:27,760 --> 00:27:31,440
+um you just see somebody you love
+
+800
+00:27:29,920 --> 00:27:33,760
+deteriorating
+
+801
+00:27:31,440 --> 00:27:36,320
+and feel powerless that was really
+
+802
+00:27:33,760 --> 00:27:38,080
+tough. That was really tough. Well,
+
+803
+00:27:36,320 --> 00:27:39,520
+appreciate you sharing that.
+
+804
+00:27:38,080 --> 00:27:40,600
+I was I was going to say something much
+
+805
+00:27:39,520 --> 00:27:43,000
+more
+
+806
+00:27:40,600 --> 00:27:43,920
+business like when when you
+
+807
+00:27:43,000 --> 00:27:45,840
+left Symantec.
+
+808
+00:27:43,920 --> 00:27:47,240
+>> Yeah. Um but I'm sure that was hard for
+
+809
+00:27:45,840 --> 00:27:50,600
+a different reason. Well, you know what
+
+810
+00:27:47,240 --> 00:27:54,120
+was interesting about about the my my
+
+811
+00:27:50,600 --> 00:27:55,560
+exit from Symantec in 2012 was the board
+
+812
+00:27:54,120 --> 00:27:56,960
+and I
+
+813
+00:27:55,560 --> 00:27:58,960
+didn't see eye to eye on a number of
+
+814
+00:27:56,960 --> 00:28:02,000
+things. And one of the things that I
+
+815
+00:27:58,960 --> 00:28:04,120
+always believed even early on, maybe
+
+816
+00:28:02,000 --> 00:28:06,160
+it's touch of arrogance,
+
+817
+00:28:04,120 --> 00:28:07,360
+was I was never afraid of losing my job.
+
+818
+00:28:06,160 --> 00:28:09,400
+So I was always going to tell people
+
+819
+00:28:07,360 --> 00:28:11,240
+what I think. And one of the things that
+
+820
+00:28:09,400 --> 00:28:13,080
+>> Why is that? Cuz I always felt I could
+
+821
+00:28:11,240 --> 00:28:14,840
+get a new job. Nice.
+
+822
+00:28:13,080 --> 00:28:16,080
+Right? I mean it's like, you know, I I
+
+823
+00:28:14,840 --> 00:28:18,440
+had a skill. I mean I was a software
+
+824
+00:28:16,080 --> 00:28:20,040
+developer and I knew I could always
+
+825
+00:28:18,440 --> 00:28:21,000
+well, today today I can't write code
+
+826
+00:28:20,040 --> 00:28:23,679
+probably [laughter] as
+
+827
+00:28:21,000 --> 00:28:25,760
+good code. But but I always felt that
+
+828
+00:28:23,679 --> 00:28:27,480
+you you have to be willing to tell
+
+829
+00:28:25,760 --> 00:28:30,320
+people what you really think. And you
+
+830
+00:28:27,480 --> 00:28:32,720
+know, the debate with the Symantec board
+
+831
+00:28:30,320 --> 00:28:35,280
+was always about what's going to lead us
+
+832
+00:28:32,720 --> 00:28:36,880
+to be more successful. And I felt we
+
+833
+00:28:35,280 --> 00:28:39,200
+have to keep investing in innovation. We
+
+834
+00:28:36,880 --> 00:28:41,159
+have to, you know, if you're if you're
+
+835
+00:28:39,200 --> 00:28:43,080
+cutting costs
+
+836
+00:28:41,159 --> 00:28:46,120
+and you're not focused on what's going
+
+837
+00:28:43,080 --> 00:28:47,520
+to make you relevant
+
+838
+00:28:46,120 --> 00:28:48,720
+then at some point you're out of
+
+839
+00:28:47,520 --> 00:28:50,080
+business.
+
+840
+00:28:48,720 --> 00:28:52,640
+And that was the debate cuz I wanted to
+
+841
+00:28:50,080 --> 00:28:54,200
+lean into some ideas that we had and
+
+842
+00:28:52,640 --> 00:28:56,000
+they were like, no, we should be more
+
+843
+00:28:54,200 --> 00:28:57,080
+mindful of the bottom line and I'm like,
+
+844
+00:28:56,000 --> 00:29:00,159
+you know, this isn't going to work. And
+
+845
+00:28:57,080 --> 00:29:02,280
+so ultimately that led to, you know,
+
+846
+00:29:00,159 --> 00:29:04,480
+them asking me to to leave and you know,
+
+847
+00:29:02,280 --> 00:29:06,240
+while that was not a happy day
+
+848
+00:29:04,480 --> 00:29:08,919
+um one thing that mattered was when the
+
+849
+00:29:06,240 --> 00:29:09,960
+press release went out the next morning
+
+850
+00:29:08,919 --> 00:29:12,000
+um
+
+851
+00:29:09,960 --> 00:29:13,560
+number of my friends, one in particular,
+
+852
+00:29:12,000 --> 00:29:15,919
+said, hey, you know, if you want a place
+
+853
+00:29:13,560 --> 00:29:17,720
+to work, um got an office for you, you
+
+854
+00:29:15,919 --> 00:29:19,560
+know, show up and
+
+855
+00:29:17,720 --> 00:29:20,919
+and so I just felt like, you know, quite
+
+856
+00:29:19,560 --> 00:29:22,120
+frankly
+
+857
+00:29:20,919 --> 00:29:24,080
+uh
+
+858
+00:29:22,120 --> 00:29:25,640
+a lot of people around me felt like, you
+
+859
+00:29:24,080 --> 00:29:26,800
+know, we want to work with Enrique
+
+860
+00:29:25,640 --> 00:29:30,200
+again. Yeah, you were good no matter
+
+861
+00:29:26,800 --> 00:29:33,040
+what. Exactly. In the remainder of 2026,
+
+862
+00:29:30,200 --> 00:29:35,480
+what kind of opportunities, ideas,
+
+863
+00:29:33,040 --> 00:29:37,080
+founders do you want to attract into
+
+864
+00:29:35,480 --> 00:29:38,760
+your life this year?
+
+865
+00:29:37,080 --> 00:29:41,280
+Yeah, look, I think the world is
+
+866
+00:29:38,760 --> 00:29:43,760
+changing a lot and
+
+867
+00:29:41,280 --> 00:29:46,640
+you know, I look at it and you know, we
+
+868
+00:29:43,760 --> 00:29:48,440
+talk a lot about this idea of
+
+869
+00:29:46,640 --> 00:29:50,960
+we're seeing the first wave of what's
+
+870
+00:29:48,440 --> 00:29:53,080
+possible through AI. Uh
+
+871
+00:29:50,960 --> 00:29:54,280
+we haven't yet seen the next wave. And I
+
+872
+00:29:53,080 --> 00:29:56,680
+I do believe there's going to be a whole
+
+873
+00:29:54,280 --> 00:29:58,760
+set of new ideas around even some of the
+
+874
+00:29:56,680 --> 00:30:00,800
+things you and I have talked about where
+
+875
+00:29:58,760 --> 00:30:03,320
+I want to understand people and how they
+
+876
+00:30:00,800 --> 00:30:06,080
+think way better. Mhm.
+
+877
+00:30:03,320 --> 00:30:08,800
+And and and that idea is super helpful.
+
+878
+00:30:06,080 --> 00:30:10,840
+You know, I I tried to always understand
+
+879
+00:30:08,800 --> 00:30:13,280
+the human being.
+
+880
+00:30:10,840 --> 00:30:15,760
+And that's what I think over time we'll
+
+881
+00:30:13,280 --> 00:30:17,200
+be a better at understanding people.
+
+882
+00:30:15,760 --> 00:30:18,760
+Um what's going to happen big though
+
+883
+00:30:17,200 --> 00:30:19,840
+that's different, not conventional
+
+884
+00:30:18,760 --> 00:30:21,520
+thinking?
+
+885
+00:30:19,840 --> 00:30:24,080
+Yeah, I think that we're seeing a big
+
+886
+00:30:21,520 --> 00:30:26,520
+change, which is
+
+887
+00:30:24,080 --> 00:30:28,280
+software has value
+
+888
+00:30:26,520 --> 00:30:29,840
+and will always have value how we build
+
+889
+00:30:28,280 --> 00:30:31,760
+it and so forth.
+
+890
+00:30:29,840 --> 00:30:33,520
+But we're seeing other areas and so I'm
+
+891
+00:30:31,760 --> 00:30:34,320
+spending a lot of time in
+
+892
+00:30:33,520 --> 00:30:35,640
+um
+
+893
+00:30:34,320 --> 00:30:37,760
+things that you would say are more in
+
+894
+00:30:35,640 --> 00:30:39,920
+the physical world. So, you know, we're
+
+895
+00:30:37,760 --> 00:30:41,240
+building data centers at Crusoe. We're
+
+896
+00:30:39,920 --> 00:30:43,600
+you know, what does it mean for power?
+
+897
+00:30:41,240 --> 00:30:46,280
+What does it mean for uh new forms of
+
+898
+00:30:43,600 --> 00:30:47,920
+silicon, interconnects, memory? Uh you
+
+899
+00:30:46,280 --> 00:30:50,080
+know, we have a big investment at Bain
+
+900
+00:30:47,920 --> 00:30:52,280
+Capital in in memory, which has done
+
+901
+00:30:50,080 --> 00:30:55,000
+incredibly well because there's such a
+
+902
+00:30:52,280 --> 00:30:56,320
+high demand. And so
+
+903
+00:30:55,000 --> 00:30:58,040
+it's not just about the things we've
+
+904
+00:30:56,320 --> 00:30:59,800
+historically invested in. So, I want to
+
+905
+00:30:58,040 --> 00:31:03,120
+see things that are potentially you
+
+906
+00:30:59,800 --> 00:31:04,800
+would say is is Enrique interested in
+
+907
+00:31:03,120 --> 00:31:06,120
+power generation?
+
+908
+00:31:04,800 --> 00:31:08,320
+Yeah, I am.
+
+909
+00:31:06,120 --> 00:31:10,520
+So, it's a whole set of new areas. Thank
+
+910
+00:31:08,320 --> 00:31:12,840
+you so much. This is great. Pleasure.
+
+911
+00:31:10,520 --> 00:31:14,120
+Amazing. Thanks for tuning in. If you
+
+912
+00:31:12,840 --> 00:31:16,200
+enjoyed today's episode and want
+
+913
+00:31:14,120 --> 00:31:17,240
+personalized advice from Enrique, head
+
+914
+00:31:16,200 --> 00:31:19,520
+to the link in the comments or
+
+915
+00:31:17,240 --> 00:31:22,120
+description to ask his digital mind on
+
+916
+00:31:19,520 --> 00:31:22,120
+Delphi.
+

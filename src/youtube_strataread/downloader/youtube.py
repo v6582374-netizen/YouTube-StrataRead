@@ -8,11 +8,19 @@ Given a URL we:
 from __future__ import annotations
 
 import json
+import math
 import re
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
+
+from youtube_strataread.downloader.request_policy import (
+    YouTubeError,
+    YouTubeRequestPolicy,
+    rate_limit_error,
+)
 
 _URL_PATTERNS = [
     re.compile(r"^https?://(?:www\.)?youtube\.com/watch\?[^#]*v=[\w-]+"),
@@ -29,10 +37,6 @@ _PREFERRED_LANGS_AUTO = ["en", "en-US", "en-GB", "zh-Hans", "zh-CN", "zh"]
 _LIVE_CHAT_LANG = "live_chat"
 
 
-class YouTubeError(RuntimeError):
-    """Raised when yt-dlp fails in an unrecoverable way."""
-
-
 @dataclass
 class SubtitleResult:
     video_id: str
@@ -40,6 +44,7 @@ class SubtitleResult:
     language: str
     is_auto: bool
     srt_text: str
+    duration_seconds: float | None = None
 
 
 def validate_url(url: str) -> None:
@@ -55,13 +60,15 @@ def download_subtitles(
     *,
     cookies_from_browser: str | None = None,
     cookiefile: Path | None = None,
+    request_policy: YouTubeRequestPolicy | None = None,
+    on_metadata: Callable[[str, float | None], None] | None = None,
 ) -> SubtitleResult:
     """Fetch the best-available SRT subtitle for ``url``.
 
     Strategy (to avoid 429 from trying non-existent languages):
         1. Probe video info (no download) to see which subtitles exist.
         2. Pick a single language per the preference order below.
-        3. Re-invoke yt-dlp with just that one language.
+        3. Download that language using the metadata already obtained.
 
     Preference order:
         1. ``preferred_lang`` (if supplied)
@@ -75,6 +82,27 @@ def download_subtitles(
     from yt_dlp import YoutubeDL  # imported lazily to speed up CLI startup
     from yt_dlp.utils import DownloadError
 
+    class PacedYoutubeDL(YoutubeDL):
+        def __init__(self, opts):
+            if request_policy:
+                # The workbench owns retry timing; preserve normal yt-dlp defaults for the CLI.
+                opts = {**opts, "retries": 0, "fragment_retries": 0, "extractor_retries": 0}
+            super().__init__(opts)
+
+        def urlopen(self, request):
+            if request_policy:
+                request_policy.before_request()
+            try:
+                return super().urlopen(request)
+            except Exception as error:
+                limited = rate_limit_error(error)
+                if limited:
+                    raise (request_policy.limit(limited) if request_policy else limited) from error
+                raise
+
+    if request_policy:
+        request_policy.before_video()
+
     # --- phase 1: probe ----------------------------------------------------
     probe_opts = _build_ytdlp_opts(
         cookies_from_browser=cookies_from_browser,
@@ -86,13 +114,26 @@ def download_subtitles(
         listsubtitles=False,
     )
     try:
-        with YoutubeDL(probe_opts) as ydl:
+        with PacedYoutubeDL(probe_opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except DownloadError as e:
+        limited = rate_limit_error(e)
+        if limited:
+            raise (request_policy.limit(limited) if request_policy else limited) from e
         raise YouTubeError(_format_ytdlp_error(str(e))) from e
 
     video_id = str(info.get("id"))
     title = str(info.get("title") or video_id)
+    duration = info.get("duration")
+    duration_seconds = (
+        float(duration)
+        if type(duration) in (int, float) and math.isfinite(duration) and duration > 0
+        and not info.get("is_live") and info.get("live_status") not in {"is_live", "is_upcoming"}
+        else None
+    )
+    if on_metadata:
+        # Keep source facts even if the subsequent subtitle request fails.
+        on_metadata(video_id, duration_seconds)
     subs = info.get("subtitles") or {}
     auto = info.get("automatic_captions") or {}
 
@@ -120,9 +161,12 @@ def download_subtitles(
             convertsubtitles="srt",
         )
         try:
-            with YoutubeDL(dl_opts) as ydl:
-                ydl.extract_info(url, download=True)
+            with PacedYoutubeDL(dl_opts) as ydl:
+                ydl.process_ie_result(info, download=True)
         except DownloadError as e:
+            limited = rate_limit_error(e)
+            if limited:
+                raise (request_policy.limit(limited) if request_policy else limited) from e
             raise YouTubeError(_format_ytdlp_error(str(e))) from e
 
         srt_path = _locate_srt(tmp, video_id, lang)
@@ -149,6 +193,7 @@ def download_subtitles(
             language=lang,
             is_auto=is_auto,
             srt_text=srt_text,
+            duration_seconds=duration_seconds,
         )
 
 

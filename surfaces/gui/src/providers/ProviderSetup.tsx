@@ -28,6 +28,7 @@ export const KEY_HELP: Record<string, { url: string; label: string }> = {
   gemini: { url: "https://aistudio.google.com/apikey", label: "aistudio.google.com" },
   ark: { url: "https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey", label: "console.byteplus.com" },
   "ark-agent-plan-cn": { url: "https://console.volcengine.com/ark/region:cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=agentPlan", label: "console.volcengine.com" },
+  "ark-coding-plan-cn": { url: "https://ark.volcengine.com/region:cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe", label: "ark.volcengine.com" },
   openrouter: { url: "https://openrouter.ai/keys", label: "openrouter.ai" },
   bedrock: { url: "https://console.aws.amazon.com/bedrock/home#/api-keys", label: "the AWS Bedrock console" },
   fireworks: { url: "https://fireworks.ai/account/api-keys", label: "fireworks.ai" },

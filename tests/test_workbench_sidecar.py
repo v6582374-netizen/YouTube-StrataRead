@@ -164,6 +164,8 @@ def test_sidecar_library_capabilities_expose_the_prepared_asset_contract(tmp_pat
     preparation = PreparationService(
         workspace=workspace, captions=_Captions(), manuscripts=_Manuscripts()
     )
+    from shorts_fixture import RegularVideos
+    preparation.shorts = RegularVideos()
     library = LibraryService(workspace=workspace, preparation=preparation)
     assert preparation.run_next() is True
 

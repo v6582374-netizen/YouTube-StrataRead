@@ -382,7 +382,7 @@ function TaskDetail({
               placeholder={tt("automations.title_label")}
             />
           ) : (
-            <h2 className="text-[20px] font-semibold tracking-tight">{task.title}</h2>
+            <h2 className="editorial-heading text-[20px] tracking-tight">{task.title}</h2>
           )}
           <div className="sched-actions">
             {editing ? (

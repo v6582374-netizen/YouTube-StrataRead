@@ -19,4 +19,6 @@ PY
 npm --prefix surfaces/gui ci
 cd surfaces/gui
 npm run tauri build -- --bundles app
-open src-tauri/target/release/bundle/macos/Edison.app
+if [ "${EDISON_OPEN_APP:-1}" = "1" ]; then
+  open src-tauri/target/release/bundle/macos/Edison.app
+fi

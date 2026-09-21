@@ -150,6 +150,13 @@ MATRIX: dict[str, ModelEntry] = {
     "ark-agent-plan-cn:doubao-seed-2.1-turbo": ModelEntry(
         "Doubao Seed 2.1 Turbo · Volcengine Agent Plan", context_window=256_000
     ),
+    # Coding Plan's console-selected alias: the context window and vision support
+    # depend on the selected model, so do not promise a fixed value here.
+    # https://www.volcengine.com/docs/82379/1925114 (checked 2026-09-19)
+    "ark-coding-plan-cn:ark-code-latest": ModelEntry(
+        "Ark Code Latest · Volcengine Coding Plan",
+        ModelCapabilities(tools=True, streaming=True),
+    ),
     # -- direct OpenAI-compatible vendors ----------------------------------------
     # Muse Spark (Meta Model API, public preview 2026-07-09): multimodal + tools via
     # their OpenAI-compat surface. Vision yes; PDFs unverified over compat — falls

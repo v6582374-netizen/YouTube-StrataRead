@@ -58,6 +58,7 @@ import { InboxItemCard, approvalItemFromParked } from "./components/InboxItemCar
 import { chooseFolder, isTauri, platformOS, startWindowDrag } from "./tauri";
 import { Icon } from "./components/Icon";
 import { YouTubeView } from "./components/YouTubeView";
+import { MinimalismView } from "./components/MinimalismView";
 import { CurriculumView } from "./components/CurriculumView";
 import { Sidebar } from "./components/Sidebar";
 import { ThinkingBlock, Transcript } from "./components/Transcript";
@@ -263,10 +264,10 @@ export function App() {
   const [gateCreate, setGateCreate] = useState(false);
   // Which Settings section the full-page Settings surface opens on (§ Settings-as-page).
   const [settingsTab, setSettingsTab] = useState<
-    "appearance" | "models" | "skills" | "voice" | "memory" | "personas"
+    "appearance" | "models" | "skills" | "voice" | "memory" | "personas" | "youtube-translation" | "image-generation"
   >("appearance");
   const openSettings = (
-    tab: "appearance" | "models" | "skills" | "voice" | "memory" | "personas" = "appearance",
+    tab: "appearance" | "models" | "skills" | "voice" | "memory" | "personas" | "youtube-translation" | "image-generation" = "appearance",
   ) => {
     setSettingsTab(tab);
     setSurface("settings");
@@ -276,8 +277,10 @@ export function App() {
   // load; corrected by loadSettings.
   const [modelReady, setModelReady] = useState(true);
   const [surface, setSurface] = useState<
-    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings" | "youtube" | "curriculum"
+    "session" | "scheduled" | "integrations" | "audit" | "inbox" | "persona" | "settings" | "youtube" | "minimalism" | "curriculum"
   >("session");
+  // Preserve a dossier draft or generation preview while visiting another host module.
+  const [minimalismOpened, setMinimalismOpened] = useState(false);
   // A remembered Scheduled-detail target must not outlive the surface (see the
   // scheduledOpenId comment above): nav re-entry lands on the list, never a
   // possibly-deleted automation's dead detail.
@@ -1743,6 +1746,8 @@ export function App() {
         curriculumActive={surface === "curriculum"}
         onOpenYouTube={() => setSurface("youtube")}
         youtubeActive={surface === "youtube"}
+        onOpenMinimalism={() => { setMinimalismOpened(true); setSurface("minimalism"); }}
+        minimalismActive={surface === "minimalism"}
         onOpenScheduled={() => setSurface("scheduled")}
         onOpenAutomation={(id) => {
           setScheduledOpenId(id);
@@ -1755,12 +1760,13 @@ export function App() {
         integrationsActive={surface === "integrations"}
         auditActive={surface === "audit"}
         inboxActive={surface === "inbox"}
-        collapsed={navCollapsed}
-        onCollapse={toggleNav}
         onPeekLeave={() => setNavPeek(false)}
       />
-      {surface === "youtube" ? (
-        <YouTubeView onModelSettings={() => openSettings("models")} />
+      {minimalismOpened && <div className={surface === "minimalism" ? "flex flex-1 min-w-0 overflow-hidden" : "hidden"}>
+        <MinimalismView onImageSettings={() => openSettings("image-generation")} />
+      </div>}
+      {surface === "minimalism" ? null : surface === "youtube" ? (
+        <YouTubeView onModelSettings={() => openSettings("models")} onTranslationSettings={() => openSettings("youtube-translation")} />
       ) : surface === "curriculum" ? (
         <CurriculumView />
       ) : surface === "scheduled" ? (

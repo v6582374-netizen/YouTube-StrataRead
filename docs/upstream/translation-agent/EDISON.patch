@@ -1,0 +1,83 @@
+--- upstream/src/translation_agent/utils.py
++++ edison/src/translation_agent/utils.py
+@@ -1,4 +1,6 @@
+ import os
++
++from . import runtime as _runtime
+ from typing import List, Union
+ 
+ import openai
+@@ -9,7 +11,7 @@
+ 
+ 
+ load_dotenv()  # read local .env file
+-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
++client = None  # Edison: defer standalone SDK creation until actually used.
+ 
+ MAX_TOKENS_PER_CHUNK = (
+     1000  # if text is more than this many tokens, we'll break it up into
+@@ -43,6 +45,10 @@
+             If json_mode is True, returns the complete API response as a dictionary.
+             If json_mode is False, returns the generated text as a string.
+     """
++
++    global client
++    if client is None:
++        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+ 
+     if json_mode:
+         response = client.chat.completions.create(
+@@ -92,7 +98,7 @@
+ 
+ {target_lang}:"""
+ 
+-    translation = get_completion(translation_prompt, system_message=system_message)
++    translation = _runtime.complete('one_chunk_initial_translation', locals(), get_completion, translation_prompt, system_message=system_message)
+ 
+     return translation
+ 
+@@ -168,7 +174,7 @@
+ Each suggestion should address one specific part of the translation.
+ Output only the suggestions and nothing else."""
+ 
+-    reflection = get_completion(reflection_prompt, system_message=system_message)
++    reflection = _runtime.complete('one_chunk_reflect_on_translation', locals(), get_completion, reflection_prompt, system_message=system_message)
+     return reflection
+ 
+ 
+@@ -223,7 +229,7 @@
+ 
+ Output only the new translation and nothing else."""
+ 
+-    translation_2 = get_completion(prompt, system_message)
++    translation_2 = _runtime.complete('one_chunk_improve_translation', locals(), get_completion, prompt, system_message)
+ 
+     return translation_2
+ 
+@@ -338,7 +344,7 @@
+             chunk_to_translate=source_text_chunks[i],
+         )
+ 
+-        translation = get_completion(prompt, system_message=system_message)
++        translation = _runtime.complete('multichunk_initial_translation', locals(), get_completion, prompt, system_message=system_message)
+         translation_chunks.append(translation)
+ 
+     return translation_chunks
+@@ -459,7 +465,7 @@
+                 translation_1_chunk=translation_1_chunks[i],
+             )
+ 
+-        reflection = get_completion(prompt, system_message=system_message)
++        reflection = _runtime.complete('multichunk_reflect_on_translation', locals(), get_completion, prompt, system_message=system_message)
+         reflection_chunks.append(reflection)
+ 
+     return reflection_chunks
+@@ -545,7 +551,7 @@
+             reflection_chunk=reflection_chunks[i],
+         )
+ 
+-        translation_2 = get_completion(prompt, system_message=system_message)
++        translation_2 = _runtime.complete('multichunk_improve_translation', locals(), get_completion, prompt, system_message=system_message)
+         translation_2_chunks.append(translation_2)
+ 
+     return translation_2_chunks

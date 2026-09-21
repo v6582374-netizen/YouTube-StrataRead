@@ -46,6 +46,8 @@ import { ModelsTab } from "./ManageTabs";
 import { MemorySection } from "./MemorySection";
 import { PersonasTab } from "./PersonasTab";
 import { SkillsTab } from "./SkillsTab";
+import { YouTubeTranslationSettings } from "./YouTubeTranslationSettings";
+import { ImageGenerationSettings } from "./minimalism/ImageGenerationSettings";
 import { showPersonas } from "../flags";
 
 // Settings, restructured (Option 2) into a full-page surface that mirrors IntegrationsView's shell:
@@ -55,7 +57,7 @@ import { showPersonas } from "../flags";
 // Models + Personas host the existing tab components inside the page shell (field re-skin to follow).
 // "appearance" is the General tab's stable key — callers deep-link with it, so the
 // rename (UX-021) changed only the label. "files" folded into General as a card.
-type SetTab = "appearance" | "models" | "context" | "skills" | "voice" | "memory" | "personas";
+type SetTab = "image-generation" | "youtube-translation" | "appearance" | "models" | "context" | "skills" | "voice" | "memory" | "personas";
 
 const CARD = "rounded-xl2 border border-line bg-panel";
 const FIELD_LABEL = "text-[13px] font-medium text-ink";
@@ -73,6 +75,8 @@ const SET_TABS: {
 }[] = [
   { key: "appearance", labelKey: "settings.tab.general", icon: "sliders" },
   { key: "models", labelKey: "settings.tab.models", icon: "code" },
+  { key: "image-generation", labelKey: "minimalism.图像生成", icon: "sparkle" },
+  { key: "youtube-translation", labelKey: "youtube.YouTube 生成规则", icon: "book" },
   { key: "context", labelKey: "settings.tab.context", icon: "refresh" },
   { key: "skills", labelKey: "settings.tab.skills", icon: "book" },
   { key: "voice", labelKey: "settings.tab.voice", icon: "mic" },
@@ -135,6 +139,10 @@ export function SettingsView({
               />
               <ModelsTab />
             </section>
+          ) : tab === "youtube-translation" ? (
+            <YouTubeTranslationSettings />
+          ) : tab === "image-generation" ? (
+            <ImageGenerationSettings />
           ) : tab === "context" ? (
             <section>
               <PanelHead

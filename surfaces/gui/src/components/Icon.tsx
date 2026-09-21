@@ -9,6 +9,7 @@ export type IconName =
   | "signOut"
   | "chat"
   | "diamond"
+  | "cube"
   | "book"
   | "search"
   | "folder"
@@ -261,6 +262,13 @@ export function Icon({
         <svg {...s}>
           <circle cx="10.5" cy="10.5" r="6.3" />
           <path d="M15.2 15.2 20 20" />
+        </svg>
+      );
+    case "cube":
+      return (
+        <svg {...s}>
+          <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+          <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
         </svg>
       );
     case "diamond":

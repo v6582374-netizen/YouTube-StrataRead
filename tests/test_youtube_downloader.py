@@ -39,6 +39,10 @@ def _install_fake_ytdlp(
                 if fail_on_probe is not None:
                     raise FakeDownloadError(fail_on_probe)
                 return info
+            raise AssertionError("metadata must not be extracted twice")
+
+        def process_ie_result(self, result, download=True):
+            assert result is info
             tmp = Path(self.opts["outtmpl"]).parent
             lang = self.opts["subtitleslangs"][0]
             for filename, content in files_by_lang.get(lang, []):
@@ -73,6 +77,76 @@ def test_download_subtitles_prefers_real_subtitles_over_live_chat(monkeypatch) -
     assert result.language == "en"
     assert result.is_auto is False
     assert "Hello world" in result.srt_text
+
+
+def test_reports_video_duration_even_when_no_captions_are_available(monkeypatch) -> None:
+    _install_fake_ytdlp(
+        monkeypatch,
+        info={"id": "abcdefghijk", "title": "An interview", "duration": 2538},
+        files_by_lang={},
+    )
+    metadata = []
+    with pytest.raises(YouTubeError, match="no subtitles"):
+        download_subtitles(
+            "https://youtu.be/abcdefghijk",
+            on_metadata=lambda video_id, duration: metadata.append((video_id, duration)),
+        )
+    assert metadata == [("abcdefghijk", 2538)]
+
+
+@pytest.mark.parametrize("duration, live_status, expected", [
+    (2538, "not_live", 2538),
+    (3661.5, "was_live", 3661.5),
+    (None, "not_live", None),
+    (0, "not_live", None),
+    (-2, "not_live", None),
+    (True, "not_live", None),
+    (float("nan"), "not_live", None),
+    (float("inf"), "not_live", None),
+    (2538, "is_live", None),
+    (2538, "is_upcoming", None),
+])
+def test_source_duration_is_independent_of_subtitle_length(
+    monkeypatch, duration, live_status, expected,
+) -> None:
+    _install_fake_ytdlp(
+        monkeypatch,
+        info={"id": "abcdefghijk", "duration": duration, "live_status": live_status,
+              "subtitles": {"en": [{}]}},
+        files_by_lang={"en": [("abcdefghijk.en.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello\n")]},
+    )
+    assert download_subtitles("https://youtu.be/abcdefghijk").duration_seconds == expected
+
+
+def test_unavailable_video_keeps_publication_and_duration_in_the_workspace(monkeypatch, tmp_path) -> None:
+    from shorts_fixture import RegularVideos
+
+    from youtube_strataread.workbench.discovery import Candidate
+    from youtube_strataread.workbench.library import PreparationService, YtDlpCaptions
+    from youtube_strataread.workbench.workspace import LocalWorkspace
+
+    _install_fake_ytdlp(
+        monkeypatch,
+        info={"id": "abcdefghijk", "duration": 2538, "title": "No captions"},
+        files_by_lang={},
+    )
+    workspace = LocalWorkspace.open(tmp_path)
+    workspace.add_candidate(Candidate(
+        "abcdefghijk", "channel", "A channel", "No captions",
+        "https://youtu.be/abcdefghijk", "2026-09-17T10:00:00Z", None,
+    ))
+
+    class NoGeneration:
+        def generate(self, transcript):
+            raise AssertionError("must not generate without captions")
+
+    preparation = PreparationService(
+        workspace, YtDlpCaptions(), NoGeneration(), shorts=RegularVideos(),
+    )
+    assert preparation.run_next()
+    video = LocalWorkspace.open(tmp_path).activity_items("unavailable")["items"][0]
+    assert video["duration_seconds"] == 2538
+    assert video["published_at"] == "2026-09-17T10:00:00Z"
 
 
 def test_download_subtitles_falls_back_to_live_chat_and_synthesizes_srt(monkeypatch) -> None:

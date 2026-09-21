@@ -1,10 +1,20 @@
 # Edison
 
-## Glossary
+Edison's product language covers the YouTube reading workbench, the Minimalism object memory system, and Curriculum.
 
+## YouTube reading language
+
+- **YouTube publication time（YouTube 发布时间）**: The video's publication time on YouTube, expressing the age of the source content independently of when Edison discovers or retrieves it. _Avoid_: Update time, local discovery time, retrieval time, title modification time.
+- **Video duration（视频时长）**: The playback length of the source YouTube video. It is distinct from the time a person needs to read its manuscript. _Avoid_: Estimated reading time, preparation time.
+- **Video metadata（视频基础信息）**: The source channel, YouTube publication time and video duration that identify and contextualize a video across subscription discovery, preparation progress and the reading library. _Avoid_: Preparation status, processing diagnostics, popularity ranking.
+- **YouTube Short（Shorts）**: A video classified by YouTube as part of its Shorts format. A short duration alone does not make an ordinary video a Short. _Avoid_: All short videos, videos under three minutes.
+- **Shorts exclusion（Shorts 排除）**: The automatic exclusion of platform Shorts from new manuscript preparation, including previously queued work. Existing manuscripts remain retained knowledge assets.
+- **Pending classification（待确认类型）**: A discovered video whose platform format cannot yet be established. It waits for another check without acquiring subtitles or generating a manuscript.
+- **YouTube cooldown（YouTube 冷却）**: A shared waiting period imposed after YouTube limits requests. It suspends further YouTube acquisition across the workbench while preserving existing reading assets, and survives restart or manual queue changes.
+- **Rate-limit waiting（限流等待）**: A video's recoverable preparation state while platform access is restricted. It can resume after cooldown or be cancelled; repeated throttling eventually requires an explicit retry.
 - **Subscription source**: A YouTube channel feed imported from the person's connected YouTube account and refreshed locally; a manually managed channel list may become a later supplement.
 - **Candidate**: A newly discovered subscription update that has not yet earned the user's reading time.
-- **Batch manuscript preparation**: The deliberate choice to acquire content and generate a full Chinese deep-reading manuscript for every discovered update before the person chooses what to read.
+- **Batch manuscript preparation**: The deliberate choice to acquire content and generate a full Chinese deep-reading manuscript for discovered updates before the person chooses what to read, except updates whose preparation the person has cancelled.
 - **Manual queue review**: The first-release selection model: a person browses prepared manuscripts and decides which deserve attention; no autonomous relevance ranking is applied.
 - **Triage**: A later, optional AI-assisted prioritization of prepared manuscripts. It may suggest priorities but never decides what the person must read.
 - **Inbox**: The complete local set of newly prepared manuscripts awaiting a person's review.
@@ -19,20 +29,69 @@
 - **Manuscript version**: An immutable deep-reading manuscript produced for one knowledge asset. A person may manually create a later version while retaining earlier versions for comparison and rollback.
 - **Generation record**: The retained account of how a manuscript was produced, distinct from its source materials and current manuscript output.
 - **Local-only workspace**: A single-machine knowledge store. No product cloud copy or synchronization service exists; all durable assets remain under the person's local control.
-- **Credential boundary**: OAuth and model credentials reside only in the local Automic Vault. They are outside the local workspace and excluded from its assets and exports.
+- **Credential boundary**: Credentials belong to connection or model settings and remain outside document assets and exports. A document does not own or carry credentials.
 - **Workspace**: The local, desktop-facing environment in which a person monitors subscriptions, prepares manuscript batches, chooses a reading queue, and reads or annotates knowledge assets.
 - **Migration boundary**: The smallest self-contained YouTube capability that can move from Vegapunk into this product without importing unrelated research-agent behavior.
-- **Preparation state**: The operational state of a discovered update: discovered, queued, acquiring, generating, ready, unavailable or failed. An unavailable or failed asset remains visible with its reason; no manuscript is fabricated without a source transcript.
+- **Preparation state**: The operational state of a discovered update: discovered, queued, awaiting classification, acquiring, generating, ready, unavailable, failed, cancelled or excluded as Shorts. Uncertain and excluded videos remain visible in preparation progress; no manuscript is fabricated without a source transcript.
+- **Preparation cancellation（取消处理）**: A person's persistent withdrawal of a video from work that has not started. Its existing materials remain preserved, and automatic updates do not return it to the preparation queue. _Avoid_: Deletion, pause, failure.
+- **Preparation restoration（恢复处理）**: A person's explicit return of a cancelled video to the preparation queue, subject to existing pause and channel-exclusion rules. Restoration does not promise immediate execution. _Avoid_: Automatic retry, regeneration.
 - **Deletion**: An explicit terminal action that permanently removes the entire local video asset, including every manuscript version, transcript and source record.
 - **Markdown handoff**: The workbench does not embed a document reader. Each prepared manuscript is stored as Markdown and can be copied as raw Markdown or opened with the operating system's default application.
 - **Behavioral port**: A clean reimplementation of a verified upstream capability that preserves its externally meaningful protocol behavior, failure semantics, test cases and required attribution without importing its host architecture.
-- **Activity center**: The single local view of active, paused, completed and failed batch work. It summarizes progress, cost and failure causes while each affected library asset shows its own state.
+- **Preparation progress（处理进度）**: The operational view of YouTube manuscript preparation, covering queued, active, paused, completed, cancelled, unavailable and failed work. It is distinct from the reading library, which organizes prepared documents for reading. _Avoid_: Activity center, Quiet pulse activity center.
 - **Drain pause**: A user-requested pause that stops the batch from taking new assets after its current asset reaches a stable terminal state.
 - **Sidecar capability**: A typed user-intent boundary through which the desktop host requests work from the Python core without direct access to the workspace database, yt-dlp or Automic Vault.
 - **Default retrieval scope**: Search titles, channel identities and Markdown manuscript text. Timed raw transcripts remain preserved but enter a query only when the person explicitly includes them.
 - **Library facets**: Reading state, channel, publication time and preparation state are the complete first-release filter set.
 - **Search result context**: Every result exposes channel, publication time, reading state, preparation state and manuscript version before it is selected.
-- **Quiet pulse activity center**: The selected activity-center pattern. A compact toolbar status control expands into an anchored material panel for batch progress, drain pause and retry actions; affected assets retain their own visible state in the library.
+
+## Translation language
+
+**Translation**:
+A rendering of source speech in another language that preserves its meaning, stance, qualifications and named concepts. Translation quality concerns fidelity as well as fluent expression.
+_Avoid_: Summary, expansion
+
+**Translation prompt**:
+The user's editable instructions for producing or reviewing a translation. These express translation requirements, distinct from selecting the model that carries them out.
+_Avoid_: Model configuration
+
+**Complete translation**:
+The full rendering of the source speech in the target language, retained as the reference against which a reading manuscript can be checked. It preserves the source's argument and sequence rather than reducing it to a summary.
+_Avoid_: Summary, reading manuscript
+
+**Manuscript composition**:
+The limited editorial transformation of a complete translation into a reading document: removing spoken filler and adding hierarchical headings while retaining meaning and argument order.
+_Avoid_: Summarization, free rewriting
+
+## Object memory language
+
+**Minimalism**:
+The named module within Edison for the Object Memory System. The original standalone Minimalism application is its migration source.
+_Avoid_: Skills manager, a second independently maintained product
+
+**Object Collection（物品集合）**:
+A named grouping of belongings. Removing a collection leaves its objects unfiled rather than deleting them.
+_Avoid_: Reading queue, destructive folder
+
+**Archived Object（归档物品）**:
+A preserved belonging outside the active gallery, held in the protected Archive collection. Unarchiving returns it to Unfiled.
+_Avoid_: Deleted object, trash
+
+**Object Trash（物品回收站）**:
+The recoverable set of deleted object records, distinct from Archive. Permanent deletion removes a record and its owned media from Edison's current object library.
+_Avoid_: Archive, automatic retention policy
+
+**Object Memory System（物品记忆系统）**:
+A personal archive of belongings, preserving objects, collections, documentary photos, memory text, archived belongings and AI-generated covers. It is a distinct domain within Edison, separate from Skills management.
+_Avoid_: Inventory accounting, Skill library
+
+**Archive Photo（档案照片）**:
+A user-provided photograph documenting the real object, distinct from an AI-generated representation.
+_Avoid_: AI cover, generated evidence
+
+**AI Memory Cover（AI 记忆封面）**:
+A generated visual representation of an object used as its cover, distinct from documentary photographs of the real object.
+_Avoid_: Archive photo, factual photographic evidence
 
 ## Curriculum language
 

@@ -140,6 +140,8 @@ interface Props {
   curriculumActive?: boolean;
   onOpenYouTube?: () => void;
   youtubeActive?: boolean;
+  onOpenMinimalism?: () => void;
+  minimalismActive?: boolean;
   onOpenScheduled: () => void;
   // Scheduled-band row click: open the Automations surface ON that automation (UX-023).
   onOpenAutomation: (id: string) => void;
@@ -150,10 +152,7 @@ interface Props {
   integrationsActive: boolean;
   auditActive: boolean;
   inboxActive: boolean;
-  // Collapse controls (⌘B / hover-peek). `onCollapse` docks/undocks; `onPeekLeave` hides the
-  // floating peek when the pointer leaves the panel.
-  collapsed?: boolean;
-  onCollapse?: () => void;
+  // Hide the floating peek when the pointer leaves the panel.
   onPeekLeave?: () => void;
 }
 
@@ -1013,24 +1012,8 @@ export function Sidebar(props: Props) {
       className="sidebar flex flex-col min-h-0 bg-chrome border-r border-line"
       onMouseLeave={props.onPeekLeave}
     >
-      {/* Header: collapse/pin control FIRST + wordmark. The pin sits at the same screen position
-          as the collapsed reveal button (see .nav-pin-btn / .nav-reveal-btn in styles.css), so
-          hovering the reveal peeks the nav and the pin lands right under the cursor — no travel.
-          data-tauri-drag-region drags the window; on desktop the row clears the traffic lights. */}
-      <div className="brand px-3.5 pt-2.5 pb-2 flex items-center gap-2" data-tauri-drag-region>
-        {/* Collapse (dock) / pin the sidebar. ⌘B mirrors this. */}
-        {props.onCollapse && (
-          <button
-            className="nav-pin-btn w-7 h-7 grid place-items-center rounded-md text-faint hover:text-ink hover:bg-chromeHover shrink-0"
-            title={props.collapsed ? t("sidebar.dock") + " (⌘B)" : t("sidebar.collapse") + " (⌘B)"}
-            aria-label={props.collapsed ? t("sidebar.dock") : t("sidebar.collapse")}
-            onClick={props.onCollapse}
-          >
-            <Icon name="sidebar" size={16} />
-          </button>
-        )}
-        <div className="brand-wordmark text-[14px]">Edison<span className="beta-tag">BETA</span></div>
-      </div>
+      {/* Keep the title-bar drag area and traffic-light clearance; ⌘B toggles the sidebar. */}
+      <div className="brand h-[46px] shrink-0" data-tauri-drag-region />
 
       {/* New session: a quiet nav row like its siblings (UX-040 — the filled accent block
           shouted over the whole panel). The coworker pick lives in the composer's setup
@@ -1065,6 +1048,11 @@ export function Sidebar(props: Props) {
           className={"w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover " + (props.youtubeActive ? "text-ink bg-chromeHover" : "text-muted")}
           onClick={props.onOpenYouTube}>
           <YouTubeIcon size={18} /><span>YouTube</span>
+        </button>
+        <button data-testid="nav-minimalism" aria-current={props.minimalismActive ? "page" : undefined}
+          className={"w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left hover:bg-chromeHover " + (props.minimalismActive ? "text-ink bg-chromeHover" : "text-muted")}
+          onClick={props.onOpenMinimalism}>
+          <Icon name="cube" size={18} /><span>Minimalism</span>
         </button>
       </div>
 

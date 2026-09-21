@@ -8,6 +8,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { YouTubeView } from "./YouTubeView";
+import i18n from "i18next";
+import zh from "../locales/zh.json";
 import { youtubeCapability } from "../api";
 vi.mock("../api", () => ({ youtubeCapability: vi.fn() }));
 const call = vi.mocked(youtubeCapability);
@@ -38,6 +40,8 @@ const activity = {
   failures: [],
 };
 beforeEach(() => {
+  i18n.addResourceBundle("zh", "translation", zh);
+  void i18n.changeLanguage("zh");
   call.mockReset();
   call.mockImplementation(async (capability) => {
     if (capability === "library.list") return { assets: [asset] };
@@ -70,7 +74,7 @@ beforeEach(() => {
 afterEach(cleanup);
 describe("YouTube document views", () => {
   it("keeps host configuration out of the normal UI and opens connection immediately", async () => {
-    render(<YouTubeView onModelSettings={() => {}} />);
+    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
     await screen.findByRole("button", { name: /Prepared manuscript/ });
     expect(screen.queryByText(/host\/model/)).toBeNull();
     expect(screen.queryByRole("button", { name: "收件箱" })).toBeNull();
@@ -81,7 +85,7 @@ describe("YouTube document views", () => {
     expect(screen.getByRole("dialog", { name: "连接 YouTube" })).toBeTruthy();
   });
   it("offers three presentations without clearing the shared filters and remembers the choice", async () => {
-    const component = render(<YouTubeView onModelSettings={() => {}} />);
+    const component = render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
     await screen.findByRole("button", { name: /Prepared manuscript/ });
     fireEvent.change(screen.getByRole("combobox", { name: "按时间筛选" }), {
       target: { value: "all" },
@@ -108,15 +112,16 @@ describe("YouTube document views", () => {
     }
     fireEvent.click(screen.getByRole("button", { name: "文档库" }));
     component.unmount();
-    render(<YouTubeView onModelSettings={() => {}} />);
+    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
     expect(
       screen
         .getByRole("button", { name: "文档库" })
         .getAttribute("aria-pressed"),
     ).toBe("true");
   });
-  it("saves exclusions and Prompt through real capabilities only on explicit save", async () => {
-    render(<YouTubeView onModelSettings={() => {}} />);
+  it("saves exclusions and opens the shared translation settings", async () => {
+    const openTranslation = vi.fn();
+    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={openTranslation} />);
     await screen.findByRole("button", { name: /Prepared manuscript/ });
     fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
     fireEvent.click(
@@ -133,20 +138,10 @@ describe("YouTube document views", () => {
     );
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "生成规则" }));
-    const input = await screen.findByLabelText("Prompt");
-    await waitFor(() =>
-      expect((input as HTMLTextAreaElement).value).toBe("Original instruction"),
-    );
-    fireEvent.change(input, { target: { value: "New faithful instructions" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存规则" }));
-    await waitFor(() =>
-      expect(call).toHaveBeenCalledWith("generation.set_prompt", {
-        prompt: "New faithful instructions",
-      }),
-    );
+    expect(openTranslation).toHaveBeenCalledOnce();
   });
   it("shows provenance without automatically opening a document", async () => {
-    render(<YouTubeView onModelSettings={() => {}} />);
+    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
     fireEvent.click(
       await screen.findByRole("button", { name: /Prepared manuscript/ }),
     );
@@ -176,7 +171,7 @@ it("never exposes the previous document after the next inspection fails", async 
       throw new Error("文档不可用");
     return implementation(capability, args);
   });
-  render(<YouTubeView onModelSettings={() => {}} />);
+  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
   fireEvent.click(
     await screen.findByRole("button", { name: /Prepared manuscript/ }),
   );
@@ -191,28 +186,6 @@ it("never exposes the previous document after the next inspection fails", async 
   ).toBeNull();
 });
 
-it("does not save stale rules after a failed Prompt load", async () => {
-  render(<YouTubeView onModelSettings={() => {}} />);
-  fireEvent.click(screen.getByRole("button", { name: "生成规则" }));
-  await waitFor(() =>
-    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
-      "Original instruction",
-    ),
-  );
-  fireEvent.click(screen.getByRole("button", { name: "取消" }));
-  const implementation = call.getMockImplementation()!;
-  call.mockImplementation(async (capability, args) => {
-    if (capability === "generation.prompt") throw new Error("无法读取规则");
-    return implementation(capability, args);
-  });
-  fireEvent.click(screen.getByRole("button", { name: "生成规则" }));
-  await screen.findByText("无法读取规则");
-  expect(
-    (screen.getByRole("button", { name: "保存规则" }) as HTMLButtonElement)
-      .disabled,
-  ).toBe(true);
-});
-
 it("shows the verified connection on the channel button, including after authorization and disconnect", async () => {
   const implementation = call.getMockImplementation()!;
   let connected = false;
@@ -223,7 +196,7 @@ it("shows the verified connection on the channel button, including after authori
       return { configured: true, authorized: connected, subscription_count: 3 };
     return implementation(capability, args);
   });
-  render(<YouTubeView onModelSettings={() => {}} />);
+  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
   fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
   fireEvent.click(await screen.findByRole("button", { name: "连接 YouTube" }));
   fireEvent.click(
@@ -251,7 +224,7 @@ it("loads an existing authorization on a fresh view without inferring it from im
       ? { configured: true, authorized: true, subscription_count: 12 }
       : implementation(capability, args),
   );
-  render(<YouTubeView onModelSettings={() => {}} />);
+  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
   fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
   expect(
     await screen.findByRole("button", { name: "已连接 YouTube" }),
@@ -266,14 +239,14 @@ it("reports unknown connection status on failure instead of showing a false conn
       throw new Error("Vault unavailable");
     return implementation(capability, args);
   });
-  render(<YouTubeView onModelSettings={() => {}} />);
+  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
   fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
   await screen.findByText("连接状态未知，请重试");
   expect(screen.queryByRole("button", { name: "已连接 YouTube" })).toBeNull();
 });
 
 it("hands the original video to the native browser capability rather than a webview popup", async () => {
-  render(<YouTubeView onModelSettings={() => {}} />);
+  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
   fireEvent.click(
     await screen.findByRole("button", { name: /Prepared manuscript/ }),
   );

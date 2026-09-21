@@ -5669,8 +5669,8 @@ class SessionManager:
         return {"ok": ok, "session_id": session_id}
 
     # -- provider proxy ---------------------------------------------------------
-    def provider_complete(self, model, messages, tools=None):
-        return self.provider.complete(model=model, messages=messages, tools=tools)
+    def provider_complete(self, model, messages, tools=None, **settings):
+        return self.provider.complete(model=model, messages=messages, tools=tools, **settings)
 
     def _refresh_provider(self, name: Optional[str] = None) -> None:
         """Drop the router's cached client(s) so the next turn rebuilds with fresh config.

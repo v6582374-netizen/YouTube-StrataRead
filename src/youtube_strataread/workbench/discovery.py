@@ -11,6 +11,7 @@ from typing import Protocol
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+from youtube_strataread.downloader.request_policy import YouTubeRequestPolicy, rate_limit_error
 from youtube_strataread.workbench.connection import ConnectionError, SubscriptionSource
 from youtube_strataread.workbench.workspace import LocalWorkspace
 
@@ -50,14 +51,22 @@ class AtomFeeds(Protocol):
 class YouTubeAtomFeeds:
     """Reads the public Atom update feed for a single channel."""
 
+    def __init__(self, requests: YouTubeRequestPolicy | None = None) -> None:
+        self.requests = requests
+
     def fetch(self, source: SubscriptionSource) -> list[Candidate]:
         try:
+            if self.requests:
+                self.requests.before_request()
             with urlopen(
                 f"{_RSS_URL}?{urlencode({'channel_id': source.channel_id})}", timeout=30
             ) as response:
                 payload = response.read()
             root = element_tree.fromstring(payload)
         except (OSError, element_tree.ParseError) as error:
+            limited = rate_limit_error(error)
+            if limited:
+                raise (self.requests.limit(limited) if self.requests else limited) from error
             raise ConnectionError("YouTube update feed could not be read") from error
         namespaces = {
             "atom": "http://www.w3.org/2005/Atom",

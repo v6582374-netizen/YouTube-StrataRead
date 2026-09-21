@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { yt } from "./text";
 import { ReactNode, useEffect, useRef } from "react";
 import { Icon } from "../Icon";
 
@@ -16,6 +18,7 @@ export function Dialog({
   onClose: () => void;
   detail?: boolean;
 }) {
+  useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -71,7 +74,7 @@ export function Dialog({
             <h2>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="yp-iconbtn" onClick={onClose} aria-label="关闭">
+          <button className="yp-iconbtn" onClick={onClose} aria-label={yt("关闭")}>
             <Icon name="x" />
           </button>
         </header>

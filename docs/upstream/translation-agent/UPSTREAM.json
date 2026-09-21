@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/andrewyng/translation-agent",
+  "commit": "e0fc605acbb5d78cb7a58a98bc8bd8f0056df49c",
+  "sha256": {
+    ".env.sample": "f6db095ea056c2378dd24f35433aaf9e4354ea467e3bd69522c1e4255d758661",
+    ".github/ISSUE_TEMPLATE/bug_report.md": "af97ae60c077eea0d89ae7b25610c70e0801b04fb1e3d0f02bae8ab32dc98334",
+    ".github/ISSUE_TEMPLATE/feature_request.md": "8b6495b6d4b25fa39ce4e847a8d2ab64c0a3e4cb41bebbb83818d244d758b163",
+    ".github/PULL_REQUEST_TEMPLATE.md": "566e338f95900f4adcb68d47d591194968222e4f53722be7692386f908bb1dc8",
+    ".github/workflows/ruff.yml": "129453366cda2fd20410543ea3f712a1251a60ab499d53f6710cd236e6f022d9",
+    ".gitignore": "ddae0087a0af3f88f9c38c6128dfd9343066add9d9f6b5ab649c6625a089cfde",
+    ".pre-commit-config.yaml": "d8dd67d56b34fe2cc274654ba73cd37a41d9a1be77679260c6ec7b82955ad08b",
+    "CONTRIBUTING.md": "17075c93659d862ddd398f2cc381a0c3d56b9ef8acedc2e8f03535a91effb9d9",
+    "LICENSE": "7d5351e06f582d47e638ed8a4451d3f5f2856e54ba6779717539e529b3efe246",
+    "README.md": "c0f814ccf45f9d1983b4f65012e5ad48c633e88cd8e798cce1cb533342a127d5",
+    "app/README.md": "b890378047e218d3129c67197ed6f7e86d84579112cc7e0b7b6300f8dfeb2651",
+    "app/app.py": "df2a67920206cdba898d70cec6c42cd5633ded0c041abd7b70231393da79960d",
+    "app/image.png": "279f08f7ef7590d35db7152169befc9f2384dc0ead90b197c1ba29578369f953",
+    "app/patch.py": "0ad474c91fb60d80f0ad7c2edb765164ba18b986a431ab2f78c9a2637e2daecb",
+    "app/process.py": "149cdd7020072d91dea22fa59021fec74e5df9bafd3c48841de1ef12e407d2f4",
+    "examples/README.md": "8c4d6ee979ee66f63acfe81bf9fe5a231725b825a4abbcedb1b88fc93961c17d",
+    "examples/example_script.py": "37900a4af6778a05a5f2d5a8693015d568665cd3fcb0609c084ab1900617b81b",
+    "examples/sample-texts/data_points_samples.json": "1c68a0215ae7e92d4a73a0cc0341642e406adac71f9d8b7c79e9c2268b2f2185",
+    "examples/sample-texts/sample-long1.txt": "05e9ec216ae65e503e26fc66366433a701ae8cd037bfd7d5eb14098c020f9049",
+    "examples/sample-texts/sample-short1.txt": "9879f6308ffef654c20353b768c2c0cb8baa05af4979fa9d8965fa525f484476",
+    "pyproject.toml": "06b832519d464d8eb38c5ec059f33c160eb004eed34cb53d09b0131246c84dc3",
+    "src/translation_agent/__init__.py": "9d39bde314279bce51444c4685a56dbdd1a2061fd712624accbcd7435dd5625f",
+    "src/translation_agent/utils.py": "fda506b63a8104ef4a97b76129218282395a01be8e72dd6eab7bdc28ed5b496f",
+    "tests/test_agent.py": "7d4b8453a932d40f25f4077a27e8ee43c0a074bf2b3c941a0c5b06d8f1d80534"
+  },
+  "archive_sha256": "7556aa99de43c340208018ca407ee162faed53e8241483ea8dfd5357fbfab225"
+}

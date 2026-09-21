@@ -1,4 +1,31 @@
 import { test, expect } from "./fixtures";
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
+
+test("Models: Coding Plan uses its own endpoint and the Agent Plan logo", async ({ page }) => {
+  // Read the real backend catalog so a fixture cannot invent a missing provider.
+  const providers = JSON.parse(execFileSync("uv", ["run", "--no-sync", "python", "-c", `
+import json, os, tempfile
+with tempfile.TemporaryDirectory() as root:
+    os.environ['COWORKER_STATE_DIR'] = root
+    from coworker.server import SessionManager
+    print(json.dumps(SessionManager(data_dir=root).get_providers()))
+`], { cwd: resolve("../.."), encoding: "utf8" }));
+  await page.route("**/v1/providers", (route) => route.fulfill({ json: providers }));
+  await page.goto("/");
+  await page.getByTestId("account-row").click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Models", exact: true }).click();
+  const coding = page.getByTestId("set-provider-ark-coding-plan-cn");
+  await expect(coding).toContainText("Volcengine Ark Coding Plan");
+  const logo = await page.getByTestId("set-provider-ark-agent-plan-cn").locator("img").getAttribute("src");
+  expect(logo).toBeTruthy();
+  await expect(coding.locator("img")).toHaveAttribute("src", logo!);
+  await coding.click();
+  await page.getByTestId("set-endpoint-link").click();
+  await expect(page.getByTestId("set-field-base_url")).toHaveValue("https://ark.cn-beijing.volces.com/api/coding/v3");
+  await expect(page.getByTestId("model-preview")).toContainText("ark-code-latest");
+});
 
 // Guards the Settings-as-page refactor (§13, IA per UX-021): the ⚙ menu opens a full-page
 // surface with a left sub-nav — General · Models · Voice input — and each section renders.

@@ -3,10 +3,39 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from shorts_fixture import RegularVideos
+
 from youtube_strataread.downloader.youtube import SubtitleResult, YouTubeError
 from youtube_strataread.workbench.discovery import Candidate
 from youtube_strataread.workbench.library import AutomaticBatch, LibraryService, PreparationService
 from youtube_strataread.workbench.workspace import LocalWorkspace
+
+
+def test_new_video_metadata_survives_preparation_and_workspace_restart(tmp_path: Path) -> None:
+    workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.add_candidate(candidate("one"))
+    queued = workspace.activity_items()["items"][0]
+    assert queued["published_at"] == "2026-09-17T10:00:00Z"
+    assert queued["duration_seconds"] is None
+
+    preparation = ready_service(workspace)
+    preparation.captions.result.duration_seconds = 2538
+    assert preparation.run_next()
+
+    reopened = LocalWorkspace.open(workspace.root)
+    library = LibraryService(workspace=reopened, preparation=ready_service(reopened))
+    for video in (
+        reopened.snapshot().as_result()["inbox"][0],
+        reopened.activity_items("ready")["items"][0],
+        library.list_assets()["assets"][0],
+        library.inspect("one"),
+    ):
+        assert video["published_at"] == "2026-09-17T10:00:00Z"
+        assert video["duration_seconds"] == 2538
+
+    library.regenerate("one")
+    assert library.preparation.run_next()
+    assert library.inspect("one")["duration_seconds"] == 2538
 
 
 @dataclass
@@ -42,6 +71,7 @@ def candidate(video_id: str, title: str = "A video") -> Candidate:
 def ready_service(workspace: LocalWorkspace) -> PreparationService:
     return PreparationService(
         workspace=workspace,
+        shorts=RegularVideos(),
         captions=FakeCaptions(
             SubtitleResult(
                 video_id="one",
@@ -106,6 +136,7 @@ def test_unavailable_and_drain_pause_keep_batch_outcomes_visible(tmp_path: Path)
     preparation = PreparationService(
         workspace=workspace,
         captions=FakeCaptions(YouTubeError("no subtitles were available")),
+        shorts=RegularVideos(),
         manuscripts=FakeManuscripts("never used"),
     )
     library = LibraryService(workspace=workspace, preparation=preparation)

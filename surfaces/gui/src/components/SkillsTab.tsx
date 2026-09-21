@@ -164,7 +164,7 @@ export function SkillsTab({
     <section>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-[16px] font-semibold">{t("settings.tab.skills")}</h2>
+          <h2 className="editorial-heading text-[20px]">{t("settings.tab.skills")}</h2>
           <p className="text-[13px] text-muted mt-1 leading-relaxed">{t("skills.subtitle")}</p>
         </div>
         {/* One add-action, three doors behind it (SKILLS-SPEC §5): the list is the page. */}

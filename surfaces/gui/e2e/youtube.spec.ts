@@ -1,5 +1,8 @@
 import { expect } from "@playwright/test";
 import { test } from "./fixtures";
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("openworker.lang", "zh"));
+});
 
 for (const width of [800, 1100, 1440]) {
   test(`YouTube shared views and persistent settings at ${width}px`, async ({
@@ -11,7 +14,13 @@ for (const width of [800, 1100, 1440]) {
         localStorage.setItem("openwork-theme", "dark"),
       );
     let exclusions: string[] = [];
-    let prompt = "将字幕整理为忠实的简体中文文档。";
+    const defaults = {
+      version: 2, country: "",
+      prompts: Object.fromEntries(["initial", "review", "revision", "composition"].map((stage) => [stage, {
+        system: `${stage} 默认指令`, user: "{source_text} {translation}",
+      }])), max_calls: 240, max_tokens: 1500000,
+    };
+    let config = structuredClone(defaults);
     let opened = 0;
     let sourceOpened = 0;
     await page.route("**/v1/youtube/capability", async (route) => {
@@ -42,15 +51,19 @@ for (const width of [800, 1100, 1440]) {
         capability === "collection.set_exclusions"
       )
         result = {
-          sources: [{ channel_id: "channel", title: "Example channel" }],
+          sources: [
+            { channel_id: "channel", title: "Example channel" },
+            { channel_id: "other", title: "Another channel" },
+            { channel_id: "third", title: "Third channel" },
+          ],
           excluded_channels: exclusions,
         };
-      if (capability === "generation.set_prompt") prompt = args.prompt;
-      if (
-        capability === "generation.prompt" ||
-        capability === "generation.set_prompt"
-      )
-        result = { prompt, default_prompt: "默认忠实整理规则" };
+      if (capability === "translation.set_settings") config = args.settings;
+      if (capability === "translation.settings" || capability === "translation.set_settings")
+        result = { settings: config, defaults, required: {
+          initial: { user: ["source_text"] }, review: { user: ["source_text", "translation"] },
+          revision: { user: ["source_text", "translation"] }, composition: { user: ["translation"] },
+        } };
       if (capability === "activity.snapshot")
         result = {
           queued: 0,
@@ -89,7 +102,7 @@ for (const width of [800, 1100, 1440]) {
     const main = page.getByRole("main", { name: "YouTube 资料库" });
     await expect(
       main.getByRole("heading", { name: "YouTube", exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(main.getByText("not-visible-model")).toHaveCount(0);
     await expect(main.getByRole("button", { name: "收件箱" })).toHaveCount(0);
     await main
@@ -129,20 +142,53 @@ for (const width of [800, 1100, 1440]) {
     await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect.poll(() => exclusions).toEqual(["channel"]);
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    await main.getByRole("button", { name: "订阅频道", exact: true }).click();
+    const channels = page.getByRole("dialog", { name: "订阅频道" });
+    await channels.getByRole("textbox", { name: "搜索订阅频道" }).fill("Example");
+    await channels.getByRole("button", { name: "全不选", exact: true }).click();
+    await expect(channels.getByText("0 个频道已开启", { exact: true })).toBeVisible();
+    expect(exclusions).toEqual(["channel"]); // Bulk changes remain a draft.
+    await channels.getByRole("button", { name: "取消", exact: true }).click();
+    await main.getByRole("button", { name: "订阅频道", exact: true }).click();
+    await expect(channels.getByText("2 个频道已开启", { exact: true })).toBeVisible();
+    await channels.getByRole("button", { name: "全选", exact: true }).click();
+    await expect(channels.getByText("3 个频道已开启", { exact: true })).toBeVisible();
+    await channels.getByRole("button", { name: "保存", exact: true }).click();
+    await expect.poll(() => exclusions).toEqual([]);
+    await main.getByRole("button", { name: "订阅频道", exact: true }).click();
+    await channels.getByRole("textbox", { name: "搜索订阅频道" }).fill("Example");
+    await channels.getByRole("button", { name: "全不选", exact: true }).click();
+    await channels.getByRole("button", { name: "保存", exact: true }).click();
+    await expect.poll(() => exclusions).toEqual(["channel", "other", "third"]);
     await main.getByRole("button", { name: "生成规则" }).click();
-    await page
-      .getByLabel("Prompt", { exact: true })
-      .fill("保留原文观点，不添加事实。");
-    await page.getByRole("button", { name: "保存规则" }).click();
-    await expect.poll(() => prompt).toBe("保留原文观点，不添加事实。");
+    const settings = page.getByRole("region", { name: "YouTube 生成规则", exact: true });
+    await expect(settings).toBeVisible();
+    for (const name of ["初译", "审校", "修订", "成稿整理"]) {
+      await settings.getByRole("tab", { name, exact: true }).click();
+      await expect(settings.getByLabel("系统提示词")).toBeVisible();
+      await expect(settings.getByLabel("任务模板", { exact: true })).toBeVisible();
+    }
+    await settings.getByLabel("系统提示词").fill("保留原文观点，不添加事实。");
+    await settings.getByLabel("最多模型调用次数").fill("120");
+    await settings.getByRole("button", { name: "保存设置" }).click();
+    await expect.poll(() => config.prompts.composition.system).toBe("保留原文观点，不添加事实。");
+    await expect.poll(() => config.max_calls).toBe(120);
+    await expect(settings.getByRole("button", { name: "保存设置" })).toBeDisabled();
+    await expect(settings.getByRole("status")).toContainText("已保存");
+    await page.screenshot({ path: `test-results/youtube-translation-${width}.png` });
     await page.reload();
     await page.getByTestId("nav-youtube").click();
     await expect(
       main.getByRole("button", { name: "频道索引" }),
     ).toHaveAttribute("aria-pressed", "true");
     await main.getByRole("button", { name: "生成规则" }).click();
-    await expect(page.getByLabel("Prompt", { exact: true })).toHaveValue(
-      prompt,
-    );
+    await settings.getByRole("tab", { name: "成稿整理", exact: true }).click();
+    await expect(settings.getByLabel("系统提示词")).toHaveValue("保留原文观点，不添加事实。");
+    await expect(settings.getByLabel("最多模型调用次数")).toHaveValue("120");
+    await settings.getByRole("button", { name: "恢复本阶段默认提示词" }).click();
+    await expect(settings.getByLabel("系统提示词")).toHaveValue("composition 默认指令");
+    // Restoring a template is a draft edit until explicitly saved.
+    expect(config.prompts.composition.system).toBe("保留原文观点，不添加事实。");
+
   });
 }

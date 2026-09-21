@@ -43,11 +43,12 @@ button { font: inherit; }
 .sidebar button.active { color: #007aff; background: #e5f1ff; font-weight: 700; }
 .sidebar b { color: #6e6e73; font-size: 10px; }
 
-.library { padding: 42px clamp(24px, 7vw, 92px); }
-.library-heading { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(60, 60, 67, 0.13); padding-bottom: 22px; }
+.library { min-width: 0; padding: 34px clamp(24px, 5vw, 72px); }
+.library-heading { display: grid; gap: 18px; border-bottom: 1px solid rgba(60, 60, 67, 0.13); padding-bottom: 22px; }
+.library-heading > div:first-child { min-width: 0; }
 .library-heading p { margin: 0; color: #8e8e93; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
-h1 { margin: 7px 0; font-size: 30px; letter-spacing: -0.04em; }
-.library-heading span { color: #6e6e73; font-size: 12px; }
+h1 { margin: 7px 0; font-size: 30px; letter-spacing: -0.04em; white-space: nowrap; }
+.library-heading span { display: block; color: #6e6e73; font-size: 12px; }
 .quiet-pulse { width: 9px; height: 9px; border-radius: 50%; background: #007aff; box-shadow: 0 0 0 5px rgba(0, 122, 255, 0.14); }
 .empty-state { max-width: 360px; margin: 15vh auto; text-align: center; }
 .markdown-mark { display: grid; place-items: center; width: 44px; height: 50px; margin: 0 auto 18px; border: 1px solid rgba(0, 122, 255, 0.24); border-radius: 9px; color: #007aff; background: linear-gradient(135deg, #fff 0 72%, #dcecff 72%); font-size: 12px; font-weight: 800; }
@@ -98,7 +99,7 @@ h1 { margin: 7px 0; font-size: 30px; letter-spacing: -0.04em; }
   .source-card p, .source-list > p { color: #a1a1a6; }
 }
 
-.inbox-actions { display: flex; align-items: center; gap: 8px; }
+.inbox-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .inbox-actions button { border: 1px solid rgba(60, 60, 67, 0.13); border-radius: 8px; background: rgba(255, 255, 255, 0.65); color: inherit; padding: 7px 9px; font-size: 11px; }
 .candidate-list { display: grid; gap: 10px; padding: 26px 0; max-width: 760px; }
 .candidate-card { border: 1px solid rgba(60, 60, 67, 0.13); border-radius: 12px; background: rgba(255, 255, 255, 0.65); padding: 14px; }
@@ -108,6 +109,9 @@ h1 { margin: 7px 0; font-size: 30px; letter-spacing: -0.04em; }
 @media (prefers-color-scheme: dark) { .inbox-actions button, .candidate-card { background: rgba(48, 48, 52, 0.65); border-color: rgba(235, 235, 245, 0.16); } .candidate-card p { color: #a1a1a6; } }
 
 .inbox-actions input[type="text"], .inbox-actions > input { min-width: 120px; border: 1px solid rgba(60, 60, 67, 0.18); border-radius: 8px; background: rgba(255, 255, 255, 0.82); color: inherit; padding: 7px 9px; font: inherit; font-size: 11px; }
+.inbox-actions input[type="text"] { flex: 1 1 180px; }
+.inbox-actions input[type="date"] { width: 142px; }
+.inbox-actions select { height: 34px; max-width: 138px; border: 1px solid rgba(60, 60, 67, 0.18); border-radius: 8px; background: rgba(255, 255, 255, 0.82); color: inherit; padding: 0 8px; font: inherit; font-size: 11px; }
 .inbox-actions label { color: #6e6e73; font-size: 11px; white-space: nowrap; }
 .library-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, 0.36fr); gap: 24px; align-items: start; }
 .candidate-list { max-width: none; }

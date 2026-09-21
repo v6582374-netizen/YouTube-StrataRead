@@ -1,0 +1,38 @@
+/* Retained upstream flat surface hierarchy. */
+.ui-surface-hierarchy--ma .discovery-stage-strip-layout-ma {
+  gap: 0;
+}
+
+.ui-surface-hierarchy--ma .discovery-stage-strip-layout-ma > .discovery-beacon-hero {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ui-surface-hierarchy--ma .discovery-stage-strip-layout-ma > .discovery-launch-notice {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--ma-content);
+}
+
+.ui-surface-hierarchy--ma .discovery-ma-runtime-row {
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+  background: var(--ma-content);
+}
+
+.ui-surface-hierarchy--ma .discovery-ma-runtime-row .discovery-runtime-desk,
+.ui-surface-hierarchy--ma .discovery-ma-runtime-row .discovery-runtime-pulse-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ui-surface-hierarchy--ma .discovery-ma-runtime-row .discovery-runtime-events {
+  background: var(--ma-content);
+}
+

@@ -1,0 +1,69 @@
+.yp-page-nav { display: flex; gap: 24px; align-items: center; flex-shrink: 0; }
+.yp-page-nav button { padding: 10px 0; color: var(--muted); border-bottom: 2px solid transparent; }
+.yp-page-nav button[aria-current] { color: var(--ink); border-color: var(--ink); }
+.yp-progress { --ease-out: cubic-bezier(.23, 1, .32, 1); --ma-content: transparent; --ok: var(--accent); --warn-ink: var(--muted); max-width: 1160px; margin: 0 auto; }
+.yp-progress-heading { display: flex; justify-content: flex-end; margin: 0 0 14px; }
+.yp-progress-note { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.yp-heartbeat { flex-shrink: 0; font-size: 12px; color: var(--muted); }
+.yp-heartbeat.is-live { color: var(--accent); }
+.yp-progress .discovery-beacon-copy { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.yp-progress .discovery-beacon-stage-list { grid-template-columns: max-content minmax(0, 1fr) auto; }
+.yp-progress .discovery-beacon-stage { grid-column: 1 / -1; grid-template-columns: subgrid; font-size: 12px; }
+.yp-progress .discovery-beacon-stage strong { white-space: nowrap; }
+.yp-progress .discovery-beacon-metric span, .yp-progress .discovery-beacon-metric small { font-size: 11px; }
+.yp-progress .discovery-beacon-metric > span,
+.yp-progress .discovery-beacon-stage em { font-family: var(--sans); letter-spacing: normal; text-transform: none; }
+.yp-progress .discovery-beacon-metric strong { white-space: normal; overflow-wrap: anywhere; }
+.yp-progress .discovery-beacon-hero.is-idle { grid-template-columns: minmax(0, 1fr); }
+.yp-progress .is-idle .discovery-beacon-signal { min-height: 0; padding: 20px 24px; border-right: 0; }
+.yp-progress .is-idle .discovery-beacon-signal::before { display: none; }
+.yp-progress .is-idle .discovery-beacon-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.yp-progress .discovery-beacon-hero.is-standby .discovery-beacon-orb span,
+.yp-progress .discovery-beacon-hero.is-standby .discovery-beacon-orb::before,
+.yp-progress .discovery-beacon-hero.is-standby .discovery-beacon-orb::after { animation: none; }
+.yp-progress .discovery-beacon-hero.is-standby .discovery-beacon-orb::after { opacity: 0; }
+.yp-progress .discovery-beacon-hero.is-error .discovery-beacon-orb { color: var(--muted); }
+.yp-progress-note { margin: 14px 0; }
+.yp-progress-controls { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 28px; }
+.yp-progress-notice { padding: 12px 16px; margin: 14px 0; border-left: 2px solid var(--line-strong); background: var(--panel); font-size: 13px; }
+.yp-queue { margin-top: 34px; border-top: 1px solid var(--line-strong); }
+.yp-queue-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+.yp-queue-filters { display: flex; flex-wrap: wrap; gap: 18px; }
+.yp-queue-filters button { color: var(--muted); padding: 8px 0; border-bottom: 1px solid transparent; font-size: 13px; }
+.yp-queue-filters button[aria-pressed=true] { color: var(--ink); border-color: var(--ink); }
+.yp-queue-filters span { margin-left: 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.yp-select-page { display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 12px; padding: 12px 0; }
+.yp-queue-list { list-style: none; margin: 0; padding: 0; }
+.yp-queue-list li { display: flex; gap: 14px; align-items: start; padding: 20px 0; border-top: 1px solid var(--line); }
+.yp-queue-list input { margin-top: 5px; flex-shrink: 0; }
+.yp-queue-copy { min-width: 0; flex: 1; }
+.yp-queue-copy strong { display: block; font-size: 14px; line-height: 1.6; font-weight: 500; overflow-wrap: anywhere; }
+.yp-queue-copy > span, .yp-queue-copy p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.yp-queue-copy details { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.yp-queue-copy pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 0; font-size: 11px; }
+.yp-queue-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.yp-queue-empty { color: var(--muted); text-align: center; padding: 44px 0; font-size: 13px; }
+.yp-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 14px; font-size: 12px; padding: 16px 0; }
+.yp-progress .discovery-runtime-event-copy span { white-space: normal; }
+.yp-progress .discovery-runtime-event-copy strong { overflow-wrap: anywhere; }
+.yp-progress button:focus-visible, .yp-page-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 1100px) {
+  .yp-progress .is-idle .discovery-beacon-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .yp-header { flex-wrap: wrap; gap: 8px; }
+  .yp-tools { flex-wrap: wrap; }
+}
+@media (max-width: 640px) {
+  .yp-progress-heading { flex-direction: column; gap: 10px; }
+  .yp-queue-list li { flex-wrap: wrap; }
+  .yp-queue-actions { width: 100%; }
+  .yp-progress .discovery-runtime-event { grid-template-columns: 58px minmax(0,1fr); }
+  .yp-progress .discovery-runtime-event-state { grid-column: 2; }
+}
+.yp-console { border-top: 1px solid var(--line-strong); margin-top: 34px; padding-top: 20px; }
+.yp-console-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.yp-console-head h2 { margin: 0; font-size: 14px; font-weight: 500; }
+.yp-console-head > span { flex: 1; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.yp-console-output { height: 300px; overflow: auto; margin: 14px 0 0; padding: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.85 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; }
+.yp-console-output code { font: inherit; }
+.yp-console-output:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 640px) { .yp-page-nav { gap: 16px; flex-wrap: wrap; flex-shrink: 1; } }

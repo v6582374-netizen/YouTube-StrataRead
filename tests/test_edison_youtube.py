@@ -2,12 +2,19 @@
 
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from coworker.providers import AssistantTurn, ModelCapabilities, ProviderClient
 from coworker.server import SessionManager, create_app, youtube
 from youtube_strataread.downloader.youtube import SubtitleResult
 from youtube_strataread.workbench.discovery import Candidate
+from youtube_strataread.workbench.shorts import YouTubeShortsClassifier
+
+
+@pytest.fixture(autouse=True)
+def ordinary_video_metadata(monkeypatch):
+    monkeypatch.setattr(YouTubeShortsClassifier, "classify", lambda self, video_id: False)
 
 
 class Provider(ProviderClient):
@@ -16,7 +23,11 @@ class Provider(ProviderClient):
 
     def complete(self, *, model, messages, tools=None, **settings):
         self.calls.append((model, messages, tools))
-        return AssistantTurn(text="# 中文稿件\n\n由主客户端模型生成。")
+        from translation_fixture import source_from_prompt
+
+        content = messages[-1]["content"]
+        prefix = "# 中文稿件\n\n" if "完整译文：\n" in content else ""
+        return AssistantTurn(text=prefix + source_from_prompt(content), finish_reason="stop")
 
     def capabilities(self, model):
         return ModelCapabilities()
@@ -26,16 +37,16 @@ def test_youtube_uses_the_hosts_current_model_without_legacy_configuration():
     provider = Provider()
     manager = SimpleNamespace(
         model="first-model",
-        provider_complete=lambda m, msgs, tools: provider.complete(
+        provider_complete=lambda m, msgs, tools, **settings: provider.complete(
             model=m, messages=msgs, tools=tools
         ),
     )
     generator = youtube.HostManuscripts(manager)
-    assert generator.generate("Timed source") == "# 中文稿件\n\n由主客户端模型生成。"
+    assert "Timed source" in generator.generate("Timed source")
     manager.model = "second-model"
     generator.generate("Second source")
-    assert [c[0] for c in provider.calls] == ["first-model", "second-model"]
-    assert provider.calls[0][1][-1]["content"] == "Timed source"
+    assert [c[0] for c in provider.calls] == ["first-model"] * 4 + ["second-model"] * 4
+    assert "Timed source" in provider.calls[0][1][-1]["content"]
     assert provider.calls[0][2] is None
 
 
@@ -67,6 +78,10 @@ def test_authenticated_host_library_waits_for_model_then_prepares_and_hands_off(
             return data["result"]
 
         assert request("library.list")["total"] == 0
+        config = request("translation.settings")["settings"]
+        assert set(config["prompts"]) == {"initial", "review", "revision", "composition"}
+        config["max_calls"] = 120
+        assert request("translation.set_settings", settings=config)["settings"]["max_calls"] == 120
         service = app.state.youtube
         service.workspace.add_candidate(
             Candidate(
@@ -163,7 +178,7 @@ def test_channel_exclusion_and_prompt_survive_restart_without_removing_documents
     manager = SimpleNamespace(
         model="host-model",
         get_settings=lambda: {"model_ready": True},
-        provider_complete=lambda m, msgs, tools: provider.complete(
+        provider_complete=lambda m, msgs, tools, **settings: provider.complete(
             model=m, messages=msgs, tools=tools
         ),
     )
@@ -259,6 +274,17 @@ def test_original_video_opens_via_macos_using_stored_identity(tmp_path, monkeypa
         assert response["ok"]
         assert opened == [["/usr/bin/open", "https://www.youtube.com/watch?v=XgqKqN_H-4M"]]
         assert not service.dispatch("sources.open", {"video_id": "missing"})["ok"]
+        doc = service.workspace.save_manuscript(
+            "XgqKqN_H-4M",
+            "# Composed",
+            generator="fixture",
+            transcript_characters=100,
+            translation="Complete translation",
+        )
+        assert service.dispatch("documents.open_translation", {"video_id": "XgqKqN_H-4M"})["ok"]
+        from pathlib import Path
+
+        assert opened[-1] == ["/usr/bin/open", str(Path(doc["path"]).with_name("translation.md"))]
 
         def rejected(*args, **kwargs):
             raise subprocess.CalledProcessError(1, args)

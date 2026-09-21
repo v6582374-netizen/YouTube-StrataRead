@@ -281,6 +281,7 @@ def test_stream_accumulates_tool_calls():
 # -- OpenAI-compatible vendor providers (Z AI, DeepSeek, Kimi, MiniMax, Qwen, xAI, Mistral) ------
 
 COMPAT_VENDORS = {
+    "ark-coding-plan-cn": "https://ark.cn-beijing.volces.com/api/coding/v3",
     "zai": "https://api.z.ai/api/paas/v4",
     "deepseek": "https://api.deepseek.com",
     "kimi": "https://api.moonshot.ai/v1",
@@ -336,6 +337,39 @@ def test_compat_builder_never_leaks_the_openai_key(monkeypatch):
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="Kimi"):
         build_provider_client("kimi", {}, None)
+
+
+def test_coding_plan_credentials_and_routing_are_separate(monkeypatch):
+    import pytest
+
+    from coworker.providers.registry import build_provider_client
+    from coworker.providers.router import ProviderRouter
+
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("ARK_API_KEY", "byteplus-key")
+    monkeypatch.setenv("ARK_AGENT_PLAN_CN_API_KEY", "agent-key")
+    monkeypatch.delenv("ARK_CODING_PLAN_CN_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="Coding Plan"):
+        build_provider_client("ark-coding-plan-cn", {}, None)
+
+    monkeypatch.setenv("ARK_CODING_PLAN_CN_API_KEY", "coding-key")
+    router = ProviderRouter()
+    model = "ark-coding-plan-cn:ark-code-latest"
+    provider = router._client_for(model)
+    assert isinstance(provider, OpenAIProvider)
+    assert provider._api_key == "coding-key"
+    assert provider._base_url == COMPAT_VENDORS["ark-coding-plan-cn"]
+    assert router._bare(model) == "ark-code-latest"
+    assert capabilities_for(model).tools
+    assert capabilities_for(model).streaming
+
+    overridden = build_provider_client(
+        "ark-coding-plan-cn",
+        {"api_key": "saved-key", "base_url": "https://proxy.example/coding/v3"},
+        None,
+    )
+    assert overridden._api_key == "saved-key"
+    assert overridden._base_url == "https://proxy.example/coding/v3"
 
 
 ARK_RESPONSES_VENDORS = {
@@ -476,14 +510,14 @@ def test_compat_models_route_and_get_tool_capabilities():
 
 
 def test_compat_recommended_models_are_in_the_suggested_lists():
-    """set_provider only auto-adds the recommended model if it's in _suggested_models —
-    keep the registry and the manager's COMPAT_MODELS table in lockstep."""
+    """Recommended models must appear in the actual suggestions, including the matrix."""
     from coworker.providers.registry import get_descriptor
     from coworker.server.manager import SessionManager
 
+    manager = SessionManager.__new__(SessionManager)
     for name in COMPAT_VENDORS:
         d = get_descriptor(name)
-        assert d.recommended_model in SessionManager.COMPAT_MODELS[name], name
+        assert d.recommended_model in manager._suggested_models(name), name
 
 
 # -- curated model matrix (labels + capabilities by full routed id) -----------------

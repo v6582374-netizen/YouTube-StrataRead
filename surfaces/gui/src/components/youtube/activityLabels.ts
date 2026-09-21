@@ -1,0 +1,11 @@
+import { yt } from "./text";
+
+export function activityLabels(): Record<string, string> {
+  return {
+    acquiring: yt("获取字幕"), generating: yt("准备生成"), initial: yt("初译"), review: yt("审校"),
+    revision: yt("修订"), composition: yt("整理成稿"), ready: yt("已生成"), failed: yt("处理失败"),
+    unavailable: yt("暂不可用"), cancelled: yt("已取消"), restored: yt("恢复排队"), queued: yt("已排队"),
+    checking: yt("确认视频类型"), awaiting_classification: yt("待确认类型"), filtered: yt("已排除 Shorts"),
+    rate_limited: yt("限流等待"),
+  };
+}

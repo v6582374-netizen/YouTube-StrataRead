@@ -1,10 +1,18 @@
 # Edison
 
-Edison 将 Openworker 的 macOS 客户端与本地 YouTube 阅读资料库整合在同一工作区。
+Edison 将 Openworker 的 macOS 客户端、YouTube 阅读资料库与 Minimalism 物品记忆系统整合在同一工作区。
 
 - 侧边栏 **YouTube**：订阅导入、字幕获取、中文 Markdown、阅读队列、版本与来源追溯。
-- **设置 → 模型**：所有模块共用 Openworker 的模型选择、供应商与凭据；YouTube 不需要第二份模型 API Key。
+- 侧边栏 **Minimalism**：物品画廊、集合、档案照片、多段记忆、元数据、归档、备份与 AI 封面。首次进入自动复制原 Minimalism 资料，原件保留，之后独立管理。
+- **设置 → 模型**：聊天与 YouTube 共用模型配置；YouTube 不需要第二份模型 API Key。
+- **设置 → 图像生成**：独立配置 Minimalism 生图服务。仅迁入原封面提示词，旧端点、模型与 API Key 不迁入。
 - Google OAuth 仍使用个人客户端和本机 Automic Vault；模型凭据遵循 Openworker 原有存储机制。
+
+## 下载
+
+[Edison v0.2.1 — 首个桌面发行版](https://github.com/v6582374-netizen/YouTube-StrataRead/releases/tag/v0.2.1) 面向 Apple Silicon、macOS 14 及以上系统。下载 DMG 后将 Edison 拖入 Applications，也可使用 ZIP 包；校验文件随版本提供。
+
+此版本采用本地 ad-hoc 签名，未经 Apple 公证。macOS 可能要求在“系统设置 → 隐私与安全性”中确认打开。更新通过手动下载安装完成。
 
 ## 本地开发
 
@@ -23,7 +31,7 @@ macOS 客户端入口是 `surfaces/gui`。原有 `desktop` 是旧独立客户端
 bash packaging/build_local_macos.sh
 ```
 
-生成并打开 `surfaces/gui/src-tauri/target/release/bundle/macos/Edison.app`。不依赖上游自动更新或签名发布服务。
+生成并打开 `surfaces/gui/src-tauri/target/release/bundle/macos/Edison.app`。设置 `EDISON_OPEN_APP=0` 可只构建、不启动。发布版本同样使用此本地构建流程，不依赖上游自动更新服务。
 
 ## 验证
 

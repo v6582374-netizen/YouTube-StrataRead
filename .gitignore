@@ -8,6 +8,8 @@ __pycache__/
 *.DS_Store
 dist/
 *.egg-info/
+# Added by code-review-graph
+.code-review-graph/
 node_modules/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/

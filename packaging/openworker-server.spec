@@ -41,8 +41,8 @@ hiddenimports = []
 datas = []
 binaries = []
 
-for pkg in ("coworker", "youtube_strataread", "aisuite", "mcp", "ddgs", "croniter", "docstring_parser"):
-    hiddenimports += collect_submodules(pkg)
+for pkg in ("coworker", "youtube_strataread", "translation_agent", "tiktoken_ext", "aisuite", "mcp", "ddgs", "croniter", "docstring_parser"):
+    hiddenimports += collect_submodules(pkg, filter=lambda name: not name.startswith("translation_agent.webui"))
 
 # Builtin personas ship as DATA, not code: personas/builtin/<id>/manifest.md plus their
 # skills/<name>/SKILL.md. collect_submodules only takes .py files, so without this the
@@ -51,6 +51,21 @@ for pkg in ("coworker", "youtube_strataread", "aisuite", "mcp", "ddgs", "cronite
 # PyInstaller needs its own instruction.) Keep this even if the persona set changes — it
 # collects whatever non-.py files the package carries.
 datas += collect_data_files("coworker")
+# Translation-agent attribution and OpenCC conversion dictionaries must ship.
+datas += collect_data_files("youtube_strataread")
+datas += collect_data_files("opencc")
+datas += collect_data_files("translation_agent")
+
+# Upstream tokenization must work offline in the desktop bundle, including a
+# machine that has never downloaded a tokenizer cache before.
+from pathlib import Path
+import tiktoken
+
+token_cache = Path(ROOT) / "build" / "translation-tokenizer-cache"
+token_cache.mkdir(parents=True, exist_ok=True)
+os.environ["TIKTOKEN_CACHE_DIR"] = str(token_cache)
+tiktoken.get_encoding("cl100k_base")
+datas += [(str(path), "translation-tokenizer-cache") for path in token_cache.iterdir() if path.is_file()]
 
 if not INCLUDE_EXPERIMENTAL:
     hiddenimports = [

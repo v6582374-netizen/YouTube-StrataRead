@@ -51,6 +51,7 @@ def test_discovery_creates_idempotent_queued_inbox_candidates(tmp_path: Path) ->
             "title": "New update",
             "url": "https://www.youtube.com/watch?v=video-1",
             "published_at": "2026-09-17T00:00:00Z",
+            "duration_seconds": None,
             "preparation_state": "queued",
             "failure_reason": None,
         }

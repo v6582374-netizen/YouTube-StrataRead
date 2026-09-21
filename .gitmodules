@@ -1,0 +1,3 @@
+[submodule "Vegapunk"]
+	path = Vegapunk
+	url = https://github.com/v6582374-netizen/Vegapunk.git

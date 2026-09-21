@@ -100,6 +100,12 @@ with tempfile.TemporaryDirectory(prefix="edison-bundle-smoke-") as directory:
         ws.store_transcript(
             video, language="en", srt_text=f"1\n00:00:00,000 --> 00:00:02,000\n{source}\n"
         )
+    # These local fixtures represent already classified ordinary videos. Keep the
+    # packaged translation smoke test independent of YouTube's live classifier.
+    for video in ["fixture", *sources]:
+        ws.set_preparation_state(video, "acquiring")
+        ws.record_shorts_classification(video, False)
+        ws.set_preparation_state(video, "queued")
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
@@ -114,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix="edison-bundle-smoke-") as directory:
     with (root / "server.log").open("w") as log:
         proc = subprocess.Popen(
             [
-                "dist/openworker-server/openworker-server",
+                os.environ.get("EDISON_SIDECAR", "dist/openworker-server/openworker-server"),
                 "--host",
                 "127.0.0.1",
                 "--port",

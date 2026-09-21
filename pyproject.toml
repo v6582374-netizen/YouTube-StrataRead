@@ -3,7 +3,7 @@ name = "edison"
 version = "0.2.1"
 description = "Edison desktop workspace with Openworker and a local YouTube reading library"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
 authors = [{ name = "v6582374-netizen" }]
 keywords = ["youtube", "subtitles", "ai", "outline", "bionic-reading", "terminal", "cli"]
@@ -16,7 +16,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Video",
     "Topic :: Text Processing :: Linguistic",
     "Typing :: Typed",

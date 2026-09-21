@@ -26,11 +26,9 @@ from youtube_strataread.downloader.request_policy import (
     rate_limit_error,
 )
 from youtube_strataread.downloader.youtube import YouTubeError, download_subtitles
-from youtube_strataread.workbench.connection import SubscriptionSource
-from youtube_strataread.workbench.discovery import YouTubeAtomFeeds
 from youtube_strataread.workbench.shorts import YouTubeShortsClassifier
-from youtube_strataread.workbench.sidecar import handle_request
 from youtube_strataread.workbench.workspace import LocalWorkspace
+from youtube_strataread.workbench.youtube_api import YouTubeAPIError, YouTubeDataAPI
 
 
 def http429(retry_after=None):
@@ -146,7 +144,7 @@ def test_concurrent_policy_instances_do_not_burst_requests(tmp_path, monkeypatch
     assert all(b - a >= 0.04 for a, b in zip(stamps, stamps[1:], strict=False))
 
 
-def test_subtitle_429_blocks_shorts_feeds_and_next_video_until_cooldown(tmp_path, monkeypatch):
+def test_subtitle_429_blocks_acquisition_but_not_official_api(tmp_path, monkeypatch):
     ws = LocalWorkspace.open(tmp_path)
     ws.set_meta("drain_paused", "0")
     for key in ["one", "two"]:
@@ -165,12 +163,12 @@ def test_subtitle_429_blocks_shorts_feeds_and_next_video_until_cooldown(tmp_path
     assert not service.run_next()
     network = Mock(side_effect=AssertionError("cooldown must prevent outbound traffic"))
     monkeypatch.setattr("youtube_strataread.workbench.shorts.urlopen", network)
-    monkeypatch.setattr("youtube_strataread.workbench.discovery.urlopen", network)
     with pytest.raises(YouTubeRateLimited):
         YouTubeShortsClassifier(ws.youtube_requests).classify("normal00001")
-    with pytest.raises(YouTubeRateLimited):
-        YouTubeAtomFeeds(ws.youtube_requests).fetch(SubscriptionSource("channel", "Channel"))
     network.assert_not_called()
+    from io import BytesIO
+    monkeypatch.setattr("youtube_strataread.workbench.youtube_api.urlopen", lambda *a, **kw: BytesIO(b'{"items":[]}'))
+    assert YouTubeDataAPI(ws).get('channels', {'part':'contentDetails','id':'channel'}, 'fixture') == {'items':[]}
     service.captions.acquire.assert_called_once()
     deadline = ws.youtube_requests.snapshot()["cooldown_until"]
     ws = LocalWorkspace.open(tmp_path)
@@ -218,7 +216,7 @@ def test_rate_limited_item_can_be_cancelled_without_resetting_cooldown(tmp_path)
     assert ws.youtube_requests.snapshot()["cooldown_until"] == deadline
 
 
-def test_shorts_and_rss_429_start_shared_cooldown(tmp_path, monkeypatch):
+def test_api_429_uses_a_separate_global_gate_from_captions(tmp_path, monkeypatch):
     ws = LocalWorkspace.open(tmp_path)
     ws.set_meta("drain_paused", "0")
     monkeypatch.setattr(
@@ -230,19 +228,14 @@ def test_shorts_and_rss_429_start_shared_cooldown(tmp_path, monkeypatch):
     assert service.run_next()
     assert ws.activity()["rate_limited"] == 1
     assert ws.youtube_requests.snapshot()["cooldown_until"] > time.time() + 7100
-    other = LocalWorkspace.open(tmp_path / "rss")
+    other = LocalWorkspace.open(tmp_path / "api")
     fetch = Mock(side_effect=http429("3600"))
-    monkeypatch.setattr("youtube_strataread.workbench.discovery.urlopen", fetch)
-    feeds = YouTubeAtomFeeds(other.youtube_requests)
-    response = handle_request(
-        {"capability": "collection.refresh_updates"},
-        other,
-        None,
-        SimpleNamespace(refresh=lambda: feeds.fetch(SubscriptionSource("channel", "Channel"))),
-    )
-    assert response["ok"] is False
-    assert "冷却" in response["error"]
-    assert other.youtube_requests.snapshot()["cooldown_until"] > time.time() + 3500
+    monkeypatch.setattr("youtube_strataread.workbench.youtube_api.urlopen", fetch)
+    api = YouTubeDataAPI(other)
+    with pytest.raises(YouTubeAPIError, match="官方 API"):
+        api.get('channels', {'id':'channel','part':'contentDetails'}, 'fixture')
+    assert api.gate()['retry_at'] > time.time() + 3500
+    assert not other.youtube_requests.cooling_down()
 
 
 def test_only_legacy_subtitle_429_records_are_recovered_once(tmp_path):

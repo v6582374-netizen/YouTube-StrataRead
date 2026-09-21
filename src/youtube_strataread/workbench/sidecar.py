@@ -6,7 +6,6 @@ import json
 import os
 import sys
 import threading
-import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -17,7 +16,8 @@ from youtube_strataread.workbench.connection import (
     ConnectionService,
     GoogleOAuthGateway,
 )
-from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeAtomFeeds
+from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeUploadsAPI
+from youtube_strataread.workbench.keychain import NativeKeychainVault
 from youtube_strataread.workbench.library import (
     AutomaticBatch,
     ConfiguredManuscripts,
@@ -25,7 +25,7 @@ from youtube_strataread.workbench.library import (
     PreparationService,
     YtDlpCaptions,
 )
-from youtube_strataread.workbench.vault import AutomicVault, SecretVault
+from youtube_strataread.workbench.vault import SecretVault
 from youtube_strataread.workbench.workspace import LocalWorkspace, workspace_root
 
 
@@ -49,6 +49,12 @@ def _response(
 class _TestVault:
     values: dict[str, str] = field(default_factory=dict)
 
+    def save_many(self, values: dict[str, str]) -> None:
+        self.values.update(values)
+
+    def keys(self) -> set[str]:
+        return {key for key, value in self.values.items() if value}
+
     def save(self, key: str, value: str) -> None:
         self.values[key] = value
 
@@ -59,7 +65,7 @@ class _TestVault:
 def _vault() -> SecretVault:
     if os.environ.get("YOUTUBE_WORKBENCH_TEST_VAULT") == "1" and not getattr(sys, "frozen", False):
         return _TestVault()
-    return AutomicVault()
+    return NativeKeychainVault(namespace=str(workspace_root().resolve()))
 
 
 def handle_request(
@@ -118,9 +124,9 @@ def handle_request(
                 ),
             )
         if library is not None and capability == "activity.snapshot":
-            return _response(request_id, result=library.activity())
+            return _response(request_id, result={**library.activity(), "discovery": discovery.snapshot()})
         if library is not None and capability == "diagnostics.snapshot":
-            return _response(request_id, result=library.activity())
+            return _response(request_id, result={**library.activity(), "discovery": discovery.snapshot()})
         if library is not None and capability == "activity.drain_pause":
             return _response(request_id, result=library.drain_pause())
         if library is not None and capability == "activity.resume":
@@ -143,6 +149,8 @@ def handle_request(
                     limit=int(arguments.get("limit") or 100),
                 ).as_result(),
             )
+        if capability == "connection.migrate_credentials":
+            return _response(request_id, result=connection.migrate_credentials().as_result())
         if capability == "connection.configure":
             return _response(
                 request_id,
@@ -187,17 +195,16 @@ def _run_batch(
 ) -> None:
     """Keep automatic work quiet and serial; all observable state lives in SQLite."""
     batch = AutomaticBatch(preparation=preparation)
-    next_discovery = 0.0
+    last_scan = 0.0
     while not stop.wait(0.5):
         try:
-            if time.monotonic() >= next_discovery:
-                next_discovery = time.monotonic() + 15 * 60
-                discovery.refresh()
+            finished = float(preparation.workspace.meta('youtube_discovery_finished_at') or 0)
+            if finished > last_scan:
                 batch.reset()
+                last_scan = finished
             batch.run_one()
         except Exception:
-            # A top-level guard keeps one malformed local asset from killing the service.
-            time.sleep(0.5)
+            stop.wait(0.5)
 
 
 def main() -> int:
@@ -208,7 +215,7 @@ def main() -> int:
         oauth=GoogleOAuthGateway(),
     )
     discovery = SubscriptionDiscovery(
-        workspace=workspace, feeds=YouTubeAtomFeeds(requests=workspace.youtube_requests)
+        workspace=workspace, source=YouTubeUploadsAPI(workspace=workspace, connection=connection)
     )
     preparation = PreparationService(
         workspace=workspace, captions=YtDlpCaptions(), manuscripts=ConfiguredManuscripts()
@@ -219,6 +226,11 @@ def main() -> int:
         target=_run_batch, args=(preparation, discovery, stop_batch), daemon=True
     )
     batch.start()
+    scanner = threading.Thread(target=discovery.run, args=(stop_batch,), daemon=True)
+    scanner.start()
+    memberships = threading.Thread(target=connection.watch_subscriptions,
+        args=(stop_batch,), kwargs={'now': discovery.now}, daemon=True)
+    memberships.start()
     try:
         for raw_request in sys.stdin:
             if not raw_request.strip():
@@ -243,6 +255,8 @@ def main() -> int:
         pass
     finally:
         stop_batch.set()
+        discovery.stop()
+        preparation.stop()
     return 0
 
 

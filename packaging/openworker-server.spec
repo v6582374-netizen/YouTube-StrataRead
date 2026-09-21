@@ -37,7 +37,7 @@ IS_WINDOWS = sys.platform == "win32"
 # loader in coworker/connectors/descriptors.py treats the missing package as a no-op.
 INCLUDE_EXPERIMENTAL = os.environ.get("COWORKER_EXPERIMENTAL") == "1"
 
-hiddenimports = []
+hiddenimports = ["keyring.backends.macOS"] if sys.platform == "darwin" else ["keyring.backends.Windows"] if IS_WINDOWS else ["keyring.backends.SecretService"]
 datas = []
 binaries = []
 
@@ -55,6 +55,20 @@ datas += collect_data_files("coworker")
 datas += collect_data_files("youtube_strataread")
 datas += collect_data_files("opencc")
 datas += collect_data_files("translation_agent")
+
+# Optional developer-owned Google installed-app client. It is application
+# configuration, never an account token or a copy of the builder's personal store.
+import json
+client_id = os.environ.get("EDISON_GOOGLE_OAUTH_CLIENT_ID")
+client_secret = os.environ.get("EDISON_GOOGLE_OAUTH_CLIENT_SECRET")
+if bool(client_id) != bool(client_secret):
+    raise ValueError("Set both Edison Google OAuth client build variables")
+if client_id and client_secret:
+    from pathlib import Path
+    client_file = Path(ROOT) / "build" / "google-oauth-client.json"
+    client_file.parent.mkdir(parents=True, exist_ok=True)
+    client_file.write_text(json.dumps({"client_id": client_id, "client_secret": client_secret}))
+    datas.append((str(client_file), "youtube_strataread/workbench"))
 
 # Upstream tokenization must work offline in the desktop bundle, including a
 # machine that has never downloaded a tokenizer cache before.

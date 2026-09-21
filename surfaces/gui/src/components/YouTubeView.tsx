@@ -710,7 +710,7 @@ export function YouTubeView({
                 style={{ marginTop: 16 }}
                 disabled={busy}
               >
-                {busy ? yt("正在保存…") : yt("保存到 Automic Vault")}
+                {busy ? yt("正在保存…") : yt("保存到系统钥匙串")}
               </button>
             </form>
           ) : !connection.authorized ? (

@@ -7,22 +7,26 @@ No second model client, credential copy, or auxiliary server is introduced.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from coworker.secrets import state_dir
 from youtube_strataread.workbench.connection import (
     ConnectionError,
     ConnectionService,
     GoogleOAuthGateway,
 )
-from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeAtomFeeds
+from youtube_strataread.workbench.discovery import SubscriptionDiscovery, YouTubeUploadsAPI
+from youtube_strataread.workbench.keychain import NativeKeychainVault
 from youtube_strataread.workbench.library import (
     AutomaticBatch,
     LibraryService,
@@ -38,8 +42,7 @@ from youtube_strataread.workbench.translation import (
     settings,
     validate_settings,
 )
-from youtube_strataread.workbench.vault import AutomicVault
-from youtube_strataread.workbench.workspace import LocalWorkspace, workspace_root
+from youtube_strataread.workbench.workspace import LocalWorkspace
 
 
 class HostManuscripts:
@@ -75,13 +78,15 @@ class HostManuscripts:
 class YouTubeWorkbench:
     def __init__(self, manager: Any) -> None:
         self.manager = manager
-        self.workspace = LocalWorkspace.open(workspace_root())
+        # Edison owns its library; never discover or migrate the standalone tool's data.
+        root = Path(os.environ["YOUTUBE_WORKBENCH_WORKSPACE"]).expanduser() if os.environ.get("YOUTUBE_WORKBENCH_WORKSPACE") else state_dir() / "youtube"
+        self.workspace = LocalWorkspace.open(root)
         self.workspace.recover_interrupted_preparations()
         self.connection = ConnectionService(
-            workspace=self.workspace, vault=AutomicVault(), oauth=GoogleOAuthGateway()
+            workspace=self.workspace, vault=NativeKeychainVault(namespace=str(root.resolve())), oauth=GoogleOAuthGateway()
         )
         self.discovery = SubscriptionDiscovery(
-            workspace=self.workspace, feeds=YouTubeAtomFeeds(requests=self.workspace.youtube_requests)
+            workspace=self.workspace, source=YouTubeUploadsAPI(workspace=self.workspace, connection=self.connection)
         )
         self.preparation = PreparationService(
             workspace=self.workspace,
@@ -97,11 +102,20 @@ class YouTubeWorkbench:
         self.refresh_requested = threading.Event()
         self.heartbeat_at: float | None = None
         self.discovering = False
+        self.discovery_thread = threading.Thread(target=self.discovery.run,
+            args=(self.stop, self.refresh_requested), name='edison-youtube-discovery', daemon=True)
+        self.discovery_thread.start()
         self.thread.start()
         self.heartbeat_thread = threading.Thread(
             target=self._heartbeat, name="edison-youtube-heartbeat", daemon=True
         )
         self.heartbeat_thread.start()
+        self.subscription_thread = threading.Thread(target=self._sync_subscriptions,
+                                                    name="edison-subscriptions", daemon=True)
+        self.subscription_thread.start()
+
+    def _sync_subscriptions(self) -> None:
+        self.connection.watch_subscriptions(self.stop, now=self.discovery.now, wake=self.refresh_requested)
 
     def _heartbeat(self) -> None:
         # Service liveness is distinct from pipeline progress: a slow provider
@@ -111,29 +125,17 @@ class YouTubeWorkbench:
             self.stop.wait(2)
 
     def _run(self) -> None:
-        next_discovery = 0.0
-        while not self.stop.wait(1):
-            if self.workspace.meta("drain_paused") != "1" and (time.monotonic() >= next_discovery or self.refresh_requested.is_set()):
-                self.refresh_requested.clear()
-                next_discovery = time.monotonic() + 15 * 60
-                try:
-                    self.discovering = True
-                    with self.discovery_lock:
-                        self.discovery.refresh()
-                    self.discovery_error = None
-                except Exception:
-                    self.discovery_error = "暂时无法刷新订阅，稍后自动重试。"
-                finally:
-                    self.discovering = False
-                if self.stop.is_set():
-                    break
+        last_scan = 0.0
+        while not self.stop.wait(.5):
+            finished = float(self.workspace.meta('youtube_discovery_finished_at') or 0)
+            if finished > last_scan:
                 self.batch.reset()
+                last_scan = finished
             try:
-                # Keep assets queued until the host has a usable provider. A missing
-                # model is configuration, not a hundred independent asset failures.
                 self.prepare_one()
             except Exception:
-                self.discovery_error = "批处理暂时不可用，请检查资料库后重试。"
+                # Preparation failures cannot masquerade as an empty discovery pass.
+                self.discovery_error = '批处理暂时不可用，请检查资料库后重试。'
 
     def prepare_one(self) -> bool:
         if not self.manager.get_settings().get("model_ready"):
@@ -142,9 +144,12 @@ class YouTubeWorkbench:
 
     def close(self) -> None:
         self.preparation.stop()
+        self.discovery.stop()
         self.stop.set()
         self.thread.join(timeout=1)
         self.heartbeat_thread.join(timeout=1)
+        self.subscription_thread.join(timeout=1)
+        self.discovery_thread.join(timeout=1)
 
     def dispatch(self, capability: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if capability == "connection.refresh_subscriptions":
@@ -171,6 +176,9 @@ class YouTubeWorkbench:
                 "result": {
                     "sources": self.workspace.subscription_sources(),
                     "excluded_channels": self.workspace.excluded_channels(),
+                    "last_synced_at": float(self.workspace.meta("youtube_subscriptions_synced_at") or 0) or None,
+                    "sync_error": self.workspace.meta("youtube_subscriptions_error") or "",
+                    "reconnect_required": self.workspace.meta("youtube_reconnect_required") == "1",
                 },
             }
         if capability in {
@@ -270,7 +278,7 @@ class YouTubeWorkbench:
                 self.discovery,
                 self.library,
             )
-        if response.get("ok") and capability == "connection.authorize":
+        if response.get("ok") and capability in {"connection.authorize", "activity.resume"}:
             self.refresh_requested.set()
         if response.get("ok") and capability == "activity.snapshot":
             response["result"].update(
@@ -278,11 +286,13 @@ class YouTubeWorkbench:
                     "runtime": {
                         "heartbeat_at": self.heartbeat_at,
                         "worker_alive": self.thread.is_alive(),
-                        "discovering": self.discovering,
+                        "discovering": self.workspace.meta("youtube_discovery_scanning") == "1",
+                        "discovery_worker_alive": self.discovery_thread.is_alive(),
                     },
                     "model": self.manager.model,
                     "model_ready": bool(self.manager.get_settings().get("model_ready")),
-                    "discovery_error": self.discovery_error,
+                    "discovery_error": self.discovery.snapshot().get("error"),
+                    "discovery": self.discovery.snapshot(),
                 }
             )
         return response

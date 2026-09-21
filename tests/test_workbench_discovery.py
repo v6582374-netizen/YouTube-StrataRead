@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from youtube_strataread.workbench.connection import SubscriptionSource
-from youtube_strataread.workbench.discovery import Candidate, SubscriptionDiscovery
+from youtube_strataread.workbench.discovery import Candidate, SourcePage, SubscriptionDiscovery
 from youtube_strataread.workbench.workspace import LocalWorkspace
 
 
@@ -18,11 +18,11 @@ def publication_clock(monkeypatch):
 
 
 @dataclass
-class FakeAtomFeed:
+class FakeUploads:
     entries: dict[str, list[Candidate]]
 
-    def fetch(self, source: SubscriptionSource) -> list[Candidate]:
-        return self.entries[source.channel_id]
+    def fetch(self, source: SubscriptionSource) -> SourcePage:
+        return SourcePage(self.entries[source.channel_id])
 
 
 def test_discovery_creates_idempotent_queued_inbox_candidates(tmp_path: Path) -> None:
@@ -31,7 +31,7 @@ def test_discovery_creates_idempotent_queued_inbox_candidates(tmp_path: Path) ->
     workspace.replace_subscription_sources([SubscriptionSource(channel_id="alpha", title="Alpha")])
     discovery = SubscriptionDiscovery(
         workspace=workspace,
-        feeds=FakeAtomFeed(
+        source=FakeUploads(
             entries={
                 "alpha": [
                     Candidate(
@@ -83,7 +83,7 @@ def test_excluded_channels_are_not_fetched_and_new_subscriptions_default_on(tmp_
     class Feeds:
         def fetch(self, source):
             fetched.append(source.channel_id)
-            return [
+            return SourcePage([
                 Candidate(
                     "new-video",
                     source.channel_id,
@@ -93,9 +93,9 @@ def test_excluded_channels_are_not_fetched_and_new_subscriptions_default_on(tmp_
                     "2026-09-18T00:00:00Z",
                     1789689600,
                 )
-            ]
+            ])
 
-    result = SubscriptionDiscovery(workspace=workspace, feeds=Feeds()).refresh()
+    result = SubscriptionDiscovery(workspace=workspace, source=Feeds()).refresh()
     assert fetched == ["new"]
     assert result.discovered == 1
     assert result.scanned_sources == 1

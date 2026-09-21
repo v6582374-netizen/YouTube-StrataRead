@@ -91,7 +91,7 @@ class YouTubeRequestPolicy:
 
     These conservative intervals are product defaults, not published YouTube limits.
     Only successful caption acquisition resets the exponential cooldown streak;
-    a successful RSS or watch page must not undo repeated subtitle rate limits.
+    a successful metadata or watch page must not undo repeated subtitle rate limits.
     """
 
     def __init__(self, database_path: Path) -> None:

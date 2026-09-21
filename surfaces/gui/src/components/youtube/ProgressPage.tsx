@@ -9,6 +9,7 @@ import { activityLabels } from "./activityLabels";
 import { RawConsole } from "./RawConsole";
 import "./discovery/discovery.css";
 import "./discovery/hierarchy.css";
+import { DiscoveryStatus } from "./DiscoveryStatus";
 import "./progress.css";
 
 type QueueState = "expired" | "awaiting_timing" | "queued" | "rate_limited" | "awaiting_classification" | "filtered" | "cancelled" | "failed" | "unavailable";
@@ -129,6 +130,7 @@ export function ProgressPage({ activity, receivedAt, disconnected, onRefresh, on
         {stale ? yt("连接中断 · 正在重连") : live ? yt("后台在线") : yt("后台心跳未确认")}
       </span>
     </div>
+    <DiscoveryStatus discovery={activity?.discovery} paused={!!activity?.drain_paused} />
     <div className="discovery-stage-strip-layout-ma">
       <LaunchHero live={live && active} offline={stale || (!!activity?.runtime && !live)} observedStage={title}
         signalCopy={current ? `${current.title} · ${videoMetadataText(current)}` : ""}
@@ -144,7 +146,7 @@ export function ProgressPage({ activity, receivedAt, disconnected, onRefresh, on
       <button className="yp-btn" disabled={busy || !activity} onClick={() => void run(activity?.drain_paused ? "activity.resume" : "activity.drain_pause")}>
         {activity?.drain_paused ? yt("恢复自动更新") : yt("完成当前文档后暂停")}
       </button>
-      <button className="yp-btn" disabled={busy || cooling} onClick={() => void run("collection.refresh_updates")}>{yt("立即检查更新")}</button>
+      <button className="yp-btn" disabled={busy} onClick={() => void run("collection.refresh_updates")}>{yt("立即检查更新")}</button>
       {!!activity?.failed && <button className="yp-btn" disabled={busy} onClick={() => void run("activity.retry_all_failed")}>{yt("重试失败项")}</button>}
     </div>
     {activity?.drain_paused && active && <p className="yp-progress-note">{yt("已请求暂停，当前文档完成后不再领取新任务。")}</p>}

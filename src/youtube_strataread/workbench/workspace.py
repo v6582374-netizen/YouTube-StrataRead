@@ -107,15 +107,18 @@ class LocalWorkspace:
         )
 
     def add_candidate(self, candidate: Candidate) -> bool:
-        state = admission(candidate.published_at, candidate.published_ts, time.time())
+        state = (admission(candidate.published_at, candidate.published_ts, time.time())
+                 if candidate.timing_status == 'publication' else 'awaiting_timing')
         with sqlite3.connect(self.database_path) as connection:
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO candidates
                     (video_id, channel_id, channel_title, title, url, published_at, published_ts,
-                     discovered_at, preparation_state, failure_reason)
-                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                     discovered_at, preparation_state, failure_reason, timing_status, playlist_added_at,
+                     source_observed_at, source_observed_from, source_observed_until)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 WHERE NOT EXISTS (SELECT 1 FROM excluded_channels WHERE channel_id = ?)
+                  AND NOT EXISTS (SELECT 1 FROM unsubscribed_channels WHERE channel_id = ?)
                 """,
                 (
                     candidate.video_id,
@@ -128,6 +131,9 @@ class LocalWorkspace:
                     time.time(),
                     state,
                     WAITING_REASONS.get(state),
+                    candidate.timing_status, candidate.playlist_added_at, candidate.source_observed_at,
+                    candidate.source_observed_from, candidate.source_observed_until,
+                    candidate.channel_id,
                     candidate.channel_id,
                 ),
             )
@@ -135,11 +141,32 @@ class LocalWorkspace:
             if not inserted:
                 connection.execute(
                     """UPDATE candidates SET published_at = ?, published_ts = ?,
-                       preparation_state = ?, failure_reason = ?
+                       preparation_state = ?, failure_reason = ?, timing_status = ?
                        WHERE video_id = ? AND preparation_state = 'awaiting_timing'
                          AND commenced_at IS NULL AND timing_status != 'event'""",
                     (candidate.published_at, candidate.published_ts, state,
-                     WAITING_REASONS.get(state), candidate.video_id),
+                     WAITING_REASONS.get(state), candidate.timing_status, candidate.video_id),
+                )
+            if candidate.source_observed_at is not None:
+                connection.execute(
+                    """UPDATE candidates SET published_at=?, published_ts=?, timing_status=?,
+                       preparation_state=CASE WHEN ?='queued' AND preparation_state IN
+                         ('rate_limited','awaiting_classification') THEN preparation_state ELSE ? END,
+                       failure_reason=CASE WHEN ?='queued' AND preparation_state IN
+                         ('rate_limited','awaiting_classification') THEN failure_reason ELSE ? END
+                       WHERE video_id=? AND source_observed_at IS NULL AND commenced_at IS NULL
+                         AND timing_status != 'event' AND request_kind='automatic'
+                         AND preparation_state IN ('queued','expired','awaiting_timing','rate_limited','awaiting_classification')""",
+                    (candidate.published_at, candidate.published_ts, candidate.timing_status,
+                     state, state, state, WAITING_REASONS.get(state), candidate.video_id),
+                )
+                connection.execute(
+                    """UPDATE candidates SET source_observed_at=COALESCE(source_observed_at,?),
+                       source_observed_from=COALESCE(source_observed_from,?),
+                       source_observed_until=COALESCE(source_observed_until,?),
+                       playlist_added_at=COALESCE(playlist_added_at,?) WHERE video_id=?""",
+                    (candidate.source_observed_at, candidate.source_observed_from,
+                     candidate.source_observed_until, candidate.playlist_added_at, candidate.video_id),
                 )
         return inserted
 
@@ -182,6 +209,7 @@ class LocalWorkspace:
                     (preparation_state = 'awaiting_classification' AND shorts_retry_at <= ?))
                   AND (? = 0 OR request_kind = 'manual')
                   AND channel_id NOT IN (SELECT channel_id FROM excluded_channels)
+                  AND channel_id NOT IN (SELECT channel_id FROM unsubscribed_channels)
                   AND (shorts_status != 'short' OR manuscript_version IS NOT NULL)
                 ORDER BY discovered_at ASC LIMIT 1
                 """,
@@ -215,7 +243,7 @@ class LocalWorkspace:
                  AND preparation_state IN ('queued', 'rate_limited', 'awaiting_classification')"""
         ).fetchall()
         for row in rows:
-            state = 'awaiting_timing' if row[3] == 'event' else admission(row[1], row[2], time.time())
+            state = 'awaiting_timing' if row[3] != 'publication' else admission(row[1], row[2], time.time())
             if state != 'queued':
                 connection.execute(
                     "UPDATE candidates SET preparation_state = ?, preparation_stage = ?, failure_reason = ? WHERE video_id = ?",
@@ -459,7 +487,7 @@ class LocalWorkspace:
             ).fetchone()[0]
             rows = connection.execute(
                 f"""SELECT video_id, title, channel_title, preparation_state, failure_reason,
-                    manuscript_version, published_at, duration_seconds, commenced_at, request_kind FROM candidates WHERE {where}
+                    manuscript_version, published_at, duration_seconds, commenced_at, request_kind, playlist_added_at, source_observed_at FROM candidates WHERE {where}
                     ORDER BY discovered_at ASC, video_id ASC LIMIT ? OFFSET ?""",
                 (state, limit, offset),
             ).fetchall()
@@ -581,7 +609,7 @@ class LocalWorkspace:
             connection.row_factory = sqlite3.Row
             row = connection.execute(
                 """
-                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at,
+                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at, c.playlist_added_at, c.source_observed_at, c.source_observed_from, c.source_observed_until, c.discovered_at, c.timing_status,
                        c.preparation_state, c.failure_reason, c.reading_state, c.manuscript_version,
                        c.manuscript_path, c.preparation_completed_at, c.duration_seconds,
                        t.path AS transcript_path
@@ -641,7 +669,7 @@ class LocalWorkspace:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 f"""
-                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at,
+                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at, c.playlist_added_at, c.source_observed_at, c.source_observed_from, c.source_observed_until, c.discovered_at, c.timing_status,
                        c.preparation_state, c.failure_reason, c.reading_state, c.manuscript_version,
                        c.manuscript_path, c.preparation_completed_at, c.duration_seconds,
                        SUBSTR(m.markdown, 1, 400) AS excerpt,
@@ -870,7 +898,20 @@ class LocalWorkspace:
         return self.root / "assets" / hashlib.sha256(video_id.encode("utf-8")).hexdigest()
 
     def replace_subscription_sources(self, sources: Iterable[SubscriptionSource]) -> None:
+        sources = list(sources)  # Complete upstream pagination before touching membership.
+        incoming = {source.channel_id for source in sources}
         with sqlite3.connect(self.database_path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            previous = {row[0] for row in connection.execute("SELECT channel_id FROM subscription_sources")}
+            removed = previous - incoming
+            connection.executemany("INSERT OR IGNORE INTO unsubscribed_channels VALUES (?)", [(key,) for key in removed])
+            connection.executemany("DELETE FROM unsubscribed_channels WHERE channel_id = ?", [(key,) for key in incoming])
+            connection.executemany(
+                "UPDATE candidates SET preparation_state = 'cancelled', failure_reason = ? "
+                "WHERE channel_id = ? AND manuscript_version IS NULL "
+                "AND preparation_state IN ('queued', 'rate_limited', 'awaiting_classification', 'expired', 'awaiting_timing')",
+                [("频道已取关，停止自动准备。已有文档保留。", key) for key in removed],
+            )
             connection.execute("DELETE FROM subscription_sources")
             connection.executemany(
                 """
@@ -889,6 +930,41 @@ class LocalWorkspace:
                     for source in sources
                 ],
             )
+
+    def observe_uploads(self, video_ids: list[str], started: float, finished: float) -> dict[str, dict]:
+        """Retain first listing evidence even when details or admission later fail."""
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.executemany(
+                'INSERT OR IGNORE INTO youtube_source_observations VALUES (?,?,?)',
+                [(video_id, started, finished) for video_id in video_ids],
+            )
+            return {video_id: dict(connection.execute(
+                'SELECT observed_from, observed_until FROM youtube_source_observations WHERE video_id=?',
+                (video_id,),
+            ).fetchone()) for video_id in video_ids}
+
+    def source_scan(self, channel_id: str) -> dict:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            row = connection.execute('SELECT * FROM youtube_discovery_sources WHERE channel_id=?', (channel_id,)).fetchone()
+        return dict(row) if row else {}
+
+    def record_source_scan(self, channel_id: str, **values: object) -> None:
+        allowed = {'uploads_playlist_id', 'uploads_checked_at', 'last_started_at', 'last_finished_at',
+                   'last_success_at', 'valid_from', 'valid_until', 'complete', 'error', 'coverage_reason'}
+        if not values or not set(values) <= allowed:
+            raise ValueError('Invalid source scan facts')
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute('INSERT OR IGNORE INTO youtube_discovery_sources(channel_id) VALUES (?)', (channel_id,))
+            connection.execute('UPDATE youtube_discovery_sources SET ' + ','.join(name+'=?' for name in values) + ' WHERE channel_id=?',
+                               (*values.values(), channel_id))
+
+    def source_scans(self) -> list[dict]:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            return [dict(row) for row in connection.execute(
+                'SELECT s.title, d.* FROM youtube_discovery_sources d JOIN subscription_sources s USING(channel_id) ORDER BY s.title')]
 
     def subscription_source_count(self) -> int:
         with sqlite3.connect(self.database_path) as connection:
@@ -921,6 +997,16 @@ class LocalWorkspace:
             connection.execute("PRAGMA foreign_keys=ON")
             connection.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS youtube_source_observations (
+                    video_id TEXT PRIMARY KEY, observed_from REAL NOT NULL, observed_until REAL NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS youtube_discovery_sources (
+                    channel_id TEXT PRIMARY KEY,
+                    uploads_playlist_id TEXT, uploads_checked_at REAL,
+                    last_started_at REAL, last_finished_at REAL, last_success_at REAL,
+                    valid_from REAL, valid_until REAL, complete INTEGER NOT NULL DEFAULT 0,
+                    error TEXT NOT NULL DEFAULT '', coverage_reason TEXT NOT NULL DEFAULT ''
+                );
                 CREATE TABLE IF NOT EXISTS preparation_console (
                     sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                     video_id TEXT NOT NULL REFERENCES candidates(video_id) ON DELETE CASCADE,
@@ -941,6 +1027,7 @@ class LocalWorkspace:
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS unsubscribed_channels (channel_id TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS subscription_sources (
                     channel_id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
@@ -1004,6 +1091,10 @@ class LocalWorkspace:
                 "rate_limit_attempts": "INTEGER NOT NULL DEFAULT 0",
                 "commenced_at": "REAL",
                 "timing_status": "TEXT NOT NULL DEFAULT 'publication'",
+                "playlist_added_at": "TEXT",
+                "source_observed_at": "REAL",
+                "source_observed_from": "REAL",
+                "source_observed_until": "REAL",
                 "request_kind": "TEXT NOT NULL DEFAULT 'automatic'",
             }.items():
                 if name not in existing:

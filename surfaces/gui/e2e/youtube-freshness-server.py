@@ -43,17 +43,17 @@ workspace.time = discovery.time = SimpleNamespace(time=now)
 
 
 class Feeds:
-    def __init__(self, requests=None):
+    def __init__(self, *, workspace, connection):
         pass
 
     def fetch(self, source):
         entries = json.loads((root / 'videos.json').read_text())
-        return [discovery.Candidate(
+        return discovery.SourcePage([discovery.Candidate(
             video_id=e['id'], channel_id='channel', channel_title='测试频道', title=e['id'],
             url=f"https://www.youtube.com/watch?v={e['id']}",
             published_at=e.get('published_at', datetime.fromtimestamp(e['ts'] or 0, timezone.utc).isoformat()),
             published_ts=e.get('ts'),
-        ) for e in entries]
+        ) for e in entries])
 
 
 class CaptionHandler(BaseHTTPRequestHandler):
@@ -117,7 +117,7 @@ def classify(self, video_id):
 
 
 youtube.YouTubeWorkbench._sync_subscriptions = lambda self: None
-youtube.YouTubeAtomFeeds = Feeds
+youtube.YouTubeUploadsAPI = Feeds
 shorts.YouTubeShortsClassifier.classify = classify
 ws = workspace.LocalWorkspace.open(root / 'youtube')
 ws.set_meta('youtube_oauth_authorized', '1')

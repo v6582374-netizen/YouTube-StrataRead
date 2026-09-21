@@ -31,7 +31,16 @@ export type Connection = {
   authorized: boolean;
   subscription_count: number;
 };
+export type DiscoveryState = {
+  status?: string; error?: string | null; scanning?: boolean;
+  started_at?: number; finished_at?: number; next_scan_at?: number;
+  budget?: {used_units: number; local_daily_budget: number; minimum_daily_units: number;
+    over_capacity: boolean; requests_by_endpoint: Record<string, number>};
+  sources?: {channel_id: string; title: string; complete: number; error: string; coverage_reason: string;
+    valid_from?: number | null; valid_until?: number | null}[];
+};
 export type Activity = {
+  discovery?: DiscoveryState;
   document_count?: number;
   cancelled?: number;
   filtered?: number;

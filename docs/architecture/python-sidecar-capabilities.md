@@ -1,11 +1,11 @@
 # Python sidecar capability contract
 
-The Tauri renderer and host ask the Python sidecar for typed capabilities; they never access the local SQLite workspace, yt-dlp or Automic Vault directly.
+The Tauri renderer and host ask the Python sidecar for typed capabilities; they never access the local SQLite workspace, yt-dlp or system credential store directly.
 
 The sidecar exposes six capability families:
 
-- **Connection**: inspect, configure, authorize and disconnect the user-owned Google OAuth client.
-- **Collection**: report subscriptions and start or observe the automatic OAuth-import and RSS-discovery cycle.
+- **Connection**: inspect local connection state, authorize with Google, sync account membership, disconnect, and explicitly migrate an existing Vault connection.
+- **Collection**: report subscriptions and start or observe the low-frequency OAuth membership sync and independent official Data API discovery cycle.
 - **Library**: query local assets, move them between Inbox, To Read and Read, inspect provenance, create a new manuscript version and delete an entire asset.
 - **Documents**: return raw Markdown for copying and prepare a stable local document reference for the host to open with the operating system's default application.
 - **Activity**: expose a unified snapshot of batch, acquisition, generation and retry work, including progress, bounded cost/volume facts and terminal failure causes. The Tauri host serializes that snapshot into the `activity-snapshot` event stream for the renderer. The host may request retry for one asset, retry all failed assets, or a drain pause.

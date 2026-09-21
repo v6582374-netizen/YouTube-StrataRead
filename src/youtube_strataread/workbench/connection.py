@@ -5,18 +5,28 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import secrets
 import threading
 import time
 import webbrowser
+from collections.abc import Callable
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from importlib.resources import files
 from typing import Protocol
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from youtube_strataread.workbench.vault import SecretVault, VaultError
 from youtube_strataread.workbench.workspace import LocalWorkspace
+from youtube_strataread.workbench.youtube_api import (
+    SUBSCRIPTION_SYNC_SECONDS,
+    AuthorizationRequired,
+    ConnectionError,
+    YouTubeDataAPI,
+)
 
 _CLIENT_ID = "YOUTUBE_WORKBENCH_OAUTH_CLIENT_ID"
 _CLIENT_SECRET = "YOUTUBE_WORKBENCH_OAUTH_CLIENT_SECRET"
@@ -25,10 +35,6 @@ _REFRESH_TOKEN = "YOUTUBE_WORKBENCH_OAUTH_REFRESH_TOKEN"
 _EXPIRES_AT = "YOUTUBE_WORKBENCH_OAUTH_EXPIRES_AT"
 _YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
 _TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
-
-
-class ConnectionError(RuntimeError):
-    """A safe connection error suitable for the desktop UI."""
 
 
 @dataclass(frozen=True)
@@ -81,6 +87,9 @@ class GoogleOAuth(Protocol):
 
 class GoogleOAuthGateway:
     """Small standard-library client for a user-owned Google desktop OAuth client."""
+
+    def __init__(self) -> None:
+        self.api = YouTubeDataAPI()
 
     def authorize(self, configuration: OAuthClientConfiguration) -> OAuthCredentials:
         callback = _CallbackServer()
@@ -160,32 +169,24 @@ class GoogleOAuthGateway:
                     raise ConnectionError("YouTube subscriptions response repeated a page token")
                 seen_page_tokens.add(page_token)
                 query["pageToken"] = page_token
-            request = Request(
-                f"https://www.googleapis.com/youtube/v3/subscriptions?{urlencode(query)}",
-                headers={"Authorization": f"Bearer {credentials.access_token}"},
-            )
-            try:
-                with urlopen(request, timeout=30) as response:
-                    payload: object = json.load(response)
-            except (OSError, json.JSONDecodeError) as error:
-                raise ConnectionError("YouTube subscriptions could not be imported") from error
+            payload = self.api.get('subscriptions', query, credentials.access_token)
             if not isinstance(payload, dict):
                 raise ConnectionError("YouTube subscriptions response was invalid")
-            items = payload.get("items", [])
+            items = payload.get("items")
             if not isinstance(items, list):
                 raise ConnectionError("YouTube subscriptions response was invalid")
             for item in items:
                 if not isinstance(item, dict):
-                    continue
+                    raise ConnectionError("YouTube subscriptions response was invalid")
                 snippet = item.get("snippet", {})
                 if not isinstance(snippet, dict):
-                    continue
+                    raise ConnectionError("YouTube subscriptions response was invalid")
                 resource = snippet.get("resourceId", {})
                 if not isinstance(resource, dict):
-                    continue
+                    raise ConnectionError("YouTube subscriptions response was invalid")
                 channel_value = resource.get("channelId")
                 if not isinstance(channel_value, str) or not channel_value.strip():
-                    continue
+                    raise ConnectionError("YouTube subscriptions response was invalid")
                 channel_id = channel_value.strip()
                 if channel_id in seen_channel_ids:
                     continue
@@ -237,107 +238,242 @@ class ConnectionService:
         self.workspace = workspace
         self.vault = vault
         self.oauth = oauth
-        self._authorized = False
+        self.api = YouTubeDataAPI(workspace)
+        if isinstance(oauth, GoogleOAuthGateway):
+            oauth.api = self.api
+        self._lock = threading.RLock()
+        self._credentials: OAuthCredentials | None = None
+        self._sync_finished = 0.0
+        self._application_client = application_client()
+
+    def watch_subscriptions(self, stop: threading.Event, *, now: Callable[[], float] = time.time,
+                            wake: threading.Event | None = None) -> None:
+        """Low-frequency membership sync, independent of discovery and preparation."""
+        due = 0.0
+        while not stop.wait(1):
+            if now() < due or not self.status().authorized or self.workspace.meta('drain_paused') == '1':
+                continue
+            try:
+                last = float(self.workspace.meta('youtube_subscriptions_synced_at') or 0)
+                if now() - last < SUBSCRIPTION_SYNC_SECONDS:
+                    due = last + SUBSCRIPTION_SYNC_SECONDS
+                    continue
+                self.refresh_subscription_sources()
+                if wake:
+                    wake.set()
+                due = now() + SUBSCRIPTION_SYNC_SECONDS
+            except ConnectionError:
+                due = now() + 300
 
     def status(self) -> ConnectionStatus:
-        try:
-            configuration = self._configuration()
-            access_token = self.vault.load(_ACCESS_TOKEN)
-            refresh_token = self.vault.load(_REFRESH_TOKEN)
-        except VaultError as error:
-            raise ConnectionError("Automic Vault is unavailable") from error
-        self._authorized = bool(access_token or (configuration and refresh_token))
+        # Navigation reads only local, non-secret state. It never opens Keychain,
+        # Vault or a browser, even after the application has restarted.
         return ConnectionStatus(
-            configured=configuration is not None,
-            authorized=self._authorized,
+            configured=bool(self._application_client)
+            or self.workspace.meta("youtube_oauth_configured") == "1",
+            authorized=self.workspace.meta("youtube_oauth_authorized") == "1",
             subscription_count=self.workspace.subscription_source_count(),
         )
+
+    def _connected(self, authorized: bool) -> None:
+        if authorized:
+            self.api.authorized()
+        self.workspace.set_meta("youtube_oauth_configured", "1")
+        self.workspace.set_meta("youtube_oauth_authorized", "1" if authorized else "0")
+        self.workspace.set_meta("youtube_reconnect_required", "0")
 
     def configure(self, *, client_id: str, client_secret: str) -> ConnectionStatus:
         if not client_id.strip() or not client_secret.strip():
             raise ConnectionError("Google OAuth client ID and secret are required")
-        try:
-            self.vault.save(_CLIENT_ID, client_id.strip())
-            self.vault.save(_CLIENT_SECRET, client_secret.strip())
-        except VaultError as error:
-            raise ConnectionError("Automic Vault could not save the Google OAuth client") from error
-        # Successful writes are the acknowledgement; re-reading would trigger
-        # additional Vault approvals merely to render the next screen.
-        return ConnectionStatus(
-            configured=True,
-            authorized=self._authorized,
-            subscription_count=self.workspace.subscription_source_count(),
-        )
+        with self._lock:
+            try:
+                self.vault.save_many(
+                    {
+                        _CLIENT_ID: client_id.strip(),
+                        _CLIENT_SECRET: client_secret.strip(),
+                        _ACCESS_TOKEN: "",
+                        _REFRESH_TOKEN: "",
+                        _EXPIRES_AT: "",
+                    }
+                )
+            except VaultError as error:
+                raise ConnectionError(str(error)) from error
+            self._credentials = None
+            self._connected(False)
+            return self.status()
+
+    def migrate_credentials(self) -> ConnectionStatus:
+        # This is explicit and idempotent. Normal startup/sync never invokes av.
+        with self._lock:
+            if self.workspace.meta("youtube_oauth_configured") == "1":
+                return self.status()
+            from youtube_strataread.workbench.vault import AutomicVault
+
+            try:
+                values = AutomicVault(
+                    namespace=str(self.workspace.root.resolve())
+                ).export_credentials(
+                    [_CLIENT_ID, _CLIENT_SECRET, _ACCESS_TOKEN, _REFRESH_TOKEN, _EXPIRES_AT]
+                )
+                if not values.get(_CLIENT_ID) or not values.get(_CLIENT_SECRET):
+                    raise ConnectionError("No existing Google client configuration was found")
+                self.vault.save_many(values)
+            except VaultError as error:
+                raise ConnectionError(str(error)) from error
+            self._connected(bool(values.get(_ACCESS_TOKEN) or values.get(_REFRESH_TOKEN)))
+            return self.status()
 
     def authorize_and_import(self) -> ConnectionStatus:
-        configuration = self._require_configuration()
-        credentials = self.oauth.authorize(configuration)
-        self._store_credentials(credentials)
-        self.workspace.replace_subscription_sources(self.oauth.list_subscriptions(credentials))
-        return self.status()
+        with self._lock:
+            credentials = self.oauth.authorize(self._require_configuration())
+            self._store_credentials(credentials)
+            self._connected(True)
+            return self.refresh_subscription_sources()
 
     def refresh_subscription_sources(self) -> ConnectionStatus:
-        credentials = self._active_credentials()
-        self.workspace.replace_subscription_sources(self.oauth.list_subscriptions(credentials))
-        return self.status()
+        requested = time.monotonic()
+        with self._lock:
+            # A refresh queued before an explicit disconnect must not revive it.
+            if (
+                self.workspace.meta("youtube_oauth_authorized") == "0"
+                or self._sync_finished >= requested
+            ):
+                return self.status()
+            try:
+                credentials = self._active_credentials()
+                try:
+                    sources = self.oauth.list_subscriptions(credentials)
+                except AuthorizationRequired:
+                    # A server-rejected access token gets one silent refresh, not
+                    # an immediate browser prompt. A second rejection needs login.
+                    credentials = self._active_credentials(force_refresh=True)
+                    sources = self.oauth.list_subscriptions(credentials)
+                self.workspace.replace_subscription_sources(sources)
+                self._connected(True)
+                self.workspace.set_meta("youtube_subscriptions_synced_at", str(time.time()))
+                self.workspace.set_meta("youtube_subscriptions_error", "")
+                self._sync_finished = time.monotonic()
+                return self.status()
+            except AuthorizationRequired as error:
+                self.api.block('authorization')
+                self._credentials = None
+                self.workspace.set_meta("youtube_oauth_authorized", "0")
+                self.workspace.set_meta("youtube_reconnect_required", "1")
+                self.workspace.set_meta("youtube_subscriptions_error", str(error))
+                raise
+            except (ConnectionError, VaultError) as error:
+                # Transient failures preserve membership and the last good sync.
+                self.workspace.set_meta("youtube_subscriptions_error", str(error))
+                raise ConnectionError(str(error)) from error
+
+    def youtube_get(self, endpoint: str, parameters: dict[str, str]) -> dict:
+        """Signed official reads share the existing refresh token and native store."""
+        with self._lock:
+            self.api.ensure_available()
+            if not self.status().authorized:
+                raise AuthorizationRequired('YouTube 授权失效，请重新连接。')
+            try:
+                credentials = self._active_credentials()
+                try:
+                    return self.api.get(endpoint, parameters, credentials.access_token)
+                except AuthorizationRequired:
+                    credentials = self._active_credentials(force_refresh=True)
+                    return self.api.get(endpoint, parameters, credentials.access_token)
+            except AuthorizationRequired:
+                self._credentials = None
+                self.workspace.set_meta('youtube_oauth_authorized', '0')
+                self.workspace.set_meta('youtube_reconnect_required', '1')
+                self.api.block('authorization')
+                raise
+            except VaultError:
+                raise ConnectionError('System credential store is unavailable; unlock it and retry') from None
 
     def subscription_sources(self) -> list[dict[str, str | None]]:
         return self.workspace.subscription_sources()
 
     def disconnect(self) -> ConnectionStatus:
-        try:
-            self.vault.save(_ACCESS_TOKEN, "")
-            self.vault.save(_REFRESH_TOKEN, "")
-            self.vault.save(_EXPIRES_AT, "")
-        except VaultError as error:
-            raise ConnectionError(
-                "Automic Vault could not clear the YouTube authorization"
-            ) from error
-        return self.status()
+        with self._lock:
+            try:
+                self.vault.save_many({_ACCESS_TOKEN: "", _REFRESH_TOKEN: "", _EXPIRES_AT: ""})
+            except VaultError as error:
+                raise ConnectionError(str(error)) from error
+            self._credentials = None
+            self._connected(False)
+            self.workspace.set_meta("youtube_subscriptions_error", "")
+            return self.status()
 
-    def _active_credentials(self) -> OAuthCredentials:
-        configuration = self._require_configuration()
-        try:
-            access_token = self.vault.load(_ACCESS_TOKEN)
-            refresh_token = self.vault.load(_REFRESH_TOKEN)
-            expires_at = _float_or_none(self.vault.load(_EXPIRES_AT))
-        except VaultError as error:
-            raise ConnectionError("Automic Vault is unavailable") from error
-        if not access_token or (expires_at is not None and expires_at <= time.time() + 60):
-            if not refresh_token:
-                raise ConnectionError("YouTube authorization expired; reconnect the account")
-            credentials = self.oauth.refresh(configuration, refresh_token)
+    def _active_credentials(self, *, force_refresh: bool = False) -> OAuthCredentials:
+        if self._credentials is None:
+            try:
+                self._credentials = OAuthCredentials(
+                    access_token=self.vault.load(_ACCESS_TOKEN) or "",
+                    refresh_token=self.vault.load(_REFRESH_TOKEN),
+                    expires_at=_float_or_none(self.vault.load(_EXPIRES_AT)),
+                )
+            except VaultError as error:
+                raise ConnectionError(str(error)) from error
+        credentials = self._credentials
+        if (
+            force_refresh
+            or not credentials.access_token
+            or (credentials.expires_at is not None and credentials.expires_at <= time.time() + 60)
+        ):
+            if not credentials.refresh_token:
+                raise AuthorizationRequired("YouTube authorization expired; reconnect the account")
+            credentials = self.oauth.refresh(
+                self._require_configuration(), credentials.refresh_token
+            )
+            # Some providers omit refresh_token on rotation; preserve the current one.
+            credentials = OAuthCredentials(
+                credentials.access_token,
+                credentials.refresh_token or self._credentials.refresh_token,
+                credentials.expires_at,
+            )
             self._store_credentials(credentials)
-            return credentials
-        return OAuthCredentials(
-            access_token=access_token, refresh_token=refresh_token, expires_at=expires_at
-        )
+        return credentials
 
     def _store_credentials(self, credentials: OAuthCredentials) -> None:
         try:
-            self.vault.save(_ACCESS_TOKEN, credentials.access_token)
-            self.vault.save(_REFRESH_TOKEN, credentials.refresh_token or "")
-            self.vault.save(_EXPIRES_AT, str(credentials.expires_at or ""))
+            self.vault.save_many(
+                {
+                    _ACCESS_TOKEN: credentials.access_token,
+                    _REFRESH_TOKEN: credentials.refresh_token or "",
+                    _EXPIRES_AT: str(credentials.expires_at or ""),
+                }
+            )
         except VaultError as error:
-            raise ConnectionError(
-                "Automic Vault could not store the YouTube authorization"
-            ) from error
+            raise ConnectionError(str(error)) from error
+        self._credentials = credentials
 
     def _require_configuration(self) -> OAuthClientConfiguration:
-        configuration = self._configuration()
-        if configuration is None:
-            raise ConnectionError("Configure a Google OAuth client before connecting YouTube")
-        return configuration
-
-    def _configuration(self) -> OAuthClientConfiguration | None:
         try:
             client_id = self.vault.load(_CLIENT_ID)
             client_secret = self.vault.load(_CLIENT_SECRET)
         except VaultError as error:
-            raise ConnectionError("Automic Vault is unavailable") from error
-        if not client_id or not client_secret:
-            return None
-        return OAuthClientConfiguration(client_id=client_id, client_secret=client_secret)
+            raise ConnectionError(str(error)) from error
+        if client_id and client_secret:
+            return OAuthClientConfiguration(client_id, client_secret)
+        if self._application_client:
+            return self._application_client
+        raise ConnectionError("This build has no Google OAuth client configured")
+
+
+def application_client() -> OAuthClientConfiguration | None:
+    """Developer-owned installed-app client. Never contains user account tokens."""
+    client_id = os.environ.get("EDISON_GOOGLE_OAUTH_CLIENT_ID")
+    client_secret = os.environ.get("EDISON_GOOGLE_OAUTH_CLIENT_SECRET")
+    if client_id and client_secret:
+        return OAuthClientConfiguration(client_id, client_secret)
+    try:
+        payload = json.loads(
+            files("youtube_strataread.workbench").joinpath("google-oauth-client.json").read_text()
+        )
+        installed = payload.get("installed", payload)
+        if installed.get("client_id") and installed.get("client_secret"):
+            return OAuthClientConfiguration(installed["client_id"], installed["client_secret"])
+    except FileNotFoundError:
+        pass
+    return None
 
 
 class _CallbackServer:
@@ -374,7 +510,7 @@ class _CallbackServer:
                     return
                 outer._query = parse_qs(urlparse(self.path).query)
                 outer._event.set()
-                body = "YouTube is connected. You can return to 视频资料库."
+                body = "Google authorization received. You can return to Edison."
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
                 self.send_header("Content-Length", str(len(body.encode("utf-8"))))
@@ -404,6 +540,16 @@ def _post_form(url: str, values: dict[str, str]) -> dict[str, object]:
     try:
         with urlopen(request, timeout=30) as response:
             payload: object = json.load(response)
+    except HTTPError as error:
+        try:
+            reason = json.load(error).get("error")
+        except (ValueError, OSError, AttributeError):
+            reason = None
+        if reason == "invalid_grant":
+            raise AuthorizationRequired(
+                "YouTube authorization expired; reconnect the account"
+            ) from error
+        raise ConnectionError("Google authorization token exchange failed") from error
     except (OSError, json.JSONDecodeError) as error:
         raise ConnectionError("Google authorization token exchange failed") from error
     if not isinstance(payload, dict):

@@ -104,6 +104,9 @@ def test_authenticated_host_library_waits_for_model_then_prepares_and_hands_off(
         assert request("library.list")["assets"][0]["preparation_state"] == "queued"
         assert not provider.calls
         ready["model_ready"] = True
+        assert request("activity.snapshot")["drain_paused"]
+        assert not service.prepare_one()
+        request("activity.resume")
         assert service.prepare_one()
         assert provider.calls[0][0] == "host-model"
         assert request("activity.snapshot")["model"] == "host-model"
@@ -136,8 +139,11 @@ def test_shutdown_during_discovery_cannot_start_a_new_asset(tmp_path, monkeypatc
 
     entered, release = threading.Event(), threading.Event()
     monkeypatch.setenv("YOUTUBE_WORKBENCH_WORKSPACE", str(tmp_path))
+    from youtube_strataread.workbench.workspace import LocalWorkspace
+    LocalWorkspace.open(tmp_path).set_meta("youtube_oauth_authorized", "1")
+    monkeypatch.setattr(youtube.YouTubeWorkbench, "_sync_subscriptions", lambda self: None)
 
-    def discover(self):
+    def discover(self, **kwargs):
         entered.set()
         assert release.wait(5)
 
@@ -146,20 +152,22 @@ def test_shutdown_during_discovery_cannot_start_a_new_asset(tmp_path, monkeypatc
     monkeypatch.setattr(youtube.YtDlpCaptions, "acquire", lambda self, url: calls.append(url))
     manager = SimpleNamespace(get_settings=lambda: {"model_ready": True})
     service = youtube.YouTubeWorkbench(manager)
-    service.workspace.add_candidate(
-        Candidate(
-            "one",
-            "channel",
-            "Channel",
-            "Title",
-            "https://www.youtube.com/watch?v=one",
-            "2026-09-18T10:40:00Z",
-            1_789_728_000,
-        )
-    )
     try:
+        service.dispatch("activity.resume", {})
         assert entered.wait(3)
         service.close()
+        service.workspace.add_candidate(
+            Candidate(
+                "one",
+                "channel",
+                "Channel",
+                "Title",
+                "https://www.youtube.com/watch?v=one",
+                "2026-09-18T10:40:00Z",
+                1_789_728_000,
+            )
+        )
+
     finally:
         release.set()
         service.thread.join(3)
@@ -207,6 +215,7 @@ def test_channel_exclusion_and_prompt_survive_restart_without_removing_documents
                 "ready", "Title", "en", False, "1\n00:00:00,000 --> 00:00:02,000\nSource\n"
             )
         )
+        assert service.dispatch("activity.resume", {})["ok"]
         assert service.prepare_one()
         original = service.library.document("ready")["markdown"]
         assert service.dispatch("collection.set_exclusions", {"excluded_channels": ["a"]})["ok"]
@@ -294,3 +303,21 @@ def test_original_video_opens_via_macos_using_stored_identity(tmp_path, monkeypa
         assert not service.dispatch("sources.open", {"video_id": "XgqKqN_H-4M"})["ok"]
     finally:
         service.close()
+
+
+def test_host_starts_empty_beside_legacy_library(tmp_path, monkeypatch):
+    from youtube_strataread.workbench.connection import SubscriptionSource
+    from youtube_strataread.workbench.workspace import LocalWorkspace
+
+    monkeypatch.delenv("YOUTUBE_WORKBENCH_WORKSPACE", raising=False)
+    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "edison"))
+    monkeypatch.setattr(youtube.YouTubeWorkbench, "_run", lambda self: None)
+    legacy = LocalWorkspace.open(tmp_path / "legacy")
+    legacy.replace_subscription_sources([SubscriptionSource(channel_id="private", title="Private")])
+    monkeypatch.setattr(youtube, "workspace_root", lambda: legacy.root, raising=False)
+    manager = SessionManager(data_dir=tmp_path / "edison", provider=Provider(), model="host-model")
+    with TestClient(create_app(manager)) as client:
+        response = client.post("/v1/youtube/capability", json={"capability": "collection.preferences"})
+        assert response.json()["result"]["sources"] == []
+        assert (tmp_path / "edison/youtube/workspace.sqlite3").is_file()
+    assert legacy.subscription_source_count() == 1

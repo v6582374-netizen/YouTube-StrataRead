@@ -11,7 +11,7 @@ from test_workbench_library import candidate, ready_service
 
 from youtube_strataread.workbench import shorts
 from youtube_strataread.workbench.connection import SubscriptionSource
-from youtube_strataread.workbench.discovery import SubscriptionDiscovery
+from youtube_strataread.workbench.discovery import SourcePage, SubscriptionDiscovery
 from youtube_strataread.workbench.workspace import LocalWorkspace
 
 VIDEO = "normal00001"
@@ -157,7 +157,7 @@ def test_short_exclusion_survives_refresh_backfill_and_retry(tmp_path):
         [SubscriptionSource(channel_id="channel", title="Channel")]
     )
     discovery = SubscriptionDiscovery(
-        workspace=workspace, feeds=SimpleNamespace(fetch=lambda source: [video])
+        workspace=workspace, source=SimpleNamespace(fetch=lambda source: SourcePage([video]))
     )
     discovery.refresh()
     service = ready_service(workspace)

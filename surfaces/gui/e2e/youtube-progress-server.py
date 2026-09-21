@@ -28,7 +28,7 @@ from coworker.server import SessionManager, create_app, youtube
 from youtube_strataread.downloader.youtube import SubtitleResult, YouTubeError
 from youtube_strataread.workbench import shorts
 from youtube_strataread.workbench.connection import SubscriptionSource
-from youtube_strataread.workbench.discovery import Candidate
+from youtube_strataread.workbench.discovery import Candidate, SourcePage
 from youtube_strataread.workbench.workspace import LocalWorkspace
 from youtube_strataread.workbench import workspace as workspace_module
 workspace_module.time = SimpleNamespace(time=lambda: 1789819200.0)
@@ -109,17 +109,15 @@ if workspace.meta("fixture_seeded") != "1":
 
 
 class Feeds:
-    def __init__(self, requests=None):
-        self.requests = requests
+    def __init__(self, *, workspace, connection):
+        pass
 
     def fetch(self, source):
-        if self.requests and self.requests.cooling_down():
-            self.requests.before_request()
-        return videos
+        return SourcePage(videos)
 
 
 youtube.YtDlpCaptions = Captions
-youtube.YouTubeAtomFeeds = Feeds
+youtube.YouTubeUploadsAPI = Feeds
 if shorts_mode:
     from io import BytesIO
     from urllib.parse import parse_qs, urlsplit

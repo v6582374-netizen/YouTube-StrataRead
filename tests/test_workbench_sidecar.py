@@ -130,7 +130,7 @@ def test_sidecar_serves_repeated_empty_library_snapshots(tmp_path: Path) -> None
         {
             "id": "refresh",
             "ok": True,
-            "result": {"discovered": 0, "scanned_sources": 0, "truncated": False},
+            "result": {"discovered": 0, "scanned_sources": 0, "truncated": True, "status": "authorization", "error": "YouTube 授权失效，请重新连接。"},
         },
     ]
     assert "not-a-real-secret" not in result.stdout
@@ -143,7 +143,7 @@ def test_frozen_sidecar_rejects_the_test_vault(monkeypatch) -> None:
     sentinel = object()
     monkeypatch.setenv("YOUTUBE_WORKBENCH_TEST_VAULT", "1")
     monkeypatch.setattr(sidecar.sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sidecar, "AutomicVault", lambda: sentinel)
+    monkeypatch.setattr(sidecar, "NativeKeychainVault", lambda **kwargs: sentinel)
 
     assert sidecar._vault() is sentinel
 

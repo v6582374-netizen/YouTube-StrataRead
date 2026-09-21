@@ -31,9 +31,8 @@ can establish prior work for an unfinished task; an older completed manuscript d
 an unrelated regeneration exemption. Legacy cached format checks are revalidated. Migration
 and its completion marker commit together, and reopening does not regrant cancelled work.
 
-Discovery remains the existing entry point for this ticket. The official API replacement and
-final live/premiere completion rules belong to subsequent tickets; no new discovery fallback
-or task engine is introduced here.
+Discovery now uses only the official Data API; see [discovery](youtube-discovery.md).
+Final live/premiere completion rules and fair cross-channel pagination remain subsequent work.
 
 ## Verification
 

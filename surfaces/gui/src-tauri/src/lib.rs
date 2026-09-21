@@ -14,6 +14,11 @@
 //! passes `OPENAI_API_KEY` through. A Finder-launched app has no shell env — there the key
 //! comes from the SecretStore (Settings tab), see `coworker.providers.resolve_api_key`.
 
+mod curriculum_notifications;
+mod course_notification_platform;
+mod course_notification_service;
+use course_notification_service::{get_course_notification_status, set_course_notifications_enabled, CourseNotificationService};
+
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 #[cfg(target_os = "windows")]
@@ -717,6 +722,8 @@ pub fn run() {
             None,
         ))
         .invoke_handler(tauri::generate_handler![
+            get_course_notification_status,
+            set_course_notifications_enabled,
             pick_folder,
             get_autostart,
             set_autostart,
@@ -829,6 +836,7 @@ pub fn run() {
                     .traffic_light_position(tauri::LogicalPosition::new(19.0, 24.0));
             }
             let win = builder.build()?;
+            app.manage(CourseNotificationService::start(state_dir().join("curriculum-notifications.json")));
 
             // Close-to-tray: hide instead of quitting so the sidecar keeps running.
             let w = win.clone();
@@ -876,6 +884,7 @@ pub fn run() {
             // Also on Exit: belt-and-suspenders in case a quit path reaches teardown without
             // a preceding ExitRequested (observed with macOS Cmd+Q under the tray setup).
             if matches!(event, RunEvent::ExitRequested { .. } | RunEvent::Exit) {
+                if let Some(service) = app.try_state::<Arc<CourseNotificationService>>() { service.stop(); }
                 if let Some(state) = app.try_state::<ServerProcess>() {
                     if let Some(mut child) = state.0.lock().unwrap().take() {
                         let _ = child.kill();

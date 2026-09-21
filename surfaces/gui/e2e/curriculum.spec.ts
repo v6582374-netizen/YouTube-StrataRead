@@ -109,7 +109,7 @@ test("weekly overview remains readable in both themes and a narrow window", asyn
   await page.screenshot({ path: testInfo.outputPath("curriculum-narrow.png") });
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await page.getByLabel("跳转日期").fill("2027-03-01");
-  await expect(page.getByRole("status")).toBeInViewport();
+  await expect(page.getByRole("status").filter({ hasText: "春季学期课表尚未提供" })).toBeInViewport();
 });
 
 test.describe("school timezone", () => {

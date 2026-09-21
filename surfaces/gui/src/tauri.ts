@@ -136,3 +136,13 @@ export function openExternal(url: string): void {
   }
   window.open(url, "_blank", "noopener,noreferrer");
 }
+
+export type CourseNotificationStatus = {
+  enabled: boolean;
+  permission: "checking" | "not_determined" | "requesting" | "granted" | "denied" | "unsupported" | "unavailable";
+  error: string | null;
+};
+
+export const getCourseNotificationStatus = () => invokeStrict<CourseNotificationStatus>("get_course_notification_status");
+export const setCourseNotificationsEnabled = (enabled: boolean) =>
+  invokeStrict<CourseNotificationStatus>("set_course_notifications_enabled", { enabled });

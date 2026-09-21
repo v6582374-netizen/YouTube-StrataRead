@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Icon } from "./Icon";
 import { addDays, curriculumWeek, MAX_DATE, MIN_DATE, minutes, PERIODS, shanghaiToday, validDate } from "./curriculum/timetable";
 import type { Occurrence } from "./curriculum/timetable";
+import { NotificationControl } from "./curriculum/NotificationControl";
 import { CourseDetails } from "./curriculum/CourseDetails";
 import "./curriculum/curriculum.css";
 
@@ -45,7 +46,10 @@ export function CurriculumView() {
           <h1>Curriculum</h1>
           <p className="curriculum-subtitle">{t("curriculum.subtitle")}</p>
         </div>
-        <span className="curriculum-semester">{t(`curriculum.${schedule.semester ?? "outside_term"}`)}</span>
+        <div className="curriculum-header-actions">
+          <NotificationControl />
+          <span className="curriculum-semester">{t(`curriculum.${schedule.semester ?? "outside_term"}`)}</span>
+        </div>
       </header>
       <section className="curriculum-toolbar" aria-label={t("curriculum.navigation")}>
         <div className="curriculum-week-title" aria-live="polite">

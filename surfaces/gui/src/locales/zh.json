@@ -1,5 +1,16 @@
 {
   "curriculum": {
+    "notifications": {
+      "label": "课程通知",
+      "checking": "正在检查系统通知权限…",
+      "granted": "逐节次提醒上课与下课",
+      "off": "课程提醒已关闭",
+      "denied": "请在系统设置 → 通知 → Edison 中允许通知",
+      "not_determined": "尚未获得系统通知授权，请检查系统通知设置",
+      "requesting": "等待系统通知授权…",
+      "unsupported": "系统提醒仅在 macOS 桌面版可用",
+      "unavailable": "通知暂不可用，请检查系统权限或重试"
+    },
     "course_details": "课程详情",
     "close": "关闭",
     "class_time": "上课时间",

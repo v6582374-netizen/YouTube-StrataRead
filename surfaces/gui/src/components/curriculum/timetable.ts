@@ -1,26 +1,9 @@
-// Transcribed from the user's 2026–2027-1 PDF (printed 2026-09-20).
-// Weeks are explicit source lists. Weekend make-ups are already present here.
+// Shared with the native reminder service; explicit source weeks include make-ups.
 import { CALENDAR } from "./calendar";
+import data from "./timetable-data.json";
 
-export const PERIODS = [
-  ["08:00", "08:45"], ["08:50", "09:35"], ["09:50", "10:35"],
-  ["10:40", "11:25"], ["11:30", "12:15"], ["13:30", "14:15"],
-  ["14:20", "15:05"], ["15:20", "16:05"], ["16:10", "16:55"],
-  ["18:30", "19:15"], ["19:20", "20:05"], ["20:10", "20:55"],
-] as const;
-
-const COURSES = {
-  math: { name: "工程数学", color: "#60816e" },
-  microcontroller: { name: "单片机应用技术", color: "#547fa4" },
-  ai: { name: "计算思维与人工智能", color: "#927341" },
-  python: { name: "Python程序设计与应用", color: "#8372a5" },
-  iot: { name: "物联网技术与原理", color: "#4b8986" },
-  design: { name: "三维造型与工业设计", color: "#ad735d" },
-  cpp: { name: "C++程序设计及上机", color: "#737aab" },
-  visualization: { name: "科学计算可视化", color: "#9b7592" },
-  exhibition: { name: "会展设计的艺术性", color: "#9a824e" },
-  tourism: { name: "可持续旅游与数字创新", color: "#598b78" },
-} as const;
+export const PERIODS = data.periods;
+const COURSES = data.courses;
 
 type CourseId = keyof typeof COURSES;
 type Schedule = {
@@ -33,40 +16,10 @@ type Schedule = {
   room: string;
 };
 
-const MON_TO_WED_WEEKS = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-const THURSDAY_WEEKS = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-const FRIDAY_WEEKS = [1, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 17];
-const SCHEDULE: readonly Schedule[] = [
-  { course: "math", day: 1, first: 3, last: 4, weeks: MON_TO_WED_WEEKS, teacher: "宋胜重", room: "教三401" },
-  { course: "iot", day: 1, first: 3, last: 4, weeks: [18], teacher: "张懿", room: "理5A-306" },
-  { course: "design", day: 1, first: 6, last: 7, weeks: [18], teacher: "张哲硕", room: "文3-115" },
-  { course: "iot", day: 1, first: 8, last: 9, weeks: MON_TO_WED_WEEKS, teacher: "郑腾", room: "文1-108" },
-  { course: "design", day: 1, first: 8, last: 9, weeks: [18], teacher: "张哲硕", room: "理5A-410" },
-  { course: "microcontroller", day: 2, first: 1, last: 2, weeks: MON_TO_WED_WEEKS, teacher: "谢浩", room: "文3-115" },
-  { course: "microcontroller", day: 2, first: 3, last: 4, weeks: MON_TO_WED_WEEKS, teacher: "谢浩", room: "理5A-302" },
-  { course: "cpp", day: 2, first: 6, last: 7, weeks: MON_TO_WED_WEEKS, teacher: "王媛媛", room: "文3-211" },
-  { course: "cpp", day: 2, first: 8, last: 9, weeks: MON_TO_WED_WEEKS, teacher: "王媛媛", room: "理5A-310" },
-  { course: "exhibition", day: 2, first: 10, last: 11, weeks: MON_TO_WED_WEEKS, teacher: "周烨", room: "教七201" },
-  { course: "ai", day: 3, first: 3, last: 5, weeks: MON_TO_WED_WEEKS, teacher: "尹琳", room: "理4-526" },
-  { course: "math", day: 3, first: 6, last: 7, weeks: MON_TO_WED_WEEKS, teacher: "宋胜重", room: "教三401" },
-  { course: "python", day: 4, first: 1, last: 2, weeks: THURSDAY_WEEKS, teacher: "田强兴", room: "文1-114" },
-  { course: "python", day: 4, first: 3, last: 4, weeks: THURSDAY_WEEKS, teacher: "田强兴", room: "理5A-410" },
-  { course: "visualization", day: 4, first: 6, last: 7, weeks: THURSDAY_WEEKS, teacher: "陈忠宝", room: "文1-114" },
-  { course: "visualization", day: 4, first: 8, last: 9, weeks: THURSDAY_WEEKS, teacher: "陈忠宝", room: "理5A-306" },
-  { course: "tourism", day: 4, first: 10, last: 12, weeks: THURSDAY_WEEKS, teacher: "KHAN ASIF", room: "教七106" },
-  { course: "iot", day: 5, first: 3, last: 4, weeks: FRIDAY_WEEKS, teacher: "张懿", room: "理5A-306" },
-  { course: "design", day: 5, first: 6, last: 7, weeks: FRIDAY_WEEKS, teacher: "张哲硕", room: "文3-115" },
-  { course: "design", day: 5, first: 8, last: 9, weeks: FRIDAY_WEEKS, teacher: "张哲硕", room: "理5A-410" },
-  { course: "iot", day: 6, first: 3, last: 4, weeks: [4], teacher: "张懿", room: "理5A-306" },
-  { course: "design", day: 6, first: 6, last: 7, weeks: [4], teacher: "张哲硕", room: "文3-115" },
-  { course: "design", day: 6, first: 8, last: 9, weeks: [4], teacher: "张哲硕", room: "理5A-410" },
-  { course: "iot", day: 7, first: 3, last: 4, weeks: [1], teacher: "张懿", room: "理5A-306" },
-  { course: "design", day: 7, first: 6, last: 7, weeks: [1], teacher: "张哲硕", room: "文3-115" },
-  { course: "design", day: 7, first: 8, last: 9, weeks: [1], teacher: "张哲硕", room: "理5A-410" },
-];
+const SCHEDULE = data.schedule as Schedule[];
 
 const DAY_MS = 86_400_000;
-const AUTUMN_START = "2026-09-14";
+const AUTUMN_START = data.semesterStart;
 const SPRING_START = "2027-03-01";
 export const MIN_DATE = "1900-01-01";
 export const MAX_DATE = "2100-12-31";

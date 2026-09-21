@@ -1,5 +1,16 @@
 {
   "curriculum": {
+    "notifications": {
+      "label": "Class notifications",
+      "checking": "Checking notification permission…",
+      "granted": "Remind at the start and end of each period",
+      "off": "Class reminders are off",
+      "denied": "Allow Edison in System Settings → Notifications",
+      "not_determined": "Notification permission not granted; check system settings",
+      "requesting": "Waiting for system notification permission…",
+      "unsupported": "System reminders require the macOS desktop app",
+      "unavailable": "Notifications unavailable; check system permission or try again"
+    },
     "course_details": "Course details",
     "close": "Close",
     "class_time": "Time",

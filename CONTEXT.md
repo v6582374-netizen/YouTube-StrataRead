@@ -47,3 +47,11 @@ _Avoid_: Course definition, personal task
 **Course-free interval（无课时段）**:
 A gap between known course commitments within a covered timetable period. It does not establish availability for other commitments.
 _Avoid_: Guaranteed availability, missing timetable
+
+**Course notification（课程通知）**:
+A system notification marking the scheduled start or end of one numbered class period. It belongs to the operating system's notification surface, distinct from messages inside Edison.
+_Avoid_: In-app toast, personal task reminder
+
+**Class period（课程节次）**:
+One numbered teaching interval in the university's daily timetable, with its own start and end time. A single course occurrence can contain several periods separated by breaks.
+_Avoid_: Entire course occurrence, weekly course

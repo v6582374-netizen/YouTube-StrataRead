@@ -37,6 +37,8 @@ export type Activity = {
   filtered?: number;
   awaiting_classification?: number;
   rate_limited?: number;
+  expired?: number;
+  awaiting_timing?: number;
   youtube_requests?: { cooldown_until: number; strikes: number };
   current?: CurrentPreparation[];
   events?: ProgressEvent[];
@@ -125,6 +127,7 @@ export type QueueItem = {
   video_id: string; title: string; channel_title: string; preparation_state: string;
   published_at?: string; duration_seconds?: number | null;
   failure_reason: string | null; manuscript_version: number | null;
+  commenced_at?: number | null; request_kind?: "automatic" | "manual";
 };
 
 export type ConsoleEntry = {

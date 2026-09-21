@@ -15,6 +15,7 @@ from youtube_strataread.workbench.shorts import YouTubeShortsClassifier
 @pytest.fixture(autouse=True)
 def ordinary_video_metadata(monkeypatch):
     monkeypatch.setattr(YouTubeShortsClassifier, "classify", lambda self, video_id: False)
+    monkeypatch.setattr("youtube_strataread.workbench.workspace.time", SimpleNamespace(time=lambda: 1789728000.0))
 
 
 class Provider(ProviderClient):
@@ -90,7 +91,7 @@ def test_authenticated_host_library_waits_for_model_then_prepares_and_hands_off(
                 "Channel",
                 "Title",
                 "https://www.youtube.com/watch?v=fixture",
-                "2026-09-18",
+                "2026-09-18T10:40:00Z",
                 1_789_728_000,
             )
         )
@@ -152,7 +153,7 @@ def test_shutdown_during_discovery_cannot_start_a_new_asset(tmp_path, monkeypatc
             "Channel",
             "Title",
             "https://www.youtube.com/watch?v=one",
-            "2026-09-18",
+            "2026-09-18T10:40:00Z",
             1_789_728_000,
         )
     )
@@ -197,7 +198,7 @@ def test_channel_exclusion_and_prompt_survive_restart_without_removing_documents
                     "A",
                     id,
                     "https://www.youtube.com/watch?v=" + id,
-                    "2026-09-18",
+                    "2026-09-18T10:40:00Z",
                     1789728000,
                 )
             )
@@ -228,7 +229,7 @@ def test_channel_exclusion_and_prompt_survive_restart_without_removing_documents
                 "A",
                 "Blocked",
                 "https://www.youtube.com/watch?v=blocked",
-                "2026-09-18",
+                "2026-09-18T10:40:00Z",
                 1789728000,
             )
         )

@@ -20,6 +20,7 @@ from youtube_strataread.downloader.request_policy import (
     MAX_RATE_LIMIT_ATTEMPTS,
     YouTubeRequestPolicy,
 )
+from youtube_strataread.workbench.freshness import WAITING_REASONS, admission
 from youtube_strataread.workbench.shorts import CLASSIFICATION_RETRY_SECONDS
 
 if TYPE_CHECKING:
@@ -106,13 +107,14 @@ class LocalWorkspace:
         )
 
     def add_candidate(self, candidate: Candidate) -> bool:
+        state = admission(candidate.published_at, candidate.published_ts, time.time())
         with sqlite3.connect(self.database_path) as connection:
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO candidates
                     (video_id, channel_id, channel_title, title, url, published_at, published_ts,
                      discovered_at, preparation_state, failure_reason)
-                SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'queued', NULL
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 WHERE NOT EXISTS (SELECT 1 FROM excluded_channels WHERE channel_id = ?)
                 """,
                 (
@@ -124,10 +126,22 @@ class LocalWorkspace:
                     candidate.published_at,
                     candidate.published_ts,
                     time.time(),
+                    state,
+                    WAITING_REASONS.get(state),
                     candidate.channel_id,
                 ),
             )
-        return cursor.rowcount > 0
+            inserted = cursor.rowcount > 0
+            if not inserted:
+                connection.execute(
+                    """UPDATE candidates SET published_at = ?, published_ts = ?,
+                       preparation_state = ?, failure_reason = ?
+                       WHERE video_id = ? AND preparation_state = 'awaiting_timing'
+                         AND commenced_at IS NULL AND timing_status != 'event'""",
+                    (candidate.published_at, candidate.published_ts, state,
+                     WAITING_REASONS.get(state), candidate.video_id),
+                )
+        return inserted
 
     def excluded_channels(self) -> list[str]:
         with sqlite3.connect(self.database_path) as connection:
@@ -156,23 +170,22 @@ class LocalWorkspace:
             paused = connection.execute(
                 "SELECT value FROM workspace_meta WHERE key = 'drain_paused'"
             ).fetchone()
-            if paused is not None and paused[0] == "1":
-                connection.execute("COMMIT")
-                return None
             if self.youtube_requests._read(connection)["cooldown_until"] > self.youtube_requests.now():
                 connection.execute("COMMIT")
                 return None
+            self._recheck_waiting(connection)
             row = connection.execute(
                 """
                 SELECT video_id, channel_id, channel_title, title, url, published_at,
                        manuscript_version, shorts_status
                 FROM candidates WHERE (preparation_state IN ('queued', 'rate_limited') OR
                     (preparation_state = 'awaiting_classification' AND shorts_retry_at <= ?))
+                  AND (? = 0 OR request_kind = 'manual')
                   AND channel_id NOT IN (SELECT channel_id FROM excluded_channels)
                   AND (shorts_status != 'short' OR manuscript_version IS NOT NULL)
                 ORDER BY discovered_at ASC LIMIT 1
                 """,
-                (time.time(),),
+                (time.time(), int(paused is None or paused[0] == "1")),
             ).fetchone()
             if row is None:
                 connection.execute("COMMIT")
@@ -194,6 +207,53 @@ class LocalWorkspace:
             self._activity_event(connection, row["video_id"], stage)
             connection.execute("COMMIT")
         return dict(row)
+
+    def _recheck_waiting(self, connection) -> None:
+        rows = connection.execute(
+            """SELECT video_id, published_at, published_ts, timing_status FROM candidates
+               WHERE request_kind = 'automatic' AND commenced_at IS NULL
+                 AND preparation_state IN ('queued', 'rate_limited', 'awaiting_classification')"""
+        ).fetchall()
+        for row in rows:
+            state = 'awaiting_timing' if row[3] == 'event' else admission(row[1], row[2], time.time())
+            if state != 'queued':
+                connection.execute(
+                    "UPDATE candidates SET preparation_state = ?, preparation_stage = ?, failure_reason = ? WHERE video_id = ?",
+                    (state, state, WAITING_REASONS[state], row[0]),
+                )
+
+    def await_video_timing(self, video_id: str) -> None:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                """UPDATE candidates SET preparation_state = 'awaiting_timing',
+                   preparation_stage = 'awaiting_timing', timing_status = 'event', shorts_status = 'unknown',
+                   failure_reason = '直播或首映的结束时间尚未可靠核实，等待确认。'
+                   WHERE video_id = ?""", (video_id,),
+            )
+
+    def commence_preparation(self, video_id: str) -> bool:
+        """Record the first real work boundary, never a reservation or classification."""
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            row = connection.execute(
+                "SELECT published_at, published_ts, commenced_at, request_kind, preparation_state FROM candidates WHERE video_id = ?",
+                (video_id,),
+            ).fetchone()
+            if row is None or row[4] not in {'acquiring', 'generating'}:
+                return False
+            if row[2] is not None:
+                return True
+            state = admission(row[0], row[1], time.time()) if row[3] == 'automatic' else 'queued'
+            if state != 'queued':
+                connection.execute(
+                    "UPDATE candidates SET preparation_state = ?, preparation_stage = ?, failure_reason = ? WHERE video_id = ?",
+                    (state, state, WAITING_REASONS[state], video_id),
+                )
+                self._activity_event(connection, video_id, state, WAITING_REASONS[state])
+                return False
+            connection.execute('UPDATE candidates SET commenced_at = ? WHERE video_id = ?', (time.time(), video_id))
+            self._activity_event(connection, video_id, 'commenced', '已实际开工，同次自动任务可跨窗口续办。')
+            return True
 
     def defer_rate_limited(self, video_id: str, *, attempted: bool = True) -> None:
         with sqlite3.connect(self.database_path) as connection:
@@ -298,7 +358,7 @@ class LocalWorkspace:
                 """
                 UPDATE candidates
                 SET preparation_state = 'queued', failure_reason = NULL,
-                    rate_limit_attempts = 0,
+                    rate_limit_attempts = 0, commenced_at = NULL, request_kind = 'manual',
                     preparation_started_at = NULL, preparation_completed_at = NULL
                 WHERE video_id = ?
                 """,
@@ -318,6 +378,7 @@ class LocalWorkspace:
             values = (video_id,)
         with sqlite3.connect(self.database_path) as connection:
             cursor = connection.execute(statement, values)
+            self._recheck_waiting(connection)
         return cursor.rowcount
 
     @staticmethod
@@ -345,17 +406,17 @@ class LocalWorkspace:
 
     def change_queue(self, video_ids: list[str], *, restore: bool = False) -> dict[str, object]:
         """Serialize cancellation with worker claims; report races per item."""
-        expected = ("cancelled", "cancelled", "cancelled") if restore else ("queued", "awaiting_classification", "rate_limited")
+        expected = ("cancelled",) if restore else ("queued", "awaiting_classification", "rate_limited", "expired", "awaiting_timing")
         target = "queued" if restore else "cancelled"
         changed, skipped = [], []
         with sqlite3.connect(self.database_path) as connection:
             connection.execute("BEGIN IMMEDIATE")
             for video_id in dict.fromkeys(video_ids):
                 cursor = connection.execute(
-                    """UPDATE candidates SET preparation_state = ?, preparation_stage = NULL,
-                        stage_updated_at = ?, preparation_started_at = NULL,
+                    f"""UPDATE candidates SET preparation_state = ?, preparation_stage = NULL,
+                        stage_updated_at = ?, commenced_at = NULL, request_kind = 'automatic', preparation_started_at = NULL,
                         preparation_completed_at = NULL, failure_reason = NULL
-                        WHERE video_id = ? AND preparation_state IN (?, ?, ?)""",
+                        WHERE video_id = ? AND preparation_state IN ({",".join("?" for _ in expected)})""",
                     (target, time.time(), video_id, *expected),
                 )
                 if cursor.rowcount:
@@ -368,6 +429,7 @@ class LocalWorkspace:
                         "SELECT preparation_state FROM candidates WHERE video_id = ?", (video_id,)
                     ).fetchone()
                     skipped.append({"video_id": video_id, "state": row[0] if row else "missing"})
+            self._recheck_waiting(connection)
         return {"changed": changed, "skipped": skipped}
 
     def report_stage(self, video_id: str, stage: str, detail: str = "") -> None:
@@ -383,7 +445,7 @@ class LocalWorkspace:
     def activity_items(
         self, state: str = "queued", offset: int = 0, limit: int = 50
     ) -> dict[str, object]:
-        if state not in {"queued", "cancelled", "failed", "unavailable", "ready", "awaiting_classification", "filtered", "rate_limited"}:
+        if state not in {"queued", "cancelled", "failed", "unavailable", "ready", "awaiting_classification", "filtered", "rate_limited", "expired", "awaiting_timing"}:
             raise ValueError("无效的处理状态。")
         if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 100:
             raise ValueError("无效的分页范围。")
@@ -397,7 +459,7 @@ class LocalWorkspace:
             ).fetchone()[0]
             rows = connection.execute(
                 f"""SELECT video_id, title, channel_title, preparation_state, failure_reason,
-                    manuscript_version, published_at, duration_seconds FROM candidates WHERE {where}
+                    manuscript_version, published_at, duration_seconds, commenced_at, request_kind FROM candidates WHERE {where}
                     ORDER BY discovered_at ASC, video_id ASC LIMIT ? OFFSET ?""",
                 (state, limit, offset),
             ).fetchall()
@@ -647,6 +709,11 @@ class LocalWorkspace:
                 (time.time() + CLASSIFICATION_RETRY_SECONDS, time.time()),
             )
             connection.execute(
+                """UPDATE candidates SET preparation_state = 'queued', preparation_stage = NULL,
+                   failure_reason = NULL WHERE preparation_state IN ('acquiring', 'generating')
+                   AND commenced_at IS NOT NULL"""
+            )
+            connection.execute(
                 "UPDATE candidates SET preparation_state = 'failed', failure_reason = ?, "
                 "preparation_completed_at = ? WHERE preparation_state IN ('acquiring', 'generating')",
                 ("上次处理被中断，已完成阶段保留，可重试。", time.time()),
@@ -655,12 +722,24 @@ class LocalWorkspace:
     def translation_checkpoint(self, video_id: str) -> Path:
         return self._asset_directory(video_id) / "translation-attempt.json"
 
+    def _usable_transcript(self, video_id: str, language: str, path: str, content: str) -> bool:
+        from youtube_strataread.downloader import cues_to_lines, load_cues
+        expected = self._asset_directory(video_id) / 'transcript.srt'
+        try:
+            return (bool(language) and Path(path).resolve() == expected.resolve()
+                    and expected.read_text(encoding='utf-8') == content
+                    and bool("\n".join(cues_to_lines(load_cues(content))).strip()))
+        except (OSError, ValueError, UnicodeError, TypeError):
+            return False
+
     def retained_transcript(self, video_id: str) -> dict[str, str] | None:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
-                "SELECT language, content FROM transcripts WHERE video_id = ?", (video_id,)
+                "SELECT language, path, content FROM transcripts WHERE video_id = ?", (video_id,)
             ).fetchone()
-        return {"language": row[0], "content": row[1]} if row else None
+        if row and self._usable_transcript(video_id, *row):
+            return {"language": row[0], "content": row[2]}
+        return None
 
     def delete_asset(self, video_id: str) -> None:
         with sqlite3.connect(self.database_path) as connection:
@@ -703,7 +782,7 @@ class LocalWorkspace:
                 dict(row)
                 for row in connection.execute(
                     """SELECT video_id, title, channel_title, preparation_state, preparation_stage,
-                   preparation_started_at, stage_updated_at, published_at, duration_seconds FROM candidates
+                   preparation_started_at, stage_updated_at, published_at, duration_seconds, commenced_at FROM candidates
                    WHERE preparation_state IN ('acquiring', 'generating')
                    ORDER BY preparation_started_at"""
                 )
@@ -734,6 +813,8 @@ class LocalWorkspace:
             "cancelled": counts.get("cancelled", 0),
             "filtered": counts.get("filtered", 0),
             "awaiting_classification": counts.get("awaiting_classification", 0),
+            "expired": counts.get("expired", 0),
+            "awaiting_timing": counts.get("awaiting_timing", 0),
             "rate_limited": counts.get("rate_limited", 0),
             "youtube_requests": self.youtube_requests.snapshot(),
             "current": current,
@@ -921,9 +1002,30 @@ class LocalWorkspace:
                 "shorts_checked_at": "REAL",
                 "shorts_retry_at": "REAL",
                 "rate_limit_attempts": "INTEGER NOT NULL DEFAULT 0",
+                "commenced_at": "REAL",
+                "timing_status": "TEXT NOT NULL DEFAULT 'publication'",
+                "request_kind": "TEXT NOT NULL DEFAULT 'automatic'",
             }.items():
                 if name not in existing:
                     connection.execute(f"ALTER TABLE candidates ADD COLUMN {name} {definition}")
+            connection.execute("INSERT OR IGNORE INTO workspace_meta(key, value) VALUES ('drain_paused', '1')")
+            if not connection.execute("SELECT 1 FROM workspace_meta WHERE key = 'youtube_commencement_v1'").fetchone():
+                # Older cached format checks did not establish live/premiere timing.
+                connection.execute(
+                    "UPDATE candidates SET shorts_status = 'unknown' WHERE manuscript_version IS NULL AND preparation_state != 'filtered'"
+                )
+                for video_id, created_at, language, path, content in connection.execute(
+                    """SELECT t.video_id, t.created_at, t.language, t.path, t.content FROM transcripts t
+                       JOIN candidates c ON c.video_id = t.video_id
+                       WHERE c.preparation_state NOT IN ('ready', 'cancelled', 'filtered')
+                         AND c.manuscript_version IS NULL"""
+                ).fetchall():
+                    if (isinstance(created_at, (int, float)) and math.isfinite(created_at)
+                            and 0 < created_at <= time.time()
+                            and self._usable_transcript(video_id, language, path, content)):
+                        connection.execute('UPDATE candidates SET commenced_at = ? WHERE video_id = ?', (created_at, video_id))
+                self._recheck_waiting(connection)
+                connection.execute("INSERT INTO workspace_meta(key, value) VALUES ('youtube_commencement_v1', '1')")
             if not connection.execute(
                 "SELECT 1 FROM workspace_meta WHERE key = 'youtube_rate_limit_migration_v1'"
             ).fetchone():

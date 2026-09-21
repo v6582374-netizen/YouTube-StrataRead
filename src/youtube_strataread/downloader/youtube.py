@@ -62,6 +62,7 @@ def download_subtitles(
     cookiefile: Path | None = None,
     request_policy: YouTubeRequestPolicy | None = None,
     on_metadata: Callable[[str, float | None], None] | None = None,
+    before_subtitles: Callable[[dict], None] | None = None,
 ) -> SubtitleResult:
     """Fetch the best-available SRT subtitle for ``url``.
 
@@ -82,6 +83,9 @@ def download_subtitles(
     from yt_dlp import YoutubeDL  # imported lazily to speed up CLI startup
     from yt_dlp.utils import DownloadError
 
+    downloading_subtitles = False
+    commenced = False
+
     class PacedYoutubeDL(YoutubeDL):
         def __init__(self, opts):
             if request_policy:
@@ -90,8 +94,13 @@ def download_subtitles(
             super().__init__(opts)
 
         def urlopen(self, request):
+            nonlocal commenced
             if request_policy:
                 request_policy.before_request()
+            if downloading_subtitles and not commenced:
+                if before_subtitles:
+                    before_subtitles(info)
+                commenced = True
             try:
                 return super().urlopen(request)
             except Exception as error:
@@ -143,6 +152,7 @@ def download_subtitles(
             "no subtitles (official, auto-generated, or live_chat fallback) were available for this video"
         )
 
+    downloading_subtitles = True
     # --- phase 2: download just that one language --------------------------
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)

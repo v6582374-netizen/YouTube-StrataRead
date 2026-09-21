@@ -163,11 +163,9 @@ def test_prompt_validation_and_legacy_migration_share_one_store(tmp_path):
 
 def test_preparation_retains_full_translation_and_old_version_on_budget_discard(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
-    ws.add_candidate(
-        Candidate(
-            "one", "channel", "Channel", "Title", "https://youtube.com/watch?v=one", "2026-09-19", 1
-        )
-    )
+    from test_workbench_library import candidate
+    ws.set_meta("drain_paused", "0")
+    ws.add_candidate(candidate("one"))
     downloads = []
 
     def acquire(url):

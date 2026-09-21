@@ -150,17 +150,9 @@ def test_frozen_sidecar_rejects_the_test_vault(monkeypatch) -> None:
 
 def test_sidecar_library_capabilities_expose_the_prepared_asset_contract(tmp_path: Path) -> None:
     workspace = LocalWorkspace.open(tmp_path / "workspace")
-    workspace.add_candidate(
-        Candidate(
-            video_id="fixture",
-            channel_id="channel",
-            channel_title="Fixture channel",
-            title="Fixture",
-            url="https://www.youtube.com/watch?v=fixture",
-            published_at="2026-09-17T00:00:00Z",
-            published_ts=1_789_603_200,
-        )
-    )
+    from test_workbench_library import candidate
+    workspace.set_meta("drain_paused", "0")
+    workspace.add_candidate(candidate("fixture"))
     preparation = PreparationService(
         workspace=workspace, captions=_Captions(), manuscripts=_Manuscripts()
     )

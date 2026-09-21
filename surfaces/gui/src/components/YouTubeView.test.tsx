@@ -46,6 +46,7 @@ beforeEach(() => {
   call.mockImplementation(async (capability) => {
     if (capability === "library.list") return { assets: [asset] };
     if (capability === "activity.snapshot") return activity;
+    if (capability === "activity.list") return {items: [], total: 0};
     if (capability === "collection.preferences")
       return {
         sources: [{ channel_id: "channel", title: "Example" }],
@@ -72,9 +73,15 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+function renderDocuments(onTranslationSettings: () => void) {
+  const result = render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={onTranslationSettings} />);
+  fireEvent.click(screen.getByRole("button", {name: "阅读文档"}));
+  return result;
+}
+
 describe("YouTube document views", () => {
   it("keeps host configuration out of the normal UI and opens connection immediately", async () => {
-    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+    renderDocuments(() => {});
     await screen.findByRole("button", { name: /Prepared manuscript/ });
     expect(screen.queryByText(/host\/model/)).toBeNull();
     expect(screen.queryByRole("button", { name: "收件箱" })).toBeNull();
@@ -85,7 +92,7 @@ describe("YouTube document views", () => {
     expect(screen.getByRole("dialog", { name: "连接 YouTube" })).toBeTruthy();
   });
   it("offers three presentations without clearing the shared filters and remembers the choice", async () => {
-    const component = render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+    const component = renderDocuments(() => {});
     await screen.findByRole("button", { name: /Prepared manuscript/ });
     fireEvent.change(screen.getByRole("combobox", { name: "按时间筛选" }), {
       target: { value: "all" },
@@ -112,7 +119,7 @@ describe("YouTube document views", () => {
     }
     fireEvent.click(screen.getByRole("button", { name: "文档库" }));
     component.unmount();
-    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+    renderDocuments(() => {});
     expect(
       screen
         .getByRole("button", { name: "文档库" })
@@ -121,7 +128,7 @@ describe("YouTube document views", () => {
   });
   it("saves exclusions and opens the shared translation settings", async () => {
     const openTranslation = vi.fn();
-    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={openTranslation} />);
+    renderDocuments(openTranslation);
     await screen.findByRole("button", { name: /Prepared manuscript/ });
     fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
     fireEvent.click(
@@ -141,11 +148,11 @@ describe("YouTube document views", () => {
     expect(openTranslation).toHaveBeenCalledOnce();
   });
   it("shows provenance without automatically opening a document", async () => {
-    render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+    renderDocuments(() => {});
     fireEvent.click(
       await screen.findByRole("button", { name: /Prepared manuscript/ }),
     );
-    const dialog = await screen.findByRole("dialog", { name: "文档信息" });
+    const dialog = await screen.findByLabelText("文档信息");
     const open = await within(dialog).findByRole("button", {
       name: "用默认应用打开",
     });
@@ -171,16 +178,17 @@ it("never exposes the previous document after the next inspection fails", async 
       throw new Error("文档不可用");
     return implementation(capability, args);
   });
-  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+  renderDocuments(() => {});
   fireEvent.click(
     await screen.findByRole("button", { name: /Prepared manuscript/ }),
   );
   await screen.findByRole("button", { name: "删除文档" });
-  fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+  const dialog = screen.queryByRole("dialog", {name: "文档信息"});
+  if (dialog) fireEvent.click(within(dialog).getByRole("button", {name: "关闭"}));
   fireEvent.click(screen.getByRole("button", { name: /Unavailable document/ }));
   await screen.findByText("文档不可用");
   expect(
-    within(screen.getByRole("dialog")).queryByRole("button", {
+    within(screen.getByLabelText("文档信息")).queryByRole("button", {
       name: "删除文档",
     }),
   ).toBeNull();
@@ -196,7 +204,7 @@ it("shows the verified connection on the channel button, including after authori
       return { configured: true, authorized: connected, subscription_count: 3 };
     return implementation(capability, args);
   });
-  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+  renderDocuments(() => {});
   fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
   fireEvent.click(await screen.findByRole("button", { name: "连接 YouTube" }));
   fireEvent.click(
@@ -224,7 +232,7 @@ it("loads an existing authorization on a fresh view without inferring it from im
       ? { configured: true, authorized: true, subscription_count: 12 }
       : implementation(capability, args),
   );
-  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+  renderDocuments(() => {});
   fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
   expect(
     await screen.findByRole("button", { name: "已连接 YouTube" }),
@@ -239,14 +247,14 @@ it("reports unknown connection status on failure instead of showing a false conn
       throw new Error("Vault unavailable");
     return implementation(capability, args);
   });
-  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+  renderDocuments(() => {});
   fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
   await screen.findByText("连接状态未知，请重试");
   expect(screen.queryByRole("button", { name: "已连接 YouTube" })).toBeNull();
 });
 
 it("hands the original video to the native browser capability rather than a webview popup", async () => {
-  render(<YouTubeView onModelSettings={() => {}} onTranslationSettings={() => {}} />);
+  renderDocuments(() => {});
   fireEvent.click(
     await screen.findByRole("button", { name: /Prepared manuscript/ }),
   );

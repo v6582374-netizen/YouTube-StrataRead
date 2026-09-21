@@ -121,7 +121,7 @@ def test_source_duration_is_independent_of_subtitle_length(
 def test_unavailable_video_keeps_publication_and_duration_in_the_workspace(monkeypatch, tmp_path) -> None:
     from shorts_fixture import RegularVideos
 
-    from youtube_strataread.workbench.discovery import Candidate
+    from test_workbench_library import candidate
     from youtube_strataread.workbench.library import PreparationService, YtDlpCaptions
     from youtube_strataread.workbench.workspace import LocalWorkspace
 
@@ -131,10 +131,9 @@ def test_unavailable_video_keeps_publication_and_duration_in_the_workspace(monke
         files_by_lang={},
     )
     workspace = LocalWorkspace.open(tmp_path)
-    workspace.add_candidate(Candidate(
-        "abcdefghijk", "channel", "A channel", "No captions",
-        "https://youtu.be/abcdefghijk", "2026-09-17T10:00:00Z", None,
-    ))
+    workspace.set_meta("drain_paused", "0")
+    source = candidate("abcdefghijk", "No captions")
+    workspace.add_candidate(source)
 
     class NoGeneration:
         def generate(self, transcript):
@@ -146,7 +145,8 @@ def test_unavailable_video_keeps_publication_and_duration_in_the_workspace(monke
     assert preparation.run_next()
     video = LocalWorkspace.open(tmp_path).activity_items("unavailable")["items"][0]
     assert video["duration_seconds"] == 2538
-    assert video["published_at"] == "2026-09-17T10:00:00Z"
+    assert video["published_at"] == source.published_at
+    assert video["commenced_at"] is None
 
 
 def test_download_subtitles_falls_back_to_live_chat_and_synthesizes_srt(monkeypatch) -> None:

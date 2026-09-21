@@ -18,6 +18,10 @@ _PLAYER_ASSIGNMENT = re.compile(
 )
 
 
+class VideoTimingUnverified(Exception):
+    """Live/premiere timing needs the dedicated completion policy."""
+
+
 class ShortsClassifier(Protocol):
     def classify(self, video_id: str) -> bool | None:
         """True = Short, False = ordinary video, None = cannot establish format."""
@@ -91,6 +95,9 @@ def classify_page(video_id: str, html: str) -> bool | None:
     renderer = microformat.get("playerMicroformatRenderer")
     if not isinstance(renderer, dict) or renderer.get("externalVideoId", video_id) != video_id:
         return None
+    if (details.get('isLiveContent') or details.get('isUpcoming')
+            or renderer.get('liveBroadcastDetails') or details.get('isLive')):
+        raise VideoTimingUnverified()
     signal = renderer.get("isShortsEligible")
     return signal if type(signal) is bool and signal == canonical_short else None
 

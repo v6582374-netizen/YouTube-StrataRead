@@ -113,7 +113,7 @@ class YouTubeWorkbench:
     def _run(self) -> None:
         next_discovery = 0.0
         while not self.stop.wait(1):
-            if time.monotonic() >= next_discovery or self.refresh_requested.is_set():
+            if self.workspace.meta("drain_paused") != "1" and (time.monotonic() >= next_discovery or self.refresh_requested.is_set()):
                 self.refresh_requested.clear()
                 next_discovery = time.monotonic() + 15 * 60
                 try:

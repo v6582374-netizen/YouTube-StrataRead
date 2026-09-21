@@ -2,10 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from youtube_strataread.workbench.connection import SubscriptionSource
 from youtube_strataread.workbench.discovery import Candidate, SubscriptionDiscovery
 from youtube_strataread.workbench.workspace import LocalWorkspace
+
+
+@pytest.fixture(autouse=True)
+def publication_clock(monkeypatch):
+    monkeypatch.setattr("youtube_strataread.workbench.workspace.time", SimpleNamespace(time=lambda: 1789689600.0))
+
 
 
 @dataclass
@@ -18,6 +27,7 @@ class FakeAtomFeed:
 
 def test_discovery_creates_idempotent_queued_inbox_candidates(tmp_path: Path) -> None:
     workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.set_meta("drain_paused", "0")
     workspace.replace_subscription_sources([SubscriptionSource(channel_id="alpha", title="Alpha")])
     discovery = SubscriptionDiscovery(
         workspace=workspace,
@@ -60,6 +70,7 @@ def test_discovery_creates_idempotent_queued_inbox_candidates(tmp_path: Path) ->
 
 def test_excluded_channels_are_not_fetched_and_new_subscriptions_default_on(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.replace_subscription_sources(
         [
             SubscriptionSource(channel_id="excluded", title="Excluded"),
@@ -79,8 +90,8 @@ def test_excluded_channels_are_not_fetched_and_new_subscriptions_default_on(tmp_
                     source.title,
                     "New update",
                     "https://www.youtube.com/watch?v=new-video",
-                    "2026-09-18",
-                    1789728000,
+                    "2026-09-18T00:00:00Z",
+                    1789689600,
                 )
             ]
 

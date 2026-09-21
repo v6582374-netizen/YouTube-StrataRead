@@ -67,6 +67,7 @@ def test_cycle_in_exception_chain_is_safe():
 
 def test_backoff_persists_and_honours_server_deadline(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     policy = ws.youtube_requests
     now = [1000.0]
     policy.now = lambda: now[0]
@@ -97,6 +98,7 @@ def test_backoff_persists_and_honours_server_deadline(tmp_path):
 
 def test_request_and_video_spacing_share_durable_reservations(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     policy = ws.youtube_requests
     clock = [1000.0]
     policy.now = lambda: clock[0]
@@ -117,6 +119,7 @@ def test_request_and_video_spacing_share_durable_reservations(tmp_path):
 
 def test_waiting_is_interruptible_and_does_not_hold_database(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     policy = ws.youtube_requests
     policy.before_video()
     with ThreadPoolExecutor(max_workers=1) as pool:
@@ -132,6 +135,7 @@ def test_concurrent_policy_instances_do_not_burst_requests(tmp_path, monkeypatch
 
     monkeypatch.setattr(module, "REQUEST_INTERVAL", 0.05)
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
 
     def request():
         YouTubeRequestPolicy(ws.database_path).before_request()
@@ -144,6 +148,7 @@ def test_concurrent_policy_instances_do_not_burst_requests(tmp_path, monkeypatch
 
 def test_subtitle_429_blocks_shorts_feeds_and_next_video_until_cooldown(tmp_path, monkeypatch):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     for key in ["one", "two"]:
         ws.add_candidate(candidate(key))
     service = ready_service(ws)
@@ -169,6 +174,7 @@ def test_subtitle_429_blocks_shorts_feeds_and_next_video_until_cooldown(tmp_path
     service.captions.acquire.assert_called_once()
     deadline = ws.youtube_requests.snapshot()["cooldown_until"]
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     ws.youtube_requests.now = lambda: deadline + 1
     assert ready_service(ws).run_next()
     assert ws.asset("one")["preparation_state"] == "ready"
@@ -177,6 +183,7 @@ def test_subtitle_429_blocks_shorts_feeds_and_next_video_until_cooldown(tmp_path
 
 def test_automatic_retries_are_bounded_but_cooldown_remains_global(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     ws.add_candidate(candidate("one"))
     service = ready_service(ws)
     service.captions = SimpleNamespace(
@@ -199,6 +206,7 @@ def test_automatic_retries_are_bounded_but_cooldown_remains_global(tmp_path):
 
 def test_rate_limited_item_can_be_cancelled_without_resetting_cooldown(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     ws.add_candidate(candidate("one"))
     service = ready_service(ws)
     service.captions = SimpleNamespace(acquire=Mock(side_effect=YouTubeRateLimited()))
@@ -212,6 +220,7 @@ def test_rate_limited_item_can_be_cancelled_without_resetting_cooldown(tmp_path)
 
 def test_shorts_and_rss_429_start_shared_cooldown(tmp_path, monkeypatch):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     monkeypatch.setattr(
         "youtube_strataread.workbench.shorts.urlopen", Mock(side_effect=http429("7200"))
     )
@@ -238,6 +247,7 @@ def test_shorts_and_rss_429_start_shared_cooldown(tmp_path, monkeypatch):
 
 def test_only_legacy_subtitle_429_records_are_recovered_once(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     for key in ["limited", "no-captions", "cancelled"]:
         ws.add_candidate(candidate(key))
     reason = "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests"
@@ -247,6 +257,7 @@ def test_only_legacy_subtitle_429_records_are_recovered_once(tmp_path):
     with sqlite3.connect(ws.database_path) as db:
         db.execute("DELETE FROM workspace_meta WHERE key = 'youtube_rate_limit_migration_v1'")
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     assert ws.asset("limited")["preparation_state"] == "rate_limited"
     assert ws.asset("no-captions")["preparation_state"] == "unavailable"
     assert ws.asset("cancelled")["preparation_state"] == "cancelled"
@@ -296,6 +307,7 @@ def test_real_ytdlp_subtitle_download_preserves_retry_after_and_does_not_reprobe
 
     monkeypatch.setattr(YoutubeDL, "extract_info", extract)
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     try:
         if status == 200:
             assert (
@@ -319,6 +331,7 @@ def test_real_ytdlp_subtitle_download_preserves_retry_after_and_does_not_reprobe
 
 def test_shutdown_after_cooldown_is_saved_recovers_the_interrupted_item(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     ws.add_candidate(candidate("one"))
     ws.claim_next_queued_asset()
     ws.youtube_requests.limit(YouTubeRateLimited())
@@ -330,6 +343,7 @@ def test_shutdown_after_cooldown_is_saved_recovers_the_interrupted_item(tmp_path
 
 def test_waiting_for_another_requests_cooldown_does_not_consume_retry_budget(tmp_path):
     ws = LocalWorkspace.open(tmp_path)
+    ws.set_meta("drain_paused", "0")
     ws.add_candidate(candidate("one"))
     service = ready_service(ws)
 

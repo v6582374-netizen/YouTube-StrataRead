@@ -12,12 +12,14 @@ from youtube_strataread.workbench.workspace import LocalWorkspace
 
 def test_cancel_survives_discovery_restart_retry_and_preserves_materials(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     ready_service(workspace).run_next()
     original = workspace.document("one")
     workspace.queue_regeneration("one")
     assert workspace.change_queue(["one", "one"])["changed"] == ["one"]
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.recover_interrupted_preparations()
     assert not workspace.add_candidate(candidate("one"))
     assert workspace.retry_failed() == 0
@@ -40,6 +42,7 @@ def test_cancel_survives_discovery_restart_retry_and_preserves_materials(tmp_pat
 
 def test_bulk_cancel_reports_items_that_already_started(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     for video_id in ["active", "waiting"]:
         workspace.add_candidate(candidate(video_id))
     assert workspace.claim_next_queued_asset()["video_id"] == "active"
@@ -57,6 +60,7 @@ def test_bulk_cancel_reports_items_that_already_started(tmp_path):
 @pytest.mark.parametrize("attempt", range(8))
 def test_claim_cancel_race_has_exactly_one_winner(tmp_path, attempt):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     barrier = Barrier(2)
 
@@ -78,6 +82,7 @@ def test_claim_cancel_race_has_exactly_one_winner(tmp_path, attempt):
 
 def test_progress_is_durable_ordered_and_deletion_removes_events(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     workspace.claim_next_queued_asset()
     workspace.set_preparation_state("one", "generating")
@@ -95,6 +100,7 @@ def test_progress_is_durable_ordered_and_deletion_removes_events(tmp_path):
 
 def test_queue_pagination_reaches_every_item(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     for index in range(103):
         workspace.add_candidate(candidate(f"video-{index}"))
     items = [workspace.activity_items(offset=offset) for offset in [0, 50, 100]]
@@ -104,6 +110,7 @@ def test_queue_pagination_reaches_every_item(tmp_path):
 
 def test_console_is_bounded_durable_and_separate_from_timeline(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     workspace.claim_next_queued_asset()
     original = workspace.activity()["events"]

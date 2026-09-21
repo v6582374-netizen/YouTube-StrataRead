@@ -115,6 +115,7 @@ def test_unknown_does_not_block_other_videos_and_retries_after_restart(tmp_path,
     now = [1000.0]
     monkeypatch.setattr("youtube_strataread.workbench.workspace.time.time", lambda: now[0])
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("unknown0001"))
     workspace.add_candidate(candidate(VIDEO))
     service = ready_service(workspace)
@@ -129,6 +130,7 @@ def test_unknown_does_not_block_other_videos_and_retries_after_restart(tmp_path,
     assert not service.run_next()
     assert service.shorts.classify.call_count == 2
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.recover_interrupted_preparations()
     service = ready_service(workspace)
     service.shorts = SimpleNamespace(classify=Mock(return_value=True))
@@ -149,6 +151,7 @@ def test_unknown_does_not_block_other_videos_and_retries_after_restart(tmp_path,
 
 def test_short_exclusion_survives_refresh_backfill_and_retry(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     video = candidate(VIDEO)
     workspace.replace_subscription_sources(
         [SubscriptionSource(channel_id="channel", title="Channel")]
@@ -180,6 +183,7 @@ def test_short_exclusion_survives_refresh_backfill_and_retry(tmp_path):
 
 def test_existing_manuscripts_and_regeneration_are_retained(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate(VIDEO))
     workspace.save_manuscript(
         VIDEO, "# Existing manuscript", generator="legacy", transcript_characters=0
@@ -200,6 +204,7 @@ def test_existing_manuscripts_and_regeneration_are_retained(tmp_path):
 
 def test_unknown_can_be_cancelled_and_does_not_reappear_automatically(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate(VIDEO))
     service = ready_service(workspace)
     service.shorts = SimpleNamespace(classify=lambda video_id: None)
@@ -215,6 +220,7 @@ def test_unknown_can_be_cancelled_and_does_not_reappear_automatically(tmp_path):
 
 def test_detector_exception_defers_without_model_or_caption_work(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate(VIDEO))
     service = ready_service(workspace)
     service.shorts = SimpleNamespace(classify=Mock(side_effect=RuntimeError("unavailable")))
@@ -228,9 +234,11 @@ def test_detector_exception_defers_without_model_or_caption_work(tmp_path):
 
 def test_interrupted_classification_recovers_to_deferred_not_failed(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate(VIDEO))
     workspace.claim_next_queued_asset()
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.recover_interrupted_preparations()
     assert workspace.activity()["awaiting_classification"] == 1
     assert workspace.activity()["failed"] == 0
@@ -239,6 +247,7 @@ def test_interrupted_classification_recovers_to_deferred_not_failed(tmp_path):
 
 def test_cached_ordinary_classification_is_reused_after_caption_failure(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate(VIDEO))
     service = ready_service(workspace)
     service.shorts = SimpleNamespace(classify=Mock(return_value=False))
@@ -257,6 +266,7 @@ def test_cached_ordinary_classification_is_reused_after_caption_failure(tmp_path
 
 def test_existing_database_migrates_without_discarding_pending_or_ready_assets(tmp_path):
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate(VIDEO))
     workspace.add_candidate(candidate("saved000001"))
     workspace.save_manuscript(
@@ -266,6 +276,7 @@ def test_existing_database_migrates_without_discarding_pending_or_ready_assets(t
         for column in ["shorts_status", "shorts_checked_at", "shorts_retry_at"]:
             db.execute(f"ALTER TABLE candidates DROP COLUMN {column}")
     workspace = LocalWorkspace.open(tmp_path)
+    workspace.set_meta("drain_paused", "0")
     assert len(workspace.assets()) == 2
     assert workspace.document("saved000001")["markdown"] == "# Retained\n"
     assert workspace.claim_next_queued_asset()["shorts_status"] == "unknown"

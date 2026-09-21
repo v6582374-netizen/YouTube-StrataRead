@@ -4,6 +4,10 @@ Edison's product language covers the YouTube reading workbench, the Minimalism o
 
 ## YouTube reading language
 
+- **Automatic start window（自动开工窗口）**: The inclusive rolling 72 hours from a corroborated, timezone-aware public publication time for ordinary videos. Admission and first actual work each check it. Missing, conflicting or future time waits for verification. Live and premiere timing requires a separate completion policy. _Avoid_: Discovery age, retention deadline.
+- **Commencement evidence（开工凭据）**: A durable fact recorded immediately before actual subtitle I/O after prerequisites, or before translation/composition with usable retained captions. Legacy reservation timestamps are insufficient; a readable, identity-matched transcript can establish prior work. Ordinary retries retain the fact; cancellation or explicit regeneration ends that task’s eligibility. _Avoid_: Claim timestamp, classification event, blanket exemption for a video.
+- **Auto Update（自动更新）**: The person's persistent permission for subscription discovery and subsequent automatic task claims, including interrupted work. It defaults off and preserves the last explicit choice through normal exit and crashes. It does not govern explicitly requested manual video work. _Avoid_: Global processing switch, manual request permission.
+
 - **YouTube publication time（YouTube 发布时间）**: The video's publication time on YouTube, expressing the age of the source content independently of when Edison discovers or retrieves it. _Avoid_: Update time, local discovery time, retrieval time, title modification time.
 - **Video duration（视频时长）**: The playback length of the source YouTube video. It is distinct from the time a person needs to read its manuscript. _Avoid_: Estimated reading time, preparation time.
 - **Video metadata（视频基础信息）**: The source channel, YouTube publication time and video duration that identify and contextualize a video across subscription discovery, preparation progress and the reading library. _Avoid_: Preparation status, processing diagnostics, popularity ranking.

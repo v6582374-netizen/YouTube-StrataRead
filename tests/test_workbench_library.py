@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from pathlib import Path
 
 from shorts_fixture import RegularVideos
@@ -13,9 +15,11 @@ from youtube_strataread.workbench.workspace import LocalWorkspace
 
 def test_new_video_metadata_survives_preparation_and_workspace_restart(tmp_path: Path) -> None:
     workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     queued = workspace.activity_items()["items"][0]
-    assert queued["published_at"] == "2026-09-17T10:00:00Z"
+    published_at = queued["published_at"]
+    assert published_at == workspace.asset("one")["published_at"]
     assert queued["duration_seconds"] is None
 
     preparation = ready_service(workspace)
@@ -30,7 +34,7 @@ def test_new_video_metadata_survives_preparation_and_workspace_restart(tmp_path:
         library.list_assets()["assets"][0],
         library.inspect("one"),
     ):
-        assert video["published_at"] == "2026-09-17T10:00:00Z"
+        assert video["published_at"] == published_at
         assert video["duration_seconds"] == 2538
 
     library.regenerate("one")
@@ -45,7 +49,7 @@ class FakeCaptions:
     def acquire(self, url: str) -> SubtitleResult:
         if isinstance(self.result, Exception):
             raise self.result
-        return self.result
+        return replace(self.result, video_id=url.split("=")[-1])
 
 
 @dataclass
@@ -57,14 +61,15 @@ class FakeManuscripts:
 
 
 def candidate(video_id: str, title: str = "A video") -> Candidate:
+    timestamp = time.time() - 60
     return Candidate(
         video_id=video_id,
         channel_id="channel",
         channel_title="A channel",
         title=title,
         url=f"https://www.youtube.com/watch?v={video_id}",
-        published_at="2026-09-17T10:00:00Z",
-        published_ts=1_789_632_000,
+        published_at=datetime.fromtimestamp(timestamp, timezone.utc).isoformat(),
+        published_ts=timestamp,
     )
 
 
@@ -87,6 +92,7 @@ def ready_service(workspace: LocalWorkspace) -> PreparationService:
 
 def test_prepared_asset_is_searchable_versioned_and_handed_off(tmp_path: Path) -> None:
     workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     preparation = ready_service(workspace)
     library = LibraryService(workspace=workspace, preparation=preparation)
@@ -131,6 +137,7 @@ def test_prepared_asset_is_searchable_versioned_and_handed_off(tmp_path: Path) -
 
 def test_unavailable_and_drain_pause_keep_batch_outcomes_visible(tmp_path: Path) -> None:
     workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     workspace.add_candidate(candidate("two", "Second video"))
     preparation = PreparationService(
@@ -161,6 +168,7 @@ def test_unavailable_and_drain_pause_keep_batch_outcomes_visible(tmp_path: Path)
 
 def test_automatic_batch_bounds_work_and_drains_after_the_current_asset(tmp_path: Path) -> None:
     workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     workspace.add_candidate(candidate("two", "Second video"))
     preparation = ready_service(workspace)
@@ -175,6 +183,7 @@ def test_automatic_batch_bounds_work_and_drains_after_the_current_asset(tmp_path
 
 def test_drain_pause_prevents_an_unclaimed_asset_from_starting(tmp_path: Path) -> None:
     workspace = LocalWorkspace.open(tmp_path / "workspace")
+    workspace.set_meta("drain_paused", "0")
     workspace.add_candidate(candidate("one"))
     preparation = ready_service(workspace)
 

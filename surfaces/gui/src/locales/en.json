@@ -67,6 +67,15 @@
     "source": "Personal timetable dated 20 Sep 2026 · Dates and periods from the university calendar."
   },
   "youtube": {
+    "直播或首映的结束时间尚未可靠核实，等待确认。": "Live or premiere completion time has not been verified. Waiting for confirmation.",
+    "已过期": "Outside automatic window",
+    "待核实时间": "Awaiting timing verification",
+    "已实际开工": "Preparation commenced",
+    "已实际开工，可跨窗口续办；仍需自动更新许可。": "Started in time; can resume beyond the window when Auto Update is on.",
+    "尚未实际开工，首次开工仍须在 72 小时内。": "Not started; first preparation must begin within 72 hours.",
+    "手动请求": "Manual request",
+    "首次开工前已超过 72 小时自动处理窗口；已有资料保留。": "The 72-hour window ended before preparation began. Existing materials are retained.",
+    "发布时间缺失、矛盾或晚于当前时间，等待核实；尚未取得续办资格。": "Publication time is missing, conflicting or in the future. Verification is required before preparation.",
     "发布日期未知": "Publication date unknown",
     "时长未知": "Duration unknown",
     "发布于 {{date}}": "Published {{date}}",

@@ -17,8 +17,16 @@ from youtube_strataread.downloader.request_policy import (
     rate_limit_error,
 )
 from youtube_strataread.downloader.youtube import SubtitleResult, YouTubeError
-from youtube_strataread.workbench.shorts import ShortsClassifier, YouTubeShortsClassifier
+from youtube_strataread.workbench.shorts import (
+    ShortsClassifier,
+    VideoTimingUnverified,
+    YouTubeShortsClassifier,
+)
 from youtube_strataread.workbench.workspace import LocalWorkspace
+
+
+class PreparationDeferred(Exception):
+    """Prerequisites changed before subtitle I/O; the workspace already explains why."""
 
 
 class CaptionAcquirer(Protocol):
@@ -34,8 +42,9 @@ class YtDlpCaptions:
         self.requests = requests
         self.on_metadata: Callable[[str, float | None], None] | None = None
 
-    def acquire(self, url: str) -> SubtitleResult:
-        return download_subtitles(url, request_policy=self.requests, on_metadata=self.on_metadata)
+    def acquire(self, url: str, *, before_subtitles: Callable[[dict], None] | None = None) -> SubtitleResult:
+        return download_subtitles(url, request_policy=self.requests, on_metadata=self.on_metadata,
+                                  before_subtitles=before_subtitles)
 
 
 class ConfiguredManuscripts:
@@ -100,6 +109,9 @@ class PreparationService:
                 is_short = self.shorts.classify(video_id)
                 if type(is_short) is not bool:
                     is_short = None
+            except VideoTimingUnverified:
+                self.workspace.await_video_timing(video_id)
+                return True
             except Exception as error:
                 if self._defer_request(video_id, error):
                     return True
@@ -114,7 +126,24 @@ class PreparationService:
                 srt_text = retained["content"]
                 source_language = retained["language"]
             else:
-                subtitles = self.captions.acquire(str(asset["url"]))
+                if isinstance(self.captions, YtDlpCaptions):
+                    def before_subtitles(info: dict) -> None:
+                        if info.get('id') != video_id:
+                            raise YouTubeError('Subtitle identity does not match the requested video')
+                        if info.get('live_status') != 'not_live' or info.get('is_live') or info.get('was_live'):
+                            self.workspace.await_video_timing(video_id)
+                            raise PreparationDeferred()
+                        if not self.workspace.commence_preparation(video_id):
+                            raise PreparationDeferred()
+                    subtitles = self.captions.acquire(str(asset['url']), before_subtitles=before_subtitles)
+                else:
+                    if self.workspace.youtube_requests.cooling_down() or self.workspace.youtube_requests.stopped.is_set():
+                        self.workspace.youtube_requests.before_request()
+                    if not self.workspace.commence_preparation(video_id):
+                        return True
+                    subtitles = self.captions.acquire(str(asset['url']))
+                if subtitles.video_id != video_id:
+                    raise YouTubeError('Subtitle identity does not match the requested video')
                 self.workspace.record_video_duration(video_id, subtitles.duration_seconds)
                 srt_text = subtitles.srt_text
                 source_language = subtitles.language
@@ -125,6 +154,8 @@ class PreparationService:
             transcript = "\n".join(cues_to_lines(load_cues(srt_text))).strip()
             if not transcript:
                 raise YouTubeError("subtitle was empty after cleanup")
+        except PreparationDeferred:
+            return True
         except YouTubeError as error:
             if self._defer_request(video_id, error):
                 return True
@@ -136,6 +167,8 @@ class PreparationService:
             self.workspace.set_preparation_state(video_id, "failed", _safe_error(error))
             return True
         try:
+            if not self.workspace.commence_preparation(video_id):
+                return True
             self.workspace.set_preparation_state(video_id, "generating")
             generate_result = getattr(self.manuscripts, "generate_result", None)
             result = (

@@ -94,7 +94,9 @@ with sqlite3.connect(sys.argv[1]) as db:
 `, join(dir, 'youtube', 'workspace.sqlite3')]);
     await start();
     await expect.poll(async () => (await call('activity.snapshot')).ready, {timeout: 15000}).toBe(3);
-    expect((await readFile(join(dir, 'caption-calls'), 'utf8')).trim().split('\n')).toEqual(['one', 'one', 'two', 'three']);
+    const calls = (await readFile(join(dir, 'caption-calls'), 'utf8')).trim().split('\n');
+    expect(calls[0]).toBe('one');
+    expect(calls.slice(1).sort()).toEqual(['one', 'three', 'two']);
     expect((await call('activity.snapshot')).rate_limited).toBe(0);
   } finally {
     await stop();

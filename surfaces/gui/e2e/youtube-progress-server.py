@@ -7,6 +7,7 @@ import socket
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 root = Path(sys.argv[1])
 shorts_mode = len(sys.argv) > 2 and sys.argv[2] == "shorts"
@@ -29,6 +30,8 @@ from youtube_strataread.workbench import shorts
 from youtube_strataread.workbench.connection import SubscriptionSource
 from youtube_strataread.workbench.discovery import Candidate
 from youtube_strataread.workbench.workspace import LocalWorkspace
+from youtube_strataread.workbench import workspace as workspace_module
+workspace_module.time = SimpleNamespace(time=lambda: 1789819200.0)
 
 
 def wait_for(name):
@@ -74,14 +77,14 @@ videos = [
         title=title,
         url=f"https://www.youtube.com/watch?v={key}",
         published_at="2026-09-19T00:00:00Z",
-        published_ts=time.time(),
+        published_ts=1789776000.0,
     )
     for key, title in [("one", "建筑与时间"), ("two", "材料的语言"), ("three", "慢下来的设计")]
 ]
 if shorts_mode:
     videos = [
         Candidate(key, "channel", "设计与思考", title,
-                  f"https://www.youtube.com/watch?v={key}", "2026-09-19T00:00:00Z", time.time())
+                  f"https://www.youtube.com/watch?v={key}", "2026-09-19T00:00:00Z", 1789776000.0)
         for key, title in [
             ("shorts00001", "平台 Shorts"),
             ("normal00001", "两分钟横屏讲解"),
@@ -91,6 +94,7 @@ if shorts_mode:
     ]
 workspace = LocalWorkspace.open(root / "youtube")
 if workspace.meta("fixture_seeded") != "1":
+    # A fresh workspace starts with Auto Update off.
     workspace.set_meta("drain_paused", "1")
     workspace.replace_subscription_sources(
         [SubscriptionSource(channel_id="channel", title="设计与思考")]

@@ -35,6 +35,8 @@ bash packaging/build_local_macos.sh
 
 ## 验证
 
+低频弹窗已统一焦点、关闭与可打断过渡；浏览器验收通过，原生窗口手感待验收。见 [实施记录](reports/modal-polish-2026-09-21/verification.md)。
+
 ```sh
 uv run pytest
 npm --prefix surfaces/gui test

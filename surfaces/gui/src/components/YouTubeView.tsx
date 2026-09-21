@@ -6,6 +6,7 @@ import { Icon } from "./Icon";
 import { NoticeStack } from "./NoticeStack";
 import { ActivityPage } from "./youtube/ActivityPage";
 import { ProgressPage } from "./youtube/ProgressPage";
+import { useModalInteraction, type ModalInput } from "./ModalSurface";
 import { Dialog } from "./youtube/Dialog";
 import { DocumentViews, ChannelAvatar } from "./youtube/DocumentViews";
 import {
@@ -41,6 +42,8 @@ export function YouTubeView({
   onTranslationSettings: () => void;
 }) {
   useTranslation();
+  const modal = useModalInteraction();
+  const mainRef = useRef<HTMLElement>(null);
   const layouts: [Layout, string][] = [
     ["timeline", yt("时间流")], ["library", yt("文档库")], ["channels", yt("频道索引")],
   ];
@@ -202,13 +205,15 @@ export function YouTubeView({
     void update();
     return () => { alive = false; activityRevision.current++; clearTimeout(timer); };
   }, [refreshActivity]);
-  const close = () => {
+  const close = (input: ModalInput = modal.input()) => {
+    modal.end(input);
     panelRevision.current++;
     setPanel(null);
     setPanelMessage("");
     setConfirmDelete(false);
   };
   const openPanel = async (kind: NonNullable<typeof panel>, asset?: Asset) => {
+    modal.begin();
     const version = ++panelRevision.current;
     setPanel(kind);
     setPanelMessage("");
@@ -241,11 +246,12 @@ export function YouTubeView({
       if (version === panelRevision.current) setPanelLoading(false);
     }
   };
-  const panelAction = async (work: () => Promise<void>) => {
+  const panelAction = async (work: (input: ModalInput) => Promise<void>) => {
+    const input = modal.input();
     setBusy(true);
     setPanelMessage("");
     try {
-      await work();
+      await work(input);
     } catch (e) {
       setPanelMessage(errorMessage(e));
     } finally {
@@ -312,8 +318,8 @@ export function YouTubeView({
   };
   const selectedId = selected?.video_id;
   return (
-    <main className="yp-main" aria-label={yt("YouTube 资料库")}>
-      <NoticeStack messages={[message, progressMessage, panelMessage, activity?.discovery_error || ""].map(value => value ? yt(value) : "")} />
+    <main ref={mainRef} tabIndex={-1} {...modal.capture} className="yp-main" aria-label={yt("YouTube 资料库")}>
+      <NoticeStack messages={[message, progressMessage, panel ? "" : panelMessage, activity?.discovery_error || ""].map(value => value ? yt(value) : "")} />
       <header className="yp-head">
         <div className="yp-header">
           <nav className="yp-page-nav" aria-label={yt("YouTube 页面")}>
@@ -494,12 +500,13 @@ export function YouTubeView({
           />
         )}
       </div>
-      {panel === "channels" && (
-        <Dialog
-          title={yt("订阅频道")}
-          subtitle={yt("默认自动生成所有订阅频道的阅读文档。")}
-          onClose={close}
-          footer={
+      <Dialog
+        open={panel !== null} interaction={modal} fallbackFocusRef={mainRef}
+        title={panel === "channels" ? yt("订阅频道") : panel === "connection" ? yt("连接 YouTube") : yt("文档信息")}
+        subtitle={panel === "channels" ? yt("默认自动生成所有订阅频道的阅读文档。") : panel === "connection" ? yt("通过 Google 安全连接，登录凭据由系统钥匙串保存。") : selected?.channel_title}
+        detail={panel === "document"}
+        onClose={close}
+        footer={panel === "channels" ? (
             <>
               <span>
                 {
@@ -508,19 +515,19 @@ export function YouTubeView({
                 }{" "}
                 {yt("个频道已开启")}</span>
               <div>
-                <button className="yp-btn" onClick={close}>
+                <button className="yp-btn" onClick={() => close()}>
                   {yt("取消")}</button>{" "}
                 <button
                   className="yp-btn primary"
                   disabled={busy || panelLoading || !panelReady}
                   onClick={() =>
-                    void panelAction(async () => {
+                    void panelAction(async (input) => {
                       setPrefs(
                         await call<Preferences>("collection.set_exclusions", {
                           excluded_channels: excluded,
                         }),
                       );
-                      close();
+                      close(input);
                       setMessage(yt("频道设置已保存。"));
                       await refresh();
                     })
@@ -529,8 +536,39 @@ export function YouTubeView({
                   {yt("保存")}</button>
               </div>
             </>
-          }
-        >
+        ) : panel === "document" ? (
+          selected && !panelLoading ? (
+              <>
+                <span>
+                  {selected.reading_state === "read" ? yt("已读") : yt("未读")} · v
+                  {selected.manuscript_version}
+                </span>
+                <button
+                  className="yp-link"
+                  disabled={busy}
+                  onClick={() =>
+                    void panelAction(async () => {
+                      setSelected(
+                        await call<Inspection>("library.set_reading_state", {
+                          video_id: selectedId,
+                          reading_state:
+                            selected.reading_state === "read"
+                              ? "inbox"
+                              : "read",
+                        }),
+                      );
+                      await refresh();
+                    })
+                  }
+                >
+                  {selected.reading_state === "read" ? yt("标为未读") : yt("标为已读")}
+                </button>
+              </>
+            ) : null
+        ) : null}
+      >
+        {panelMessage && <p role="status" className="yp-inline-note">{yt(panelMessage)}</p>}
+        {panel === "channels" && (<>
           <div className="yp-inline-note">
             {yt("关闭频道后，不再领取它的新文档；正在生成的文档会完成，已有文档仍保留。新导入的订阅默认开启。")}</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -634,14 +672,8 @@ export function YouTubeView({
           {!panelLoading && !prefs.sources.length && (
             <p className="yp-inline-status">{yt("尚未导入订阅。请先连接 YouTube。")}</p>
           )}
-        </Dialog>
-      )}
-      {panel === "connection" && (
-        <Dialog
-          title={yt("连接 YouTube")}
-          subtitle={yt("使用个人 Google OAuth 客户端，凭据保存在 Automic Vault。")}
-          onClose={close}
-        >
+        </>)}
+        {panel === "connection" && (<>
           {panelLoading ? (
             <p>{yt("正在检查连接状态…")}</p>
           ) : !connection?.configured ? (
@@ -701,45 +733,8 @@ export function YouTubeView({
           )}
           <p className="yp-inline-status">
             {yt("测试模式下，请将登录邮箱加入 Google Cloud 的测试用户名单。")}</p>
-        </Dialog>
-      )}
-      {panel === "document" && (
-        <Dialog
-          title={yt("文档信息")}
-          subtitle={selected?.channel_title}
-          detail
-          onClose={close}
-          footer={
-            selected && !panelLoading ? (
-              <>
-                <span>
-                  {selected.reading_state === "read" ? yt("已读") : yt("未读")} · v
-                  {selected.manuscript_version}
-                </span>
-                <button
-                  className="yp-link"
-                  disabled={busy}
-                  onClick={() =>
-                    void panelAction(async () => {
-                      setSelected(
-                        await call<Inspection>("library.set_reading_state", {
-                          video_id: selectedId,
-                          reading_state:
-                            selected.reading_state === "read"
-                              ? "inbox"
-                              : "read",
-                        }),
-                      );
-                      await refresh();
-                    })
-                  }
-                >
-                  {selected.reading_state === "read" ? yt("标为未读") : yt("标为已读")}
-                </button>
-              </>
-            ) : null
-          }
-        >
+        </>)}
+        {panel === "document" && (<>
           {panelLoading ? (
             <p>{yt("正在读取文档信息…")}</p>
           ) : (
@@ -849,11 +844,11 @@ export function YouTubeView({
                         className="yp-btn"
                         disabled={busy}
                         onClick={() =>
-                          void panelAction(async () => {
+                          void panelAction(async (input) => {
                             await call("library.delete", {
                               video_id: selectedId,
                             });
-                            close();
+                            close(input);
                             await refresh();
                           })
                         }
@@ -865,8 +860,8 @@ export function YouTubeView({
               </>
             )
           )}
-        </Dialog>
-      )}
+        </>)}
+      </Dialog>
     </main>
   );
 }

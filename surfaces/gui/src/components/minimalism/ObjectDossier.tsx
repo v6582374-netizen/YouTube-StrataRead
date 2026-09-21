@@ -1,6 +1,7 @@
 import { mt } from "./text";
 import { useEffect, useRef, useState } from "react";
 import { minimalismCapability } from "../../api";
+import { ModalSurface, useModalInteraction, type ModalInput } from "../ModalSurface";
 import { Icon } from "../Icon";
 import { ObjectImage } from "./ObjectImage";
 import {
@@ -28,13 +29,22 @@ export function ObjectDossier({
   run,
   onBack,
   onImageSettings,
+  active = true,
 }: {
   object: ObjectRecord;
   snapshot: Snapshot;
-  run: (action: string, args?: Record<string, unknown>) => Promise<boolean>;
+  run: (action: string, args?: Record<string, unknown>, onError?: (error: string) => void) => Promise<boolean>;
   onBack: () => void;
   onImageSettings: () => void;
+  active?: boolean;
 }) {
+  const modal = useModalInteraction();
+  const sectionRef = useRef<HTMLElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const previewRef = useRef<Preview | null>(null);
+  const generation = useRef(0);
+  const generationPending = useRef(false);
+  const [applying, setApplying] = useState(false);
   const [blocks, setBlocks] = useState<MemoryBlock[]>(object.memoryBlocks);
   const [custom, setCustom] = useState(object.customMetadata);
   const [newField, setNewField] = useState("");
@@ -88,37 +98,69 @@ export function ObjectDossier({
       setPhotoBusy(false);
     }
   }
-  async function discard() {
-    if (preview)
-      await minimalismCapability("cover.discard", {
-        preview: preview.preview,
-      }).catch(() => {});
-    setPreview(null);
+  const releasePreview = (value: Preview | null) => value
+    ? minimalismCapability("cover.discard", { preview: value.preview }).catch(() => {})
+    : Promise.resolve();
+  const replacePreview = (value: Preview | null) => {
+    previewRef.current = value;
+    setPreview(value);
+  };
+  function discard(input: ModalInput = modal.input()) {
+    const previous = previewRef.current;
+    generation.current++;
+    generationPending.current = false;
+    modal.end(input);
+    replacePreview(null);
+    setInspectedPhoto(null);
+    setGenerating(false);
+    setApplying(false);
+    return releasePreview(previous);
   }
+  useEffect(() => {
+    if (!active) {
+      setPreview(null);
+      setInspectedPhoto(null);
+      setGenerating(false);
+      setApplying(false);
+    }
+    return () => {
+      generation.current++;
+      generationPending.current = false;
+      const previous = previewRef.current;
+      previewRef.current = null;
+      void releasePreview(previous);
+    };
+  }, [active]);
   async function generate() {
-    if (generating) return;
+    if (generationPending.current || !active) return;
+    generationPending.current = true;
+    const version = ++generation.current;
+    modal.begin();
     setGenerating(true);
     setError("");
-    const config = await minimalismCapability<{
-      ready: boolean;
-    }>("image.settings").catch(() => null);
-    if (!config?.ready) {
-      setGenerating(false);
-      onImageSettings();
-      return;
-    }
-    await discard();
-    setGenerating(true);
     try {
-      setPreview(
-        await minimalismCapability<Preview>("cover.generate", {
-          id: object.id,
-        }),
-      );
+      const config = await minimalismCapability<{ ready: boolean }>("image.settings");
+      if (version !== generation.current) return;
+      if (!config.ready) {
+        void discard();
+        onImageSettings();
+        return;
+      }
+      const next = await minimalismCapability<Preview>("cover.generate", { id: object.id });
+      if (version !== generation.current) {
+        void releasePreview(next);
+        return;
+      }
+      const previous = previewRef.current;
+      replacePreview(next);
+      void releasePreview(previous);
     } catch (e) {
-      setError(message(e));
+      if (version === generation.current) setError(message(e));
     } finally {
-      setGenerating(false);
+      if (version === generation.current) {
+        generationPending.current = false;
+        setGenerating(false);
+      }
     }
   }
   const date = object.acquisitionDate || object.createdAt;
@@ -128,6 +170,7 @@ export function ObjectDossier({
   );
   return (
     <section
+      ref={sectionRef} tabIndex={-1} {...modal.capture}
       aria-label={mt("物品档案")}
       className="max-w-5xl mx-auto px-5 sm:px-8 py-5"
     >
@@ -377,7 +420,7 @@ export function ObjectDossier({
                   <button
                     className="w-20 h-24 rounded-lg overflow-hidden"
                     aria-label={mt("查看档案照片")}
-                    onClick={() => setInspectedPhoto(path)}
+                    onClick={() => { setError(""); modal.begin(); setInspectedPhoto(path); }}
                   >
                     <ObjectImage path={path} name={mt("档案照片")} />
                   </button>
@@ -545,78 +588,78 @@ export function ObjectDossier({
           </button>
         </div>
       )}
-      {(preview || inspectedPhoto) && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label={preview ? mt("封面预览") : mt("档案照片")}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              void discard();
-              setInspectedPhoto(null);
-            }
-          }}
-        >
-          <div className="bg-paper border border-line rounded-2xl p-5 max-w-lg w-full shadow-xl">
-            <div className="h-[min(60vh,550px)] rounded-lg overflow-hidden">
-              {preview ? (
-                <img
-                  alt={mt("AI 封面预览")}
-                  src={`data:${preview.mime};base64,${preview.data}`}
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <ObjectImage
-                  path={inspectedPhoto}
-                  name={mt("档案照片")}
-                  contain
-                />
-              )}
-            </div>
-            {preview ? (
-              <>
-                <p className="text-[12px] text-muted mt-3">
-                  {preview.used_reference
-                    ? mt("基于档案照片生成")
-                    : mt("未使用参考照片")}
-                  {mt(" · 采用后替换当前封面")}
-                </p>
-                <div className="flex justify-end gap-2 mt-4">
-                  <button autoFocus className={button} onClick={discard}>
-                    {mt("取消")}
-                  </button>
-                  <button className={button} onClick={generate}>
-                    {mt("重新生成")}
-                  </button>
-                  <button
-                    className={primary}
-                    onClick={async () => {
-                      if (
-                        await run("asset.cover.apply", {
-                          id: object.id,
-                          preview: preview.preview,
-                        })
-                      )
-                        await discard();
-                    }}
-                  >
-                    {mt("采用封面")}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button
-                autoFocus
-                className={`${button} mt-4`}
-                onClick={() => setInspectedPhoto(null)}
-              >
-                {mt("关闭")}
-              </button>
-            )}
-          </div>
+      <ModalSurface
+        open={Boolean(preview || inspectedPhoto)} active={active}
+        label={preview ? mt("封面预览") : mt("档案照片")}
+        interaction={modal} initialFocusRef={cancelRef} fallbackFocusRef={sectionRef}
+        surfaceClassName="modal-preview"
+        onRequestClose={() => { void discard(modal.closeInput.current); }}
+      >
+        <div className="h-[min(60vh,550px)] rounded-lg overflow-hidden">
+          {preview ? (
+            <img
+              alt={mt("AI 封面预览")}
+              src={`data:${preview.mime};base64,${preview.data}`}
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <ObjectImage
+              path={inspectedPhoto}
+              name={mt("档案照片")}
+              contain
+            />
+          )}
         </div>
-      )}
+        {error && <p role="alert" className="mt-3 text-[13px] text-danger">{mt(error)}</p>}
+        {preview ? (
+          <>
+            <p className="text-[12px] text-muted mt-3">
+              {preview.used_reference
+                ? mt("基于档案照片生成")
+                : mt("未使用参考照片")}
+              {mt(" · 采用后替换当前封面")}
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <button ref={cancelRef} className={button} onClick={() => { void discard(); }}>
+                {mt("取消")}
+              </button>
+              <button className={button} disabled={generating || applying} onClick={generate}>
+                {mt("重新生成")}
+              </button>
+              <button
+                className={primary}
+                disabled={generating || applying}
+                onClick={async () => {
+                  const version = generation.current;
+                  const input = modal.input();
+                  setApplying(true);
+                  setError("");
+                  try {
+                    const ok = await run(
+                      "asset.cover.apply",
+                      { id: object.id, preview: preview.preview },
+                      error => { if (version === generation.current) setError(error); },
+                    );
+                    if (version === generation.current && ok) void discard(input);
+                  } finally {
+                    if (version === generation.current) setApplying(false);
+                  }
+                }}
+              >
+                {mt("采用封面")}
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            ref={cancelRef}
+            className={`${button} mt-4`}
+            onClick={() => { void discard(); }}
+          >
+            {mt("关闭")}
+          </button>
+        )}
+      </ModalSurface>
     </section>
   );
 }

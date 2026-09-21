@@ -1763,7 +1763,7 @@ export function App() {
         onPeekLeave={() => setNavPeek(false)}
       />
       {minimalismOpened && <div className={surface === "minimalism" ? "flex flex-1 min-w-0 overflow-hidden" : "hidden"}>
-        <MinimalismView onImageSettings={() => openSettings("image-generation")} />
+        <MinimalismView active={surface === "minimalism"} onImageSettings={() => openSettings("image-generation")} />
       </div>}
       {surface === "minimalism" ? null : surface === "youtube" ? (
         <YouTubeView onModelSettings={() => openSettings("models")} onTranslationSettings={() => openSettings("youtube-translation")} />

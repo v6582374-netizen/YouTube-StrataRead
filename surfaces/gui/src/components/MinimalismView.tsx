@@ -2,12 +2,13 @@ import { chooseFolder, isTauri } from "../tauri";
 import "./minimalism/minimalism.css";
 import { useTranslation } from "react-i18next";
 import { mt } from "./minimalism/text";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   minimalismBackup,
   minimalismCapability,
   minimalismRestore,
 } from "../api";
+import { ModalSurface, useModalInteraction } from "./ModalSurface";
 import { Icon } from "./Icon";
 import { ObjectImage } from "./minimalism/ObjectImage";
 import { ObjectDossier } from "./minimalism/ObjectDossier";
@@ -22,10 +23,16 @@ import {
 } from "./minimalism/types";
 export function MinimalismView({
   onImageSettings,
+  active: isActive = true,
 }: {
   onImageSettings: () => void;
+  active?: boolean;
 }) {
   useTranslation();
+  const modal = useModalInteraction();
+  const mainRef = useRef<HTMLElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const formRevision = useRef(0);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -46,6 +53,9 @@ export function MinimalismView({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [rename, setRename] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isActive) { formRevision.current++; setCreate(null); setRename(null); }
+  }, [isActive]);
   async function refresh() {
     const next = await minimalismCapability<Snapshot>("library.snapshot");
     setSnapshot(next);
@@ -75,14 +85,18 @@ export function MinimalismView({
     }, 500);
     return () => clearInterval(timer);
   }, [loading]);
-  async function run(action: string, args: Record<string, unknown> = {}) {
+  async function run(
+    action: string,
+    args: Record<string, unknown> = {},
+    onError: (error: string) => void = setError,
+  ) {
     setError("");
     try {
       await minimalismCapability(action, args);
       await refresh();
       return true;
     } catch (e) {
-      setError(message(e));
+      onError(message(e));
       return false;
     }
   }
@@ -193,6 +207,7 @@ export function MinimalismView({
   }
   return (
     <main
+      ref={mainRef} tabIndex={-1} {...modal.capture}
       aria-label={mt("Minimalism 物品记忆")}
       className="minimalism-main flex-1 min-w-0 h-full flex flex-col bg-paper text-ink"
     >
@@ -243,6 +258,7 @@ export function MinimalismView({
             {object ? (
               <div className="flex-1 overflow-y-auto hairline-scroll">
                 <ObjectDossier
+                  active={isActive}
                   key={object.id}
                   object={object}
                   snapshot={snapshot}
@@ -270,6 +286,9 @@ export function MinimalismView({
                     className={primary}
                     onClick={() => {
                       setName("");
+                      setError("");
+                      formRevision.current++;
+                      modal.begin();
                       setCreate("asset");
                     }}
                   >
@@ -530,6 +549,9 @@ export function MinimalismView({
                       className="w-20 shrink-0 rounded-xl border border-dashed border-line text-muted text-[12px] flex flex-col gap-2 items-center justify-center hover:text-ink"
                       onClick={() => {
                         setName("");
+                        setError("");
+                        formRevision.current++;
+                        modal.begin();
                         setCreate("collection");
                       }}
                     >
@@ -567,6 +589,9 @@ export function MinimalismView({
                             className={button}
                             onClick={() => {
                               setName(selectedCollection.name);
+                              setError("");
+                              formRevision.current++;
+                              modal.begin();
                               setRename(selectedCollection.id);
                             }}
                           >
@@ -730,7 +755,10 @@ export function MinimalismView({
                             className={button}
                             onClick={() => {
                               setName("");
-                              setCreate("asset");
+                              setError("");
+                              formRevision.current++;
+                              modal.begin();
+                      setCreate("asset");
                             }}
                           >
                             {mt("添加物品")}
@@ -744,94 +772,89 @@ export function MinimalismView({
           </>
         )
       )}
-      {(create || rename) && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={
-            rename
-              ? mt("重命名集合")
-              : create === "asset"
-                ? mt("添加物品")
-                : mt("新建集合")
-          }
-          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-5"
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setCreate(null);
-              setRename(null);
+      <ModalSurface
+        open={Boolean(create || rename)} active={isActive}
+        interaction={modal} initialFocusRef={nameRef} fallbackFocusRef={mainRef}
+        label={rename ? mt("重命名集合") : create === "asset" ? mt("添加物品") : mt("新建集合")}
+        surfaceClassName="modal-form"
+        onRequestClose={() => { formRevision.current++; setCreate(null); setRename(null); }}
+      >
+        <form
+          className="w-full"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (busy) return;
+            const input = modal.input();
+            const revision = formRevision.current;
+            setBusy(true);
+            try {
+              if (rename) {
+                const ok = await run("collection.save", {
+                  id: rename,
+                  changes: { name },
+                }, error => { if (revision === formRevision.current) setError(error); });
+                if (ok && revision === formRevision.current) {
+                  modal.end(input);
+                  setRename(null);
+                }
+              } else {
+                const record = await minimalismCapability<{
+                  id: string;
+                }>(`${create}.create`, {
+                  name:
+                    name.trim() ||
+                    (create === "asset" ? mt("未命名") : mt("新集合")),
+                  collectionID: selectedCollection?.id || null,
+                });
+                await refresh();
+                if (revision !== formRevision.current) return;
+                if (create === "asset") setSelected(record.id);
+                else setCollection(record.id);
+                modal.end(input);
+                setCreate(null);
+              }
+            } catch (e) {
+              if (revision === formRevision.current) setError(message(e));
+            } finally {
+              setBusy(false);
             }
           }}
         >
-          <form
-            className="w-full max-w-sm rounded-2xl border border-line bg-paper p-6 shadow-xl"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (busy) return;
-              setBusy(true);
-              try {
-                if (rename) {
-                  if (
-                    await run("collection.save", {
-                      id: rename,
-                      changes: { name },
-                    })
-                  )
-                    setRename(null);
-                } else {
-                  const record = await minimalismCapability<{
-                    id: string;
-                  }>(`${create}.create`, {
-                    name:
-                      name.trim() ||
-                      (create === "asset" ? mt("未命名") : mt("新集合")),
-                    collectionID: selectedCollection?.id || null,
-                  });
-                  await refresh();
-                  if (create === "asset") setSelected(record.id);
-                  else setCollection(record.id);
-                  setCreate(null);
-                }
-              } catch (e) {
-                setError(message(e));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <h2 className="text-base font-semibold mb-4">
-              {rename
-                ? mt("重命名集合")
-                : create === "asset"
-                  ? mt("添加物品")
-                  : mt("新建集合")}
-            </h2>
-            <input
-              autoFocus
-              aria-label={mt("名称")}
-              className={field}
-              placeholder={mt("名称")}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                className={button}
-                type="button"
-                onClick={() => {
-                  setCreate(null);
-                  setRename(null);
-                }}
-              >
-                {mt("取消")}
-              </button>
-              <button className={primary} disabled={busy}>
-                {busy ? mt("保存中…") : mt("保存")}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <h2 className="text-base font-semibold mb-4">
+            {rename
+              ? mt("重命名集合")
+              : create === "asset"
+                ? mt("添加物品")
+                : mt("新建集合")}
+          </h2>
+          <input
+            ref={nameRef}
+            aria-label={mt("名称")}
+            className={field}
+            placeholder={mt("名称")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          {error && <p role="alert" className="mt-3 text-[13px] text-danger">{mt(error)}</p>}
+          <div className="flex justify-end gap-2 mt-5">
+            <button
+              className={button}
+              type="button"
+              onClick={() => {
+                formRevision.current++;
+                modal.end();
+                setCreate(null);
+                setRename(null);
+              }}
+            >
+              {mt("取消")}
+            </button>
+            <button className={primary} disabled={busy}>
+              {busy ? mt("保存中…") : mt("保存")}
+            </button>
+          </div>
+        </form>
+      </ModalSurface>
     </main>
   );
 }

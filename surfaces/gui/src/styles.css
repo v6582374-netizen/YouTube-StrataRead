@@ -58,6 +58,8 @@
 }
 
 :root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-modal: 200ms;
   color-scheme: light;
   --paper: #f5f6f7;          /* cool light gray — washes/chips over panel or canvas */
   --panel: #ffffff;
@@ -2099,4 +2101,28 @@ html[data-platform="linux"] ::-webkit-scrollbar-thumb:hover { background-color: 
   background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
   font-family: var(--mono); font-size: var(--fs-mono); line-height: 1.5;
   color: var(--muted); white-space: pre-wrap; text-align: left;
+}
+
+/* Shared low-frequency modal surface; business content owns its width. */
+.modal-scrim {
+  position: fixed; inset: 0; z-index: 50; display: flex;
+  align-items: center; justify-content: center; padding: 24px;
+}
+.modal-backdrop { position: absolute; inset: 0; background: var(--scrim); pointer-events: none; }
+.modal-scrim[data-modal-state="closing"] { pointer-events: none; }
+.modal-form { width: 384px; padding: 24px; }
+.modal-preview { width: 512px; padding: 20px; }
+.modal-surface {
+  position: relative;
+  max-width: 100%; max-height: calc(100dvh - 48px); min-height: 0;
+  overflow: auto; background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 24px 75px #0003; transform-origin: center center;
+}
+@media (prefers-contrast: more) {
+  .modal-surface { border-color: var(--ink); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-surface { transform: none; }
 }

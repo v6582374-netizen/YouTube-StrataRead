@@ -220,7 +220,7 @@ it("shows the verified connection on the channel button, including after authori
 it("loads an existing authorization on a fresh view without inferring it from imported channels", async () => {
   const implementation = call.getMockImplementation()!;
   call.mockImplementation(async (capability, args) =>
-    capability === "connection.status"
+    (capability === "connection.status" || capability === "connection.refresh_subscriptions")
       ? { configured: true, authorized: true, subscription_count: 12 }
       : implementation(capability, args),
   );
@@ -229,7 +229,7 @@ it("loads an existing authorization on a fresh view without inferring it from im
   expect(
     await screen.findByRole("button", { name: "已连接 YouTube" }),
   ).toBeTruthy();
-  expect(screen.getByText("12 个订阅")).toBeTruthy();
+  expect(await screen.findByText("12 个订阅")).toBeTruthy();
 });
 
 it("reports unknown connection status on failure instead of showing a false connected badge", async () => {

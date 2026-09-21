@@ -378,26 +378,10 @@
   font-size: 13px;
   margin-bottom: 20px;
 }
-.yp-scrim {
-  position: fixed;
-  inset: 0;
-  background: var(--scrim);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
 .yp-dialog {
   width: 600px;
-  max-width: 100%;
-  max-height: 82dvh;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 15px;
-  box-shadow: 0 24px 75px #0003;
   overflow: hidden;
 }
 .yp-dialoghead {
@@ -420,6 +404,7 @@
   line-height: 1.6;
 }
 .yp-dialogbody {
+  min-height: 0;
   padding: 0 25px 20px;
   overflow: auto;
 }

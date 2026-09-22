@@ -14,7 +14,9 @@ from youtube_strataread.workbench.shorts import YouTubeShortsClassifier
 
 @pytest.fixture(autouse=True)
 def ordinary_video_metadata(monkeypatch):
-    monkeypatch.setattr(YouTubeShortsClassifier, "classify", lambda self, video_id: False)
+    monkeypatch.setattr(
+        YouTubeShortsClassifier, "classify", lambda self, video_id, **_kwargs: False
+    )
     monkeypatch.setattr("youtube_strataread.workbench.workspace.time", SimpleNamespace(time=lambda: 1789728000.0))
 
 

@@ -12,7 +12,7 @@ import "./discovery/hierarchy.css";
 import { DiscoveryStatus } from "./DiscoveryStatus";
 import "./progress.css";
 
-type QueueState = "expired" | "awaiting_timing" | "queued" | "rate_limited" | "awaiting_classification" | "filtered" | "cancelled" | "failed" | "unavailable";
+type QueueState = "awaiting_completion" | "expired" | "awaiting_timing" | "queued" | "rate_limited" | "awaiting_classification" | "filtered" | "cancelled" | "failed" | "unavailable";
 type Page = { items: QueueItem[]; total: number };
 function ago(timestamp: number | null | undefined, now: number) {
   if (!timestamp) return yt("尚无记录");
@@ -36,7 +36,7 @@ export function ProgressPage({ activity, receivedAt, disconnected, onRefresh, on
 }) {
   useTranslation();
   const labels = activityLabels();
-  const filters = [["queued", yt("待处理")], ["expired", yt("已过期")], ["awaiting_timing", yt("待核实时间")], ["rate_limited", yt("限流等待")], ["awaiting_classification", yt("待确认类型")], ["filtered", yt("已排除 Shorts")], ["cancelled", yt("已取消")], ["failed", yt("处理失败")], ["unavailable", yt("暂不可用")]] as const;
+  const filters = [["queued", yt("待处理")], ["awaiting_completion", yt("等待视频结束")], ["expired", yt("已过期")], ["awaiting_timing", yt("待核实时间")], ["rate_limited", yt("限流等待")], ["awaiting_classification", yt("待确认类型")], ["filtered", yt("已排除 Shorts")], ["cancelled", yt("已取消")], ["failed", yt("处理失败")], ["unavailable", yt("暂不可用")]] as const;
   const [now, setNow] = useState(Date.now());
   const [filter, setFilter] = useState<QueueState>("queued");
   const [offset, setOffset] = useState(0);
@@ -120,7 +120,7 @@ export function ProgressPage({ activity, receivedAt, disconnected, onRefresh, on
     return { id, label: labels[id], state: id === stage ? "active" : done ? "done" : "pending",
       summary: id === stage ? yt("进行中") : done ? yt("已完成") : yt("未执行 / 待处理") };
   }) : [];
-  const canSelect = filter === "expired" || filter === "awaiting_timing" || filter === "queued" || filter === "cancelled" || filter === "awaiting_classification" || filter === "rate_limited";
+  const canSelect = filter === "awaiting_completion" || filter === "expired" || filter === "awaiting_timing" || filter === "queued" || filter === "cancelled" || filter === "awaiting_classification" || filter === "rate_limited";
   const verb = filter === "cancelled" ? yt("恢复处理") : yt("取消处理");
   const capability = filter === "cancelled" ? "activity.restore" : "activity.cancel";
 
@@ -178,8 +178,8 @@ export function ProgressPage({ activity, receivedAt, disconnected, onRefresh, on
                 checked={selected.includes(item.video_id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, item.video_id] : ids.filter(id => id !== item.video_id))} />}
               <div className="yp-queue-copy"><strong>{item.title}</strong><span>{videoMetadataText(item)}</span>
                 <p>{item.request_kind === "manual" ? yt("手动请求") : item.commenced_at ? yt("已实际开工，可跨窗口续办；仍需自动更新许可。") : yt("尚未实际开工，首次开工仍须在 72 小时内。")}</p>
-                {(filter === "expired" || filter === "awaiting_timing") && <p>{yt(item.failure_reason || "")}</p>}
-                {filter !== "expired" && filter !== "awaiting_timing" && !!item.failure_reason && <><p>{reason.title} · {reason.description}</p><details><summary>{yt("技术详情")}</summary><pre>{item.failure_reason}</pre></details></>}
+                {(filter === "awaiting_completion" || filter === "expired" || filter === "awaiting_timing") && <p>{yt(item.failure_reason || "")}</p>}
+                {filter !== "awaiting_completion" && filter !== "expired" && filter !== "awaiting_timing" && !!item.failure_reason && <><p>{reason.title} · {reason.description}</p><details><summary>{yt("技术详情")}</summary><pre>{item.failure_reason}</pre></details></>}
               </div>
               <div className="yp-queue-actions">
                 {canSelect && <button className="yp-btn" disabled={busy || !!listError} onClick={() => void run(capability, {video_ids: [item.video_id]})}>{verb}</button>}

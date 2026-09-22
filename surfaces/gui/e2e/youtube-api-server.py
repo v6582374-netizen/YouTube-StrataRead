@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path.cwd() / 'tests'))
 import uvicorn
 from keyring.backends.macOS import Keyring
 from translation_fixture import source_from_prompt
+from shorts_fixture import player_page
 
 from coworker.providers import AssistantTurn, ModelCapabilities, ProviderClient
 from coworker.server import SessionManager, create_app
@@ -103,7 +104,7 @@ def google(request, timeout=30):
         items = [{'id':'entry-' + v['id'], 'snippet':{'publishedAt':stamp(v.get('added',v['published'])),
             'title':v['id'], 'channelId':channel}, 'contentDetails':{'videoId':v['id'],
             'videoPublishedAt':stamp(v.get('claimed_publication',v['published']))}}
-                 for v in videos if v.get('channel','alpha') == channel]
+                 for v in videos if v.get('channel','alpha') == channel and v.get('listed', True)]
         result = {'items':items}
         if spec.get('more_pages'):
             result['nextPageToken'] = 'more'
@@ -112,7 +113,7 @@ def google(request, timeout=30):
         return response({'items':[{'id':v['id'], 'snippet':{'title':v['id'], 'channelId':v.get('channel','alpha'),
             'channelTitle':v.get('channel','alpha'), 'publishedAt':stamp(v['published']),
             'liveBroadcastContent':v.get('kind','none')}, 'status':{'privacyStatus':'public','uploadStatus':'processed'},
-            'contentDetails':{'duration':'PT2M'}} for v in videos if v['id'] in query['id'][0].split(',')]})
+            'contentDetails':{'duration':'PT2M'}, **({'liveStreamingDetails':v['live']} if 'live' in v else {})} for v in videos if v['id'] in query['id'][0].split(',')]})
     raise AssertionError(endpoint)
 
 
@@ -134,13 +135,41 @@ def browser(url):
 
 
 webbrowser.open = browser
-shorts.YouTubeShortsClassifier.classify = lambda self, video_id: False
+original_classify = shorts.YouTubeShortsClassifier.classify
+
+
+def classify(self, video_id, **kwargs):
+    if config().get('platform_pages'):
+        return original_classify(self, video_id, **kwargs)
+    return False
+
+
+def platform_page(request, timeout=15):
+    video_id = parse_qs(urlsplit(request.full_url).query)['v'][0]
+    video = next(v for v in config()['videos'] if v['id'] == video_id)
+    with (root / 'classification-requests.jsonl').open('a') as log:
+        log.write(json.dumps({'video_id':video_id, 'at':now()}) + '\n')
+    if config().get('hold_classification'):
+        (root / 'classification-started').touch()
+        wait('classification-release')
+    content = player_page(video_id, video.get('shorts', False))
+    if 'live' in video:
+        content = content.replace('"lengthSeconds": "120"', '"lengthSeconds": "120", "isLiveContent": true')
+    result = BytesIO(content.encode())
+    result.status = 200
+    result.geturl = lambda: request.full_url
+    return result
+
+
+shorts.YouTubeShortsClassifier.classify = classify
+shorts.urlopen = platform_page
 
 
 def captions(self, url, *, before_subtitles=None):
     video_id = url.split('=')[-1]
     if before_subtitles:
-        before_subtitles({'id':video_id,'live_status':'not_live'})
+        video = next(v for v in config().get('videos', []) if v['id'] == video_id)
+        before_subtitles({'id':video_id,'live_status':video.get('caption_status','not_live')})
     (root / ('caption-' + video_id)).touch()
     if config().get('caption_cooldown'):
         from youtube_strataread.downloader.youtube import YouTubeError

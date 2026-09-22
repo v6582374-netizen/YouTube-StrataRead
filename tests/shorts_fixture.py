@@ -4,7 +4,7 @@ import json
 
 
 class RegularVideos:
-    def classify(self, video_id):
+    def classify(self, video_id, **_kwargs):
         return False
 
 

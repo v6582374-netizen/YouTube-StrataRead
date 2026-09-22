@@ -110,7 +110,7 @@ class Provider(ProviderClient):
         return ModelCapabilities()
 
 
-def classify(self, video_id):
+def classify(self, video_id, **_kwargs):
     (root / f'classification-{video_id}').touch()
     wait('classification-release')
     return False

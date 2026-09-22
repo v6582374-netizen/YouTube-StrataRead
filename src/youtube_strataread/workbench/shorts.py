@@ -52,7 +52,7 @@ class _Page(HTMLParser):
             self._script = None
 
 
-def classify_page(video_id: str, html: str) -> bool | None:
+def classify_page(video_id: str, html: str, *, completed_event: bool = False) -> bool | None:
     """Require a playable, identity-matched player and matching canonical format.
 
     isShortsEligible is an observed YouTube web signal, not a public API contract.
@@ -95,8 +95,8 @@ def classify_page(video_id: str, html: str) -> bool | None:
     renderer = microformat.get("playerMicroformatRenderer")
     if not isinstance(renderer, dict) or renderer.get("externalVideoId", video_id) != video_id:
         return None
-    if (details.get('isLiveContent') or details.get('isUpcoming')
-            or renderer.get('liveBroadcastDetails') or details.get('isLive')):
+    if (details.get('isUpcoming') or details.get('isLive')
+            or (not completed_event and (details.get('isLiveContent') or renderer.get('liveBroadcastDetails')))):
         raise VideoTimingUnverified()
     signal = renderer.get("isShortsEligible")
     return signal if type(signal) is bool and signal == canonical_short else None
@@ -106,7 +106,7 @@ class YouTubeShortsClassifier:
     def __init__(self, requests: YouTubeRequestPolicy | None = None) -> None:
         self.requests = requests
 
-    def classify(self, video_id: str) -> bool | None:
+    def classify(self, video_id: str, *, completed_event: bool = False) -> bool | None:
         if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             return None
         request = Request(
@@ -128,7 +128,7 @@ class YouTubeShortsClassifier:
                 data = response.read(_MAX_PAGE_BYTES + 1)
             if len(data) > _MAX_PAGE_BYTES:
                 return None
-            return classify_page(video_id, data.decode("utf-8"))
+            return classify_page(video_id, data.decode("utf-8"), completed_event=completed_event)
         except (OSError, ValueError) as error:
             limited = rate_limit_error(error)
             if limited:

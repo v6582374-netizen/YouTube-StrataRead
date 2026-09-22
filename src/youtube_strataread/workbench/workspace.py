@@ -12,7 +12,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from platformdirs import user_data_dir
 
@@ -20,7 +20,7 @@ from youtube_strataread.downloader.request_policy import (
     MAX_RATE_LIMIT_ATTEMPTS,
     YouTubeRequestPolicy,
 )
-from youtube_strataread.workbench.freshness import WAITING_REASONS, admission
+from youtube_strataread.workbench.freshness import WAITING_REASONS, preparation_admission
 from youtube_strataread.workbench.shorts import CLASSIFICATION_RETRY_SECONDS
 
 if TYPE_CHECKING:
@@ -107,67 +107,53 @@ class LocalWorkspace:
         )
 
     def add_candidate(self, candidate: Candidate) -> bool:
-        state = (admission(candidate.published_at, candidate.published_ts, time.time())
-                 if candidate.timing_status == 'publication' else 'awaiting_timing')
+        now = time.time()
+        facts = {
+            'published_at': candidate.published_at, 'published_ts': candidate.published_ts,
+            'timing_status': candidate.timing_status, 'completion_status': candidate.completion_status,
+            'actual_start_at': candidate.actual_start_at, 'actual_end_at': candidate.actual_end_at,
+            'scheduled_start_at': candidate.scheduled_start_at, 'timing_checked_at': candidate.timing_checked_at,
+        }
+        state = self._admission(facts, now)
         with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.execute('BEGIN IMMEDIATE')
             cursor = connection.execute(
-                """
-                INSERT OR IGNORE INTO candidates
-                    (video_id, channel_id, channel_title, title, url, published_at, published_ts,
-                     discovered_at, preparation_state, failure_reason, timing_status, playlist_added_at,
-                     source_observed_at, source_observed_from, source_observed_until)
-                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                f"""INSERT OR IGNORE INTO candidates
+                    (video_id, channel_id, channel_title, title, url, discovered_at,
+                     preparation_state, failure_reason, {','.join(facts)})
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, {','.join('?' for _ in facts)}
                 WHERE NOT EXISTS (SELECT 1 FROM excluded_channels WHERE channel_id = ?)
-                  AND NOT EXISTS (SELECT 1 FROM unsubscribed_channels WHERE channel_id = ?)
-                """,
-                (
-                    candidate.video_id,
-                    candidate.channel_id,
-                    candidate.channel_title,
-                    candidate.title,
-                    candidate.url,
-                    candidate.published_at,
-                    candidate.published_ts,
-                    time.time(),
-                    state,
-                    WAITING_REASONS.get(state),
-                    candidate.timing_status, candidate.playlist_added_at, candidate.source_observed_at,
-                    candidate.source_observed_from, candidate.source_observed_until,
-                    candidate.channel_id,
-                    candidate.channel_id,
-                ),
+                  AND NOT EXISTS (SELECT 1 FROM unsubscribed_channels WHERE channel_id = ?)""",
+                (candidate.video_id, candidate.channel_id, candidate.channel_title, candidate.title,
+                 candidate.url, now, state, WAITING_REASONS.get(state), *facts.values(),
+                 candidate.channel_id, candidate.channel_id),
             )
             inserted = cursor.rowcount > 0
             if not inserted:
-                connection.execute(
-                    """UPDATE candidates SET published_at = ?, published_ts = ?,
-                       preparation_state = ?, failure_reason = ?, timing_status = ?
-                       WHERE video_id = ? AND preparation_state = 'awaiting_timing'
-                         AND commenced_at IS NULL AND timing_status != 'event'""",
-                    (candidate.published_at, candidate.published_ts, state,
-                     WAITING_REASONS.get(state), candidate.timing_status, candidate.video_id),
-                )
-            if candidate.source_observed_at is not None:
-                connection.execute(
-                    """UPDATE candidates SET published_at=?, published_ts=?, timing_status=?,
-                       preparation_state=CASE WHEN ?='queued' AND preparation_state IN
-                         ('rate_limited','awaiting_classification') THEN preparation_state ELSE ? END,
-                       failure_reason=CASE WHEN ?='queued' AND preparation_state IN
-                         ('rate_limited','awaiting_classification') THEN failure_reason ELSE ? END
-                       WHERE video_id=? AND source_observed_at IS NULL AND commenced_at IS NULL
-                         AND timing_status != 'event' AND request_kind='automatic'
-                         AND preparation_state IN ('queued','expired','awaiting_timing','rate_limited','awaiting_classification')""",
-                    (candidate.published_at, candidate.published_ts, candidate.timing_status,
-                     state, state, state, WAITING_REASONS.get(state), candidate.video_id),
-                )
-                connection.execute(
-                    """UPDATE candidates SET source_observed_at=COALESCE(source_observed_at,?),
-                       source_observed_from=COALESCE(source_observed_from,?),
-                       source_observed_until=COALESCE(source_observed_until,?),
-                       playlist_added_at=COALESCE(playlist_added_at,?) WHERE video_id=?""",
-                    (candidate.source_observed_at, candidate.source_observed_from,
-                     candidate.source_observed_until, candidate.playlist_added_at, candidate.video_id),
-                )
+                previous = connection.execute('SELECT * FROM candidates WHERE video_id=?', (candidate.video_id,)).fetchone()
+                if previous and (previous['preparation_state'] in ('awaiting_timing', 'awaiting_completion')
+                                 or (previous['source_observed_at'] is None and candidate.source_observed_at is not None
+                                     and previous['preparation_state'] in ('queued', 'expired', 'rate_limited', 'awaiting_classification'))):
+                    # Never downgrade an identified event to ordinary publication.
+                    if previous['timing_status'] == 'event' and candidate.timing_status != 'event':
+                        facts.update(timing_status='event', completion_status='unverified')
+                    state = self._admission({**dict(previous), **facts}, now)
+                    if state == 'queued' and previous['preparation_state'] in ('rate_limited', 'awaiting_classification'):
+                        state = previous['preparation_state']
+                    connection.execute(
+                        f"""UPDATE candidates SET {','.join(key + '=?' for key in facts)},
+                            preparation_state=?, preparation_stage=?, failure_reason=? WHERE video_id=?""",
+                        (*facts.values(), state, state, WAITING_REASONS.get(state), candidate.video_id),
+                    )
+            connection.execute(
+                """UPDATE candidates SET source_observed_at=COALESCE(source_observed_at,?),
+                   source_observed_from=COALESCE(source_observed_from,?),
+                   source_observed_until=COALESCE(source_observed_until,?),
+                   playlist_added_at=COALESCE(playlist_added_at,?) WHERE video_id=?""",
+                (candidate.source_observed_at, candidate.source_observed_from,
+                 candidate.source_observed_until, candidate.playlist_added_at, candidate.video_id),
+            )
         return inserted
 
     def excluded_channels(self) -> list[str]:
@@ -236,25 +222,43 @@ class LocalWorkspace:
             connection.execute("COMMIT")
         return dict(row)
 
-    def _recheck_waiting(self, connection) -> None:
-        rows = connection.execute(
-            """SELECT video_id, published_at, published_ts, timing_status FROM candidates
-               WHERE request_kind = 'automatic' AND commenced_at IS NULL
+    @staticmethod
+    def _admission(facts: dict[str, Any], now: float) -> str:
+        return preparation_admission(
+            facts['published_at'], facts['published_ts'], now, facts['timing_status'],
+            facts.get('completion_status', 'unverified'), facts.get('actual_end_at'),
+            age_exempt=facts.get('commenced_at') is not None or facts.get('request_kind') == 'manual',
+        )
+
+    def pending_video_timing(self, channel_id: str, limit: int) -> list[dict[str, Any]]:
+        with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            return [dict(row) for row in connection.execute(
+                """SELECT * FROM candidates WHERE channel_id=?
+                   AND preparation_state IN ('awaiting_timing', 'awaiting_completion')
+                   ORDER BY COALESCE(timing_checked_at, 0), video_id LIMIT ?""", (channel_id, limit))]
+
+    def _recheck_waiting(self, connection: sqlite3.Connection) -> None:
+        cursor = connection.execute(
+            """SELECT * FROM candidates
+               WHERE (commenced_at IS NULL OR timing_status != 'publication')
                  AND preparation_state IN ('queued', 'rate_limited', 'awaiting_classification')"""
-        ).fetchall()
-        for row in rows:
-            state = 'awaiting_timing' if row[3] != 'publication' else admission(row[1], row[2], time.time())
+        )
+        names = [column[0] for column in cursor.description]
+        for row in cursor.fetchall():
+            facts = dict(zip(names, row, strict=True))
+            state = self._admission(facts, time.time())
             if state != 'queued':
                 connection.execute(
                     "UPDATE candidates SET preparation_state = ?, preparation_stage = ?, failure_reason = ? WHERE video_id = ?",
-                    (state, state, WAITING_REASONS[state], row[0]),
+                    (state, state, WAITING_REASONS[state], facts['video_id']),
                 )
 
     def await_video_timing(self, video_id: str) -> None:
         with sqlite3.connect(self.database_path) as connection:
             connection.execute(
                 """UPDATE candidates SET preparation_state = 'awaiting_timing',
-                   preparation_stage = 'awaiting_timing', timing_status = 'event', shorts_status = 'unknown',
+                   preparation_stage = 'awaiting_timing', timing_status = 'event', completion_status = 'unverified',
                    failure_reason = '直播或首映的结束时间尚未可靠核实，等待确认。'
                    WHERE video_id = ?""", (video_id,),
             )
@@ -262,16 +266,17 @@ class LocalWorkspace:
     def commence_preparation(self, video_id: str) -> bool:
         """Record the first real work boundary, never a reservation or classification."""
         with sqlite3.connect(self.database_path) as connection:
+            connection.row_factory = sqlite3.Row
             connection.execute('BEGIN IMMEDIATE')
             row = connection.execute(
-                "SELECT published_at, published_ts, commenced_at, request_kind, preparation_state FROM candidates WHERE video_id = ?",
+                "SELECT * FROM candidates WHERE video_id = ?",
                 (video_id,),
             ).fetchone()
-            if row is None or row[4] not in {'acquiring', 'generating'}:
+            if row is None or row['preparation_state'] not in {'acquiring', 'generating'}:
                 return False
-            if row[2] is not None:
+            if row['commenced_at'] is not None and row['timing_status'] == 'publication':
                 return True
-            state = admission(row[0], row[1], time.time()) if row[3] == 'automatic' else 'queued'
+            state = self._admission(dict(row), time.time())
             if state != 'queued':
                 connection.execute(
                     "UPDATE candidates SET preparation_state = ?, preparation_stage = ?, failure_reason = ? WHERE video_id = ?",
@@ -279,6 +284,8 @@ class LocalWorkspace:
                 )
                 self._activity_event(connection, video_id, state, WAITING_REASONS[state])
                 return False
+            if row['commenced_at'] is not None:
+                return True
             connection.execute('UPDATE candidates SET commenced_at = ? WHERE video_id = ?', (time.time(), video_id))
             self._activity_event(connection, video_id, 'commenced', '已实际开工，同次自动任务可跨窗口续办。')
             return True
@@ -410,7 +417,7 @@ class LocalWorkspace:
         return cursor.rowcount
 
     @staticmethod
-    def _console_entry(connection, video_id: str, message: str) -> None:
+    def _console_entry(connection: sqlite3.Connection, video_id: str, message: str) -> None:
         connection.execute(
             "INSERT INTO preparation_console (video_id, message, occurred_at) VALUES (?, ?, ?)",
             (video_id, message[:4000], time.time()),
@@ -425,7 +432,7 @@ class LocalWorkspace:
             self._console_entry(connection, video_id, message)
 
     @staticmethod
-    def _activity_event(connection, video_id: str, stage: str, detail: str = "") -> None:
+    def _activity_event(connection: sqlite3.Connection, video_id: str, stage: str, detail: str = "") -> None:
         connection.execute(
             "INSERT INTO preparation_events (video_id, stage, detail, occurred_at) VALUES (?, ?, ?, ?)",
             (video_id, stage, detail, time.time()),
@@ -434,7 +441,7 @@ class LocalWorkspace:
 
     def change_queue(self, video_ids: list[str], *, restore: bool = False) -> dict[str, object]:
         """Serialize cancellation with worker claims; report races per item."""
-        expected = ("cancelled",) if restore else ("queued", "awaiting_classification", "rate_limited", "expired", "awaiting_timing")
+        expected = ("cancelled",) if restore else ("queued", "awaiting_classification", "rate_limited", "expired", "awaiting_timing", "awaiting_completion")
         target = "queued" if restore else "cancelled"
         changed, skipped = [], []
         with sqlite3.connect(self.database_path) as connection:
@@ -473,7 +480,7 @@ class LocalWorkspace:
     def activity_items(
         self, state: str = "queued", offset: int = 0, limit: int = 50
     ) -> dict[str, object]:
-        if state not in {"queued", "cancelled", "failed", "unavailable", "ready", "awaiting_classification", "filtered", "rate_limited", "expired", "awaiting_timing"}:
+        if state not in {"queued", "cancelled", "failed", "unavailable", "ready", "awaiting_classification", "filtered", "rate_limited", "expired", "awaiting_timing", "awaiting_completion"}:
             raise ValueError("无效的处理状态。")
         if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 100:
             raise ValueError("无效的分页范围。")
@@ -540,7 +547,7 @@ class LocalWorkspace:
         generator: str,
         transcript_characters: int,
         translation: str | None = None,
-        provenance: dict | None = None,
+        provenance: dict[str, Any] | None = None,
     ) -> dict[str, object]:
         with sqlite3.connect(self.database_path) as connection:
             row = connection.execute(
@@ -609,7 +616,7 @@ class LocalWorkspace:
             connection.row_factory = sqlite3.Row
             row = connection.execute(
                 """
-                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at, c.playlist_added_at, c.source_observed_at, c.source_observed_from, c.source_observed_until, c.discovered_at, c.timing_status,
+                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at, c.playlist_added_at, c.source_observed_at, c.source_observed_from, c.source_observed_until, c.discovered_at, c.published_ts, c.timing_status, c.completion_status, c.actual_start_at, c.actual_end_at, c.scheduled_start_at, c.timing_checked_at,
                        c.preparation_state, c.failure_reason, c.reading_state, c.manuscript_version,
                        c.manuscript_path, c.preparation_completed_at, c.duration_seconds,
                        t.path AS transcript_path
@@ -669,7 +676,7 @@ class LocalWorkspace:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 f"""
-                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at, c.playlist_added_at, c.source_observed_at, c.source_observed_from, c.source_observed_until, c.discovered_at, c.timing_status,
+                SELECT c.video_id, c.channel_id, c.channel_title, c.title, c.url, c.published_at, c.playlist_added_at, c.source_observed_at, c.source_observed_from, c.source_observed_until, c.discovered_at, c.published_ts, c.timing_status, c.completion_status, c.actual_start_at, c.actual_end_at, c.scheduled_start_at, c.timing_checked_at,
                        c.preparation_state, c.failure_reason, c.reading_state, c.manuscript_version,
                        c.manuscript_path, c.preparation_completed_at, c.duration_seconds,
                        SUBSTR(m.markdown, 1, 400) AS excerpt,
@@ -843,6 +850,7 @@ class LocalWorkspace:
             "awaiting_classification": counts.get("awaiting_classification", 0),
             "expired": counts.get("expired", 0),
             "awaiting_timing": counts.get("awaiting_timing", 0),
+            "awaiting_completion": counts.get("awaiting_completion", 0),
             "rate_limited": counts.get("rate_limited", 0),
             "youtube_requests": self.youtube_requests.snapshot(),
             "current": current,
@@ -909,7 +917,7 @@ class LocalWorkspace:
             connection.executemany(
                 "UPDATE candidates SET preparation_state = 'cancelled', failure_reason = ? "
                 "WHERE channel_id = ? AND manuscript_version IS NULL "
-                "AND preparation_state IN ('queued', 'rate_limited', 'awaiting_classification', 'expired', 'awaiting_timing')",
+                "AND preparation_state IN ('queued', 'rate_limited', 'awaiting_classification', 'expired', 'awaiting_timing', 'awaiting_completion')",
                 [("频道已取关，停止自动准备。已有文档保留。", key) for key in removed],
             )
             connection.execute("DELETE FROM subscription_sources")
@@ -931,7 +939,7 @@ class LocalWorkspace:
                 ],
             )
 
-    def observe_uploads(self, video_ids: list[str], started: float, finished: float) -> dict[str, dict]:
+    def observe_uploads(self, video_ids: list[str], started: float, finished: float) -> dict[str, dict[str, Any]]:
         """Retain first listing evidence even when details or admission later fail."""
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
@@ -944,7 +952,7 @@ class LocalWorkspace:
                 (video_id,),
             ).fetchone()) for video_id in video_ids}
 
-    def source_scan(self, channel_id: str) -> dict:
+    def source_scan(self, channel_id: str) -> dict[str, Any]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             row = connection.execute('SELECT * FROM youtube_discovery_sources WHERE channel_id=?', (channel_id,)).fetchone()
@@ -960,7 +968,7 @@ class LocalWorkspace:
             connection.execute('UPDATE youtube_discovery_sources SET ' + ','.join(name+'=?' for name in values) + ' WHERE channel_id=?',
                                (*values.values(), channel_id))
 
-    def source_scans(self) -> list[dict]:
+    def source_scans(self) -> list[dict[str, Any]]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
             return [dict(row) for row in connection.execute(
@@ -1091,6 +1099,11 @@ class LocalWorkspace:
                 "rate_limit_attempts": "INTEGER NOT NULL DEFAULT 0",
                 "commenced_at": "REAL",
                 "timing_status": "TEXT NOT NULL DEFAULT 'publication'",
+                "completion_status": "TEXT NOT NULL DEFAULT 'unverified'",
+                "actual_start_at": "TEXT",
+                "actual_end_at": "TEXT",
+                "scheduled_start_at": "TEXT",
+                "timing_checked_at": "REAL",
                 "playlist_added_at": "TEXT",
                 "source_observed_at": "REAL",
                 "source_observed_from": "REAL",
@@ -1114,7 +1127,7 @@ class LocalWorkspace:
                     if (isinstance(created_at, (int, float)) and math.isfinite(created_at)
                             and 0 < created_at <= time.time()
                             and self._usable_transcript(video_id, language, path, content)):
-                        connection.execute('UPDATE candidates SET commenced_at = ? WHERE video_id = ?', (created_at, video_id))
+                        connection.execute('UPDATE candidates SET commenced_at = COALESCE(commenced_at, ?) WHERE video_id = ?', (created_at, video_id))
                 self._recheck_waiting(connection)
                 connection.execute("INSERT INTO workspace_meta(key, value) VALUES ('youtube_commencement_v1', '1')")
             if not connection.execute(

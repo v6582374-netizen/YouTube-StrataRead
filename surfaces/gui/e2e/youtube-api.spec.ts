@@ -5,7 +5,7 @@ import {join, resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import type {Page, APIRequestContext} from '@playwright/test';
 
-type Scenario = {channels?: string[]; videos?: {id: string; published: number; added?: number; channel?: string; kind?: string; claimed_publication?: number}[];
+type Scenario = {hold_classification?: boolean; platform_pages?: boolean; channels?: string[]; videos?: {id: string; published: number; added?: number; channel?: string; kind?: string; claimed_publication?: number; live?: Record<string, string>; caption_status?: string; shorts?: boolean | null; listed?: boolean}[];
   global_failure?: string; failure_endpoint?: string; auth_failure?: boolean; channel_failure?: string; caption_cooldown?: boolean; more_pages?: boolean};
 async function harness(page: Page, request: APIRequestContext, scenario: Scenario, releaseModel = true) {
   const root = await mkdtemp(join(tmpdir(), 'edison-api-'));
@@ -15,15 +15,27 @@ async function harness(page: Page, request: APIRequestContext, scenario: Scenari
   await write('clock',String(now));
   await write('scenario.json',JSON.stringify(scenario));
   if(releaseModel) await write('model-release');
-  const backend = spawn(resolve('../../.venv/bin/python'), ['surfaces/gui/e2e/youtube-api-server.py',root],{cwd:resolve('../..'),stdio:['ignore','pipe','pipe']});
+  let backend: ReturnType<typeof spawn>;
+  let url = '';
+  const start = async () => {
+    backend = spawn(resolve('../../.venv/bin/python'), ['surfaces/gui/e2e/youtube-api-server.py',root],{cwd:resolve('../..'),stdio:['ignore','pipe','pipe']});
   let logs=''; backend.stderr!.on('data',chunk=>logs+=chunk);
   const port=await new Promise<number>((done,reject)=>{
     let output='';const timer=setTimeout(()=>reject(new Error(logs)),30000);
     backend.stdout!.on('data',chunk=>{output+=chunk;const line=output.split('\n').find(line=>line.startsWith('{"port":'));if(line){clearTimeout(timer);done(JSON.parse(line).port);}});
     backend.once('exit',code=>{clearTimeout(timer);reject(new Error(`${code}: ${logs}`));});
   });
-  const url=`http://127.0.0.1:${port}`;
+  url=`http://127.0.0.1:${port}`;
   await expect.poll(async()=>{try{return (await request.get(url+'/v1/health')).status();}catch{return 0;}}).toBe(200);
+  };
+  const stop = async () => {
+    if (backend.exitCode === null) {
+      const exited = new Promise<void>(done => backend.once('exit', () => done()));
+      backend.kill('SIGKILL');
+      await exited;
+    }
+  };
+  await start();
   const call=async(capability: string,args={})=>{
     const response=await request.post(url+'/v1/youtube/capability',{headers:{'X-OpenWorker-Token':'youtube-api-e2e'},data:{capability,arguments:args}});
     const payload=await response.json();expect(payload.ok,payload.error).toBe(true);return payload.result;
@@ -47,11 +59,11 @@ async function harness(page: Page, request: APIRequestContext, scenario: Scenari
     await page.getByRole('button',{name:on?'恢复自动更新':'完成当前文档后暂停',exact:true}).click();
     await expect(page.getByRole('button',{name:on?'完成当前文档后暂停':'恢复自动更新',exact:true})).toBeEnabled();
   };
-  return {root,now,write,exists,call,toggle,authorize,
+  return {root,now,write,exists,call,toggle,authorize,start,stop,
     scenario:(value: Scenario)=>write('scenario.json',JSON.stringify(value)),
     clock:(value: number)=>write('clock',String(value)),
     requests:async()=>{try{return (await readFile(join(root,'api-requests.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));}catch{return []; }},
-    close:async()=>{if(backend.exitCode===null){const exited=new Promise<void>(done=>backend.once('exit',()=>done()));backend.kill('SIGKILL');await exited;}await rm(root,{recursive:true,force:true});},
+    close:async()=>{await stop();await rm(root,{recursive:true,force:true});},
   };
 }
 
@@ -186,5 +198,148 @@ test('budget scale is visible and membership refresh remains separate',async({pa
     await page.getByRole('button',{name:'订阅频道',exact:true}).click();
     await page.getByRole('dialog',{name:'订阅频道',exact:true}).getByRole('button',{name:'同步订阅',exact:true}).click();
     await expect.poll(async()=>(await app.requests()).filter(r=>r.endpoint==='subscriptions').length).toBeGreaterThanOrEqual(3);
+  } finally {await app.close();}
+});
+
+
+test('finished live streams and premieres use actual end time through the real workbench', async ({page, request}) => {
+  test.setTimeout(60000);
+  const now = Math.floor(Date.now()/1000);
+  const old = now - 4*86400;
+  const app = await harness(page, request, {platform_pages:true, videos: [
+    {id:'liveDone001', published:old, live:{actualStartTime:new Date(old*1000).toISOString(), actualEndTime:new Date((now-60)*1000).toISOString()}, caption_status:'was_live'},
+    {id:'premDone001', published:old-86400, live:{actualStartTime:new Date((now-3600)*1000).toISOString(), actualEndTime:new Date((now-60)*1000).toISOString()}, caption_status:'not_live'},
+  ]});
+  try {
+    await app.toggle(true);
+    await expect.poll(async () => (await app.call('activity.snapshot')).ready, {timeout:15000}).toBe(2);
+    const asset = await app.call('library.inspect', {video_id:'liveDone001'});
+    expect(Date.parse(asset.published_at)/1000).toBe(old);
+    expect(Date.parse(asset.actual_end_at)/1000).toBe(now-60);
+    expect(asset.source_observed_at).toBe(app.now);
+    expect(asset.timing_checked_at).toBe(app.now);
+    expect((await app.call('activity.snapshot')).discovery.status).toBe('healthy');
+    await page.getByRole('button', {name:'阅读文档',exact:true}).click();
+    await expect(page.getByRole('button', {name:/liveDone001/})).toBeVisible();
+    await expect(page.getByRole('button', {name:/premDone001/})).toBeVisible();
+  } finally {await app.close();}
+});
+
+test('future, active and uncertain events wait without subtitle work and recover off the uploads page', async ({page, request}) => {
+  test.setTimeout(60000);
+  const app = await harness(page, request, {});
+  const stamp = (value: number) => new Date(value*1000).toISOString();
+  const videos: NonNullable<Scenario['videos']> = [
+    {id:'futureEv001', published:app.now+86400, kind:'upcoming', live:{scheduledStartTime:stamp(app.now+86400)}},
+    {id:'activeEv001', published:app.now-4*86400, kind:'live', live:{actualStartTime:stamp(app.now-4*86400)}},
+    {id:'unknownE001', published:app.now-4*86400, live:{actualStartTime:stamp(app.now-3600)}},
+    {id:'conflict001', published:app.now-4*86400, kind:'live', live:{actualStartTime:stamp(app.now-3600),actualEndTime:stamp(app.now-60)}},
+    {id:'endFuture01', published:app.now-4*86400, live:{actualStartTime:stamp(app.now-3600),actualEndTime:stamp(app.now+3600)}},
+    {id:'shortOrd001', published:app.now-60},
+    {id:'platformS01', published:app.now-60, shorts:true},
+    {id:'unknownS001', published:app.now-60, shorts:null},
+  ];
+  try {
+    await app.scenario({platform_pages:true, videos});
+    await app.toggle(true);
+    await expect.poll(async () => (await app.call('activity.snapshot')).ready).toBe(1);
+    await expect.poll(async () => (await app.call('activity.snapshot')).filtered).toBe(1);
+    const queue = page.getByRole('region', {name:'处理队列',exact:true});
+    await queue.getByRole('button', {name:/^等待视频结束/}).click();
+    await expect(queue.locator('li')).toHaveCount(2);
+    await expect(queue).toContainText('futureEv001');
+    await expect(queue).toContainText('activeEv001');
+    const waiting = await app.call('activity.list', {state:'awaiting_completion'});
+    expect(waiting.items.every((item: {commenced_at: number | null}) => item.commenced_at === null)).toBe(true);
+    await queue.locator('li').filter({hasText:'futureEv001'}).getByRole('button', {name:'取消处理',exact:true}).click();
+    await expect.poll(async () => (await app.call('activity.snapshot')).cancelled).toBe(1);
+    await queue.getByRole('button', {name:/^待核实时间/}).click();
+    await expect(queue.locator('li')).toHaveCount(3);
+    expect((await app.call('activity.snapshot')).discovery.status).toBe('healthy');
+    for (const v of videos.filter(v => v.id !== 'shortOrd001')) expect(await app.exists('caption-'+v.id)).toBe(false);
+    const requests = await app.requests();
+    await page.waitForTimeout(1200);
+    expect((await app.requests()).length).toBe(requests.length);
+    // Completion and first list observation are different events, even when the
+    // video no longer appears on the first uploads page.
+    await app.scenario({platform_pages:true, videos:videos.map(v => v.id === 'activeEv001'
+      ? {...v, listed:false, kind:'none', caption_status:'was_live', live:{...v.live,actualEndTime:stamp(app.now+200)}} : v)});
+    await app.clock(app.now+300);
+    await expect.poll(async () => (await app.call('activity.snapshot')).ready, {timeout:15000}).toBe(2);
+    const asset = await app.call('library.inspect', {video_id:'activeEv001'});
+    expect(asset.source_observed_at).toBe(app.now);
+    expect(asset.timing_checked_at).toBe(app.now+300);
+    expect((await app.call('library.inspect', {video_id:'futureEv001'})).preparation_state).toBe('cancelled');
+    expect(Date.parse(asset.actual_end_at)/1000).toBe(app.now+200);
+  } finally {await app.close();}
+});
+
+test('ended events include exactly 72 hours and exclude the next second without deleting old manuscripts', async ({page, request}) => {
+  test.setTimeout(60000);
+  const app = await harness(page, request, {});
+  const live = (end: number) => ({actualStartTime:new Date((app.now-5*86400)*1000).toISOString(),actualEndTime:new Date(end*1000).toISOString()});
+  const videos = [
+    {id:'boundaryE01',published:app.now-6*86400,live:live(app.now-72*3600),caption_status:'was_live'},
+    {id:'expiredEv01',published:app.now-6*86400,live:live(app.now-72*3600-1),caption_status:'was_live'},
+  ];
+  try {
+    await app.scenario({platform_pages:true,videos});
+    await app.toggle(true);
+    await expect.poll(async () => (await app.call('activity.snapshot')).ready).toBe(1);
+    expect((await app.call('activity.snapshot')).expired).toBe(1);
+    expect(await app.exists('caption-expiredEv01')).toBe(false);
+    await page.getByRole('region', {name:'处理队列',exact:true}).getByRole('button', {name:/^已过期/}).click();
+    await expect(page.getByText('expiredEv01', {exact:true})).toBeVisible();
+    await app.clock(app.now+30*86400);
+    await expect.poll(async () => (await app.requests()).filter(r => r.endpoint==='playlistItems').length).toBe(2);
+    const document = await app.call('documents.get', {video_id:'boundaryE01'});
+    expect(document.markdown).toContain('The full original source is retained.');
+    await page.getByRole('button', {name:'阅读文档',exact:true}).click();
+    await expect(page.getByRole('button', {name:/boundaryE01/})).toBeVisible();
+  } finally {await app.close();}
+});
+
+
+test('commenced event work survives a crash beyond the window and waits for Auto Update', async ({page, request}) => {
+  test.setTimeout(60000);
+  const app = await harness(page, request, {}, false);
+  try {
+    await app.scenario({platform_pages:true,videos:[{id:'resumeEv001',published:app.now-6*86400,
+      live:{actualStartTime:new Date((app.now-5*86400)*1000).toISOString(),actualEndTime:new Date((app.now-71*3600)*1000).toISOString()},caption_status:'was_live'}]});
+    await app.toggle(true);
+    await expect.poll(() => app.exists('model-started')).toBe(true);
+    await app.toggle(false);
+    await app.stop();
+    await app.clock(app.now+29*3600);
+    await app.write('model-release');
+    await app.start();
+    const queue = page.getByRole('region', {name:'处理队列',exact:true});
+    await expect(queue).toContainText('已实际开工，可跨窗口续办');
+    expect((await app.call('activity.snapshot')).ready).toBe(0);
+    await app.toggle(true);
+    await expect.poll(async () => (await app.call('activity.snapshot')).ready,{timeout:15000}).toBe(1);
+    const asset = await app.call('library.inspect', {video_id:'resumeEv001'});
+    expect(asset.source_trace.transcript_available).toBe(true);
+    expect(asset.source_trace.translation_available).toBe(true);
+    await page.getByRole('button', {name:'阅读文档',exact:true}).click();
+    await expect(page.getByRole('button', {name:/resumeEv001/})).toBeVisible();
+  } finally {await app.close();}
+});
+
+
+test('event classification does not grant commencement before the 72-hour window closes', async ({page, request}) => {
+  const app = await harness(page, request, {});
+  try {
+    await app.scenario({platform_pages:true,hold_classification:true,videos:[{id:'crossingE01',published:app.now-6*86400,
+      live:{actualStartTime:new Date((app.now-5*86400)*1000).toISOString(),actualEndTime:new Date((app.now-71*3600)*1000).toISOString()},caption_status:'was_live'}]});
+    await app.toggle(true);
+    await expect.poll(() => app.exists('classification-started')).toBe(true);
+    await app.clock(app.now+2*3600);
+    await app.write('classification-release');
+    await expect.poll(async () => (await app.call('activity.snapshot')).expired).toBe(1);
+    expect(await app.exists('caption-crossingE01')).toBe(false);
+    expect(await app.exists('model-started')).toBe(false);
+    await page.getByRole('region', {name:'处理队列',exact:true}).getByRole('button', {name:/^已过期/}).click();
+    await expect(page.getByText('crossingE01', {exact:true})).toBeVisible();
   } finally {await app.close();}
 });

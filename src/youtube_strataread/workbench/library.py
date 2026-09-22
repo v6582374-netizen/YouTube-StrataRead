@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+import inspect
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 from youtube_strataread.ai.base import get_provider
 from youtube_strataread.ai.prompts import load_prompt
 from youtube_strataread.config import resolve_provider_config
 from youtube_strataread.downloader import cues_to_lines, download_subtitles, load_cues
 from youtube_strataread.downloader.request_policy import (
+    YouTubeError,
     YouTubeRequestPolicy,
     YouTubeRequestsStopped,
     rate_limit_error,
 )
-from youtube_strataread.downloader.youtube import SubtitleResult, YouTubeError
+from youtube_strataread.downloader.youtube import SubtitleResult
 from youtube_strataread.workbench.shorts import (
     ShortsClassifier,
     VideoTimingUnverified,
@@ -27,6 +29,18 @@ from youtube_strataread.workbench.workspace import LocalWorkspace
 
 class PreparationDeferred(Exception):
     """Prerequisites changed before subtitle I/O; the workspace already explains why."""
+
+
+def _accepts_completed_event(classify: Callable[..., object]) -> bool:
+    """Replacements of the platform classifier predate the completion flag."""
+    try:
+        signature = inspect.signature(classify)
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.name == "completed_event" or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
 
 
 class CaptionAcquirer(Protocol):
@@ -42,7 +56,7 @@ class YtDlpCaptions:
         self.requests = requests
         self.on_metadata: Callable[[str, float | None], None] | None = None
 
-    def acquire(self, url: str, *, before_subtitles: Callable[[dict], None] | None = None) -> SubtitleResult:
+    def acquire(self, url: str, *, before_subtitles: Callable[[dict[str, Any]], None] | None = None) -> SubtitleResult:
         return download_subtitles(url, request_policy=self.requests, on_metadata=self.on_metadata,
                                   before_subtitles=before_subtitles)
 
@@ -104,9 +118,15 @@ class PreparationService:
         if asset is None:
             return False
         video_id = str(asset["video_id"])
+        timing = self.workspace.asset(video_id)
+        completed_event = timing['timing_status'] == 'event' and timing['completion_status'] == 'ended'
         if asset["manuscript_version"] is None and asset["shorts_status"] != "video":
             try:
-                is_short = self.shorts.classify(video_id)
+                classify = self.shorts.classify
+                if isinstance(self.shorts, YouTubeShortsClassifier) and _accepts_completed_event(classify):
+                    is_short = classify(video_id, completed_event=completed_event)
+                else:
+                    is_short = classify(video_id)
                 if type(is_short) is not bool:
                     is_short = None
             except VideoTimingUnverified:
@@ -127,10 +147,12 @@ class PreparationService:
                 source_language = retained["language"]
             else:
                 if isinstance(self.captions, YtDlpCaptions):
-                    def before_subtitles(info: dict) -> None:
+                    def before_subtitles(info: dict[str, Any]) -> None:
                         if info.get('id') != video_id:
                             raise YouTubeError('Subtitle identity does not match the requested video')
-                        if info.get('live_status') != 'not_live' or info.get('is_live') or info.get('was_live'):
+                        allowed = {'not_live', 'was_live', 'post_live'} if completed_event else {'not_live'}
+                        if (info.get('live_status') not in allowed or info.get('is_live') or info.get('is_upcoming')
+                                or (info.get('was_live') and not completed_event)):
                             self.workspace.await_video_timing(video_id)
                             raise PreparationDeferred()
                         if not self.workspace.commence_preparation(video_id):

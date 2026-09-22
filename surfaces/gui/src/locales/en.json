@@ -67,6 +67,9 @@
     "source": "Personal timetable dated 20 Sep 2026 · Dates and periods from the university calendar."
   },
   "youtube": {
+    "等待视频结束": "Awaiting video completion",
+    "视频类型、公开时间或实际结束时间尚未可靠核实，等待官方复查。": "Video type, publication time or actual end time is unverified. Awaiting another official check.",
+    "直播或首映尚未结束，等待结束后核实实际结束时间。": "This live stream or Premiere has not ended. Waiting to verify its actual end time.",
     "直播或首映的结束时间尚未可靠核实，等待确认。": "Live or premiere completion time has not been verified. Waiting for confirmation.",
     "已过期": "Outside automatic window",
     "待核实时间": "Awaiting timing verification",

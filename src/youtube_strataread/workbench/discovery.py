@@ -5,12 +5,13 @@ import html
 import json
 import threading
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 from youtube_strataread.workbench.connection import ConnectionService, SubscriptionSource
-from youtube_strataread.workbench.freshness import WINDOW_SECONDS
+from youtube_strataread.workbench.freshness import WINDOW_SECONDS, event_completion
 from youtube_strataread.workbench.workspace import LocalWorkspace
 from youtube_strataread.workbench.youtube_api import (
     MAX_PAGE_ITEMS,
@@ -38,6 +39,11 @@ class Candidate:
     source_observed_at: float | None = None
     source_observed_from: float | None = None
     source_observed_until: float | None = None
+    completion_status: str = 'unverified'
+    actual_start_at: str | None = None
+    actual_end_at: str | None = None
+    scheduled_start_at: str | None = None
+    timing_checked_at: float | None = None
 
 
 @dataclass(frozen=True)
@@ -83,7 +89,7 @@ class YouTubeUploadsAPI:
             'part':'snippet,contentDetails', 'playlistId':uploads, 'maxResults':str(MAX_PAGE_ITEMS),
         })
         observed_until = time.time()
-        entries: dict[str, dict] = {}
+        entries: dict[str, dict[str, Any]] = {}
         complete = not bool(listing.get('nextPageToken')) and len(listing['items']) <= MAX_PAGE_ITEMS
         for item in listing['items'][:MAX_PAGE_ITEMS]:
             if not isinstance(item, dict) or not isinstance(item.get('contentDetails'), dict):
@@ -95,58 +101,94 @@ class YouTubeUploadsAPI:
                 continue
             entries[video_id] = item
         observations = self.workspace.observe_uploads(list(entries), observed_from, observed_until)
-        known: dict[str, dict] = {}
+        known: dict[str, dict[str, Any]] = {}
+        pending = {asset['video_id']: asset for asset in
+                   self.workspace.pending_video_timing(source.channel_id, MAX_PAGE_ITEMS)}
         for video_id in entries:
-            try:
-                asset = self.workspace.asset(video_id)
-                # Uncertain timing and legacy feed facts still require authoritative details.
-                if asset.get('source_observed_at') and asset['preparation_state'] != 'awaiting_timing':
-                    known[video_id] = asset
-            except KeyError:
-                pass
-        needed = [video_id for video_id in entries if video_id not in known]
-        details: dict[str, dict] = {}
-        if needed:
+            with suppress(KeyError):
+                known[video_id] = self.workspace.asset(video_id)
+        needed = [video_id for video_id in entries if video_id not in known
+                  or not known[video_id].get('source_observed_at')
+                  or known[video_id]['preparation_state'] in ('awaiting_timing', 'awaiting_completion')]
+        # One bounded videos.list request also revisits known events that have left
+        # the latest uploads page. Oldest checks go first to rotate pending work.
+        needed = sorted(set(needed) | pending.keys(),
+                        key=lambda key: (pending.get(key, known.get(key, {})).get('timing_checked_at') or 0, key))
+        selected = needed[:MAX_PAGE_ITEMS]
+        if len(needed) > len(selected):
+            complete = False
+        details: dict[str, dict[str, Any]] = {}
+        if selected:
             payload = self.connection.youtube_get('videos', {
-                'part':'snippet,contentDetails,status,liveStreamingDetails', 'id':','.join(needed),
+                'part':'snippet,contentDetails,status,liveStreamingDetails', 'id':','.join(selected),
             })
             details = {item['id']:item for item in payload['items'] if isinstance(item,dict) and isinstance(item.get('id'),str)}
         candidates = []
-        for video_id, entry in entries.items():
-            added = _object(entry.get('snippet')).get('publishedAt')
-            if video_id in known:
-                asset = known[video_id]
-                published_at = str(asset['published_at'])
-                title = str(asset['title'])
-                published_ts = _published_timestamp(published_at)
-                timing_status = str(asset.get('timing_status') or 'unverified')
+        for video_id in dict.fromkeys([*entries, *selected]):
+            previous = known.get(video_id, pending.get(video_id, {}))
+            entry = entries.get(video_id, {})
+            added = _object(entry.get('snippet')).get('publishedAt') or previous.get('playlist_added_at')
+            completion_status = previous.get('completion_status', 'unverified')
+            actual_start = previous.get('actual_start_at')
+            actual_end = previous.get('actual_end_at')
+            scheduled_start = previous.get('scheduled_start_at')
+            checked_at = previous.get('timing_checked_at')
+            if video_id not in selected:
+                if not previous:
+                    continue  # Details deferred by the bounded request, not invented.
+                published_at = str(previous['published_at'])
+                title = str(previous['title'])
+                published_ts = previous.get('published_ts')
+                timing_status = str(previous.get('timing_status') or 'unverified')
             else:
                 video = details.get(video_id, {})
-                snippet = video.get('snippet') if isinstance(video.get('snippet'), dict) else {}
-                status = video.get('status') if isinstance(video.get('status'), dict) else {}
-                published_at = str(snippet.get('publishedAt') or '')
+                snippet = _object(video.get('snippet'))
+                status = _object(video.get('status'))
+                live = _object(video.get('liveStreamingDetails'))
+                broadcast = snippet.get('liveBroadcastContent')
+                published_at = str(snippet.get('publishedAt') or previous.get('published_at') or '')
                 published_ts = _published_timestamp(published_at)
-                playlist_publication = entry['contentDetails'].get('videoPublishedAt')
+                playlist_publication = _object(entry.get('contentDetails')).get('videoPublishedAt')
                 if playlist_publication and _published_timestamp(str(playlist_publication)) != published_ts:
                     published_ts = None
-                ordinary = (snippet.get('channelId') == source.channel_id
-                            and snippet.get('liveBroadcastContent') == 'none'
-                            and not video.get('liveStreamingDetails')
-                            and status.get('privacyStatus') == 'public'
+                public = (snippet.get('channelId') == source.channel_id
+                          and status.get('privacyStatus') == 'public')
+                is_event = (broadcast in ('live', 'upcoming') or 'liveStreamingDetails' in video
+                            or previous.get('timing_status') == 'event')
+                ordinary = (public and broadcast == 'none' and not is_event
                             and status.get('uploadStatus') == 'processed')
-                timing_status = 'publication' if ordinary else 'unverified'
-                if snippet.get('liveBroadcastContent') in ('live','upcoming') or video.get('liveStreamingDetails'):
-                    timing_status = 'event'
-                if not video or not ordinary or published_ts is None:
+                timing_status = 'event' if is_event else ('publication' if ordinary else 'unverified')
+                if is_event:
+                    completion_status = event_completion(broadcast, live, time.time()) if public else 'unverified'
+                    if completion_status == 'ended' and status.get('uploadStatus') != 'processed':
+                        completion_status = 'unverified'
+                    # Retain the reported facts even when the latest response is
+                    # insufficient. Only completion_status grants their use.
+                    actual_start = live.get('actualStartTime', actual_start)
+                    if not isinstance(actual_start, str):
+                        actual_start = None
+                    actual_end = live.get('actualEndTime', actual_end)
+                    if not isinstance(actual_end, str):
+                        actual_end = None
+                    scheduled_start = live.get('scheduledStartTime', scheduled_start)
+                    if not isinstance(scheduled_start, str):
+                        scheduled_start = None
+                checked_at = time.time()
+                # A listed waiting event was discovered successfully. Detail
+                # availability and list coverage are separate from eligibility.
+                if not video or not public or (not is_event and (not ordinary or published_ts is None)):
                     complete = False
-                title = str(snippet.get('title') or _object(entry.get('snippet')).get('title') or video_id)
+                title = str(snippet.get('title') or previous.get('title') or _object(entry.get('snippet')).get('title') or video_id)
+            observed = observations.get(video_id, {})
             candidates.append(Candidate(
                 video_id, source.channel_id, source.title, html.unescape(title),
                 'https://www.youtube.com/watch?v=' + video_id, published_at, published_ts,
                 timing_status=timing_status, playlist_added_at=str(added) if added else None,
-                source_observed_at=observations[video_id]['observed_until'],
-                source_observed_from=observations[video_id]['observed_from'],
-                source_observed_until=observations[video_id]['observed_until'],
+                source_observed_at=observed.get('observed_until', previous.get('source_observed_at')),
+                source_observed_from=observed.get('observed_from', previous.get('source_observed_from')),
+                source_observed_until=observed.get('observed_until', previous.get('source_observed_until')),
+                completion_status=completion_status, actual_start_at=actual_start,
+                actual_end_at=actual_end, scheduled_start_at=scheduled_start, timing_checked_at=checked_at,
             ))
         reason = '' if complete else '补查未完成：本轮仅检查一页上传列表，或仍有视频详情待核实。'
         return SourcePage(candidates, complete, reason)
@@ -217,7 +259,9 @@ class SubscriptionDiscovery:
                 if discovered >= limit:
                     truncated = True
                     break
-                source = SubscriptionSource(**data)
+                source = SubscriptionSource(channel_id=str(data['channel_id']), title=str(data['title']),
+                                            description=data.get('description') or '',
+                                            thumbnail_url=data.get('thumbnail_url'), subscribed_at=data.get('subscribed_at'))
                 source_started = time.time()
                 scanned += 1
                 try:
@@ -267,7 +311,7 @@ class SubscriptionDiscovery:
         return result
 
     def snapshot(self) -> dict[str, object]:
-        result = json.loads(self.workspace.meta('youtube_discovery') or '{}')
+        result: dict[str, Any] = json.loads(self.workspace.meta('youtube_discovery') or '{}')
         result['scanning'] = self.workspace.meta('youtube_discovery_scanning') == '1'
         result['sources'] = self.workspace.source_scans()
         if isinstance(self.source, YouTubeUploadsAPI):
@@ -286,5 +330,5 @@ def _published_timestamp(value: str) -> float | None:
         return None
 
 
-def _object(value: object) -> dict:
+def _object(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}

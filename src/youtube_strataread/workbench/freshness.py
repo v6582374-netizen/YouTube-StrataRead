@@ -3,8 +3,52 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from typing import Any
 
 WINDOW_SECONDS = 72 * 60 * 60
+
+
+def timestamp(value: object) -> float | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        return parsed.timestamp() if parsed.tzinfo else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def event_completion(broadcast: object, details: dict[str, Any], now: float) -> str:
+    """Only official actual times establish completion; schedules never do."""
+    start = timestamp(details.get('actualStartTime'))
+    end = timestamp(details.get('actualEndTime'))
+    for key in ('actualStartTime', 'actualEndTime', 'scheduledStartTime'):
+        if key in details and timestamp(details[key]) is None:
+            return 'unverified'
+    if start is not None and start > now:
+        return 'unverified'
+    if end is not None:
+        return ('ended' if broadcast == 'none' and start is not None
+                and start <= end <= now else 'unverified')
+    if broadcast == 'upcoming' and start is not None:
+        return 'unverified'
+    return 'waiting' if broadcast in ('live', 'upcoming') else 'unverified'
+
+
+def preparation_admission(published_at: str, published_ts: float | None, now: float,
+                          timing_status: str = 'publication', completion_status: str = 'unverified',
+                          actual_end_at: str | None = None, *, age_exempt: bool = False) -> str:
+    if timing_status == 'event':
+        if completion_status == 'waiting':
+            return 'awaiting_completion'
+        if completion_status != 'ended':
+            return 'awaiting_timing'
+        state = admission(actual_end_at or '', timestamp(actual_end_at), now)
+    elif timing_status == 'publication':
+        state = admission(published_at, published_ts, now)
+    else:
+        return 'awaiting_timing'
+    return 'queued' if age_exempt and state == 'expired' else state
 
 
 def admission(published_at: str, published_ts: float | None, now: float) -> str:
@@ -25,5 +69,6 @@ def admission(published_at: str, published_ts: float | None, now: float) -> str:
 
 WAITING_REASONS = {
     'expired': '首次开工前已超过 72 小时自动处理窗口；已有资料保留。',
-    'awaiting_timing': '发布时间缺失、矛盾或晚于当前时间，等待核实；尚未取得续办资格。',
+    'awaiting_timing': '视频类型、公开时间或实际结束时间尚未可靠核实，等待官方复查。',
+    'awaiting_completion': '直播或首映尚未结束，等待结束后核实实际结束时间。',
 }

@@ -48,6 +48,7 @@ export type Activity = {
   rate_limited?: number;
   expired?: number;
   awaiting_timing?: number;
+  awaiting_completion?: number;
   youtube_requests?: { cooldown_until: number; strikes: number };
   current?: CurrentPreparation[];
   events?: ProgressEvent[];

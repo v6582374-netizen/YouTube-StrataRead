@@ -49,11 +49,10 @@ export function minutes(time: string): number {
   return hours * 60 + mins;
 }
 
-export type Occurrence = Schedule & {
+// Course facts (name, colour, assessment, category, credits) come straight from the source data.
+export type Occurrence = Schedule & (typeof COURSES)[CourseId] & {
   id: string;
   date: string;
-  name: string;
-  color: string;
   start: string;
   end: string;
 };

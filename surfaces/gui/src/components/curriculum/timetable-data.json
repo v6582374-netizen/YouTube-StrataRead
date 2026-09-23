@@ -4,43 +4,73 @@
   "courses": {
     "math": {
       "name": "工程数学",
-      "color": "#60816e"
+      "color": "#60816e",
+      "assessment": "exam",
+      "category": "required",
+      "credits": 4
     },
     "microcontroller": {
       "name": "单片机应用技术",
-      "color": "#547fa4"
+      "color": "#547fa4",
+      "assessment": "exam",
+      "category": "required",
+      "credits": 3
     },
     "ai": {
       "name": "计算思维与人工智能",
-      "color": "#927341"
+      "color": "#927341",
+      "assessment": "exam",
+      "category": "required",
+      "credits": 2
     },
     "python": {
       "name": "Python程序设计与应用",
-      "color": "#8372a5"
+      "color": "#8372a5",
+      "assessment": "coursework",
+      "category": "restricted",
+      "credits": 3
     },
     "iot": {
       "name": "物联网技术与原理",
-      "color": "#4b8986"
+      "color": "#4b8986",
+      "assessment": "exam",
+      "category": "required",
+      "credits": 3
     },
     "design": {
       "name": "三维造型与工业设计",
-      "color": "#ad735d"
+      "color": "#ad735d",
+      "assessment": "coursework",
+      "category": "restricted",
+      "credits": 3
     },
     "cpp": {
       "name": "C++程序设计及上机",
-      "color": "#737aab"
+      "color": "#737aab",
+      "assessment": "coursework",
+      "category": "restricted",
+      "credits": 3
     },
     "visualization": {
       "name": "科学计算可视化",
-      "color": "#9b7592"
+      "color": "#9b7592",
+      "assessment": "exam",
+      "category": "restricted",
+      "credits": 3
     },
     "exhibition": {
       "name": "会展设计的艺术性",
-      "color": "#9a824e"
+      "color": "#9a824e",
+      "assessment": "coursework",
+      "category": "public",
+      "credits": 2
     },
     "tourism": {
       "name": "可持续旅游与数字创新",
-      "color": "#598b78"
+      "color": "#598b78",
+      "assessment": "coursework",
+      "category": "free",
+      "credits": 3
     }
   },
   "schedule": [

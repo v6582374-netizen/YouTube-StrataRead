@@ -1,20 +1,44 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon } from "../Icon";
 import type { Occurrence } from "./timetable";
 
+// Personal additions belong to the course, not one occurrence, and stay on this device.
+type Entry = { id: string; label: string; value: string };
+const STORAGE_KEY = "edison.curriculum.entries";
+
+function readAll(): Record<string, Entry[]> {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") ?? {}; } catch { return {}; }
+}
+
+function writeCourse(course: string, entries: Entry[]) {
+  const all = readAll();
+  const kept = entries.filter(entry => entry.label.trim() || entry.value.trim());
+  if (kept.length) all[course] = kept; else delete all[course];
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); } catch { /* best effort */ }
+}
+
 export function CourseDetails({ course, onClose }: { course: Occurrence; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const ref = useRef<HTMLDialogElement>(null);
+  const [entries, setEntries] = useState<Entry[]>(() => readAll()[course.course] ?? []);
+  const [fresh, setFresh] = useState<string | null>(null);
   useEffect(() => {
     const dialog = ref.current!;
     const previous = document.activeElement as HTMLElement | null;
     dialog.showModal();
     return () => { dialog.close(); previous?.focus(); };
   }, []);
+  useEffect(() => { writeCourse(course.course, entries); }, [course.course, entries]);
   const date = new Intl.DateTimeFormat(i18n.language.startsWith("zh") ? "zh-CN" : "en-GB", {
     timeZone: "UTC", year: "numeric", month: "long", day: "numeric", weekday: "long",
   }).format(new Date(`${course.date}T00:00:00Z`));
+  const update = (id: string, patch: Partial<Entry>) => setEntries(list => list.map(entry => entry.id === id ? { ...entry, ...patch } : entry));
+  const add = () => {
+    const id = crypto.randomUUID();
+    setEntries(list => [...list, { id, label: "", value: "" }]);
+    setFresh(id);
+  };
 
   return (
     <dialog ref={ref} className="curriculum-details" aria-labelledby="curriculum-course-title" onCancel={event => { event.preventDefault(); onClose(); }}>
@@ -28,7 +52,19 @@ export function CourseDetails({ course, onClose }: { course: Occurrence; onClose
         <dt>{t("curriculum.class_time")}</dt><dd>{course.start}–{course.end}<small>{t("curriculum.period_range", { first: course.first, last: course.last })}</small></dd>
         <dt>{t("curriculum.classroom")}</dt><dd>{course.room}</dd>
         <dt>{t("curriculum.teacher")}</dt><dd>{course.teacher}</dd>
+        <dt>{t("curriculum.assessment")}</dt>
+        <dd><span className={`curriculum-assessment is-${course.assessment}`}>{t(`curriculum.assessments.${course.assessment}`)}</span>
+          <small>{t(`curriculum.categories.${course.category}`)} · {t("curriculum.credits", { count: course.credits })}</small></dd>
+        {entries.map(entry => <div key={entry.id} className="curriculum-entry">
+          <dt><input aria-label={t("curriculum.entry_label")} placeholder={t("curriculum.entry_label")} value={entry.label}
+            autoFocus={entry.id === fresh} onChange={event => update(entry.id, { label: event.target.value })} /></dt>
+          <dd><textarea aria-label={t("curriculum.entry_value")} placeholder={t("curriculum.entry_value")} value={entry.value}
+            rows={Math.max(1, entry.value.split("\n").length)}
+            onChange={event => update(entry.id, { value: event.target.value })} />
+            <button type="button" aria-label={t("curriculum.remove_entry")} onClick={() => setEntries(list => list.filter(item => item.id !== entry.id))}><Icon name="x" size={14} /></button></dd>
+        </div>)}
       </dl>
+      <button type="button" className="curriculum-add-entry" onClick={add}>+ {t("curriculum.add_entry")}</button>
       {course.course === "tourism" && <p className="curriculum-details-note">{t("curriculum.english_instruction")}</p>}
       <footer>{t("curriculum.university")} · {t("curriculum.timezone")}</footer>
     </dialog>

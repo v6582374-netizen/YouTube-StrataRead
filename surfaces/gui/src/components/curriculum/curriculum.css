@@ -68,6 +68,18 @@
 .curriculum-details dt { color: var(--muted); }
 .curriculum-details dd { margin: 0; font-weight: 500; }
 .curriculum-details small { display: block; color: var(--muted); font-weight: 400; font-size: var(--fs-mono); margin-top: 4px; }
+.curriculum-assessment { display: inline-block; padding: 1px 8px; border-radius: 4px; background: var(--chrome-hover); }
+.curriculum-assessment.is-exam { background: var(--accent-soft); }
+.curriculum-entry { display: contents; }
+.curriculum-entry input, .curriculum-entry textarea { width: 100%; min-width: 0; border: 0; border-radius: 4px; padding: 0; background: none; color: inherit; font: inherit; resize: none; outline: none; }
+.curriculum-entry input { color: var(--muted); }
+.curriculum-entry input:focus, .curriculum-entry textarea:focus { box-shadow: 0 0 0 4px var(--chrome-hover); background: var(--chrome-hover); }
+.curriculum-entry dd { display: flex; align-items: flex-start; gap: 6px; }
+.curriculum-entry dd button { display: grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; border-radius: 4px; color: var(--muted); opacity: 0; }
+.curriculum-entry:hover dd button, .curriculum-entry dd button:focus-visible { opacity: 1; }
+.curriculum-entry dd button:hover { background: var(--chrome-hover); }
+.curriculum-add-entry { margin-top: 18px; padding: 4px 8px; margin-left: -8px; border-radius: 5px; color: var(--muted); font-size: var(--fs-ui); }
+.curriculum-add-entry:hover { color: var(--ink); background: var(--chrome-hover); }
 .curriculum-details-note { background: var(--accent-soft); color: var(--ink); padding: 10px; border-radius: 6px; margin-top: 20px; font-size: var(--fs-ui); }
 .curriculum-details footer { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 14px; font-size: var(--fs-label); color: var(--faint); }
 

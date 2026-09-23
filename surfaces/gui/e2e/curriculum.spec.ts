@@ -94,6 +94,37 @@ test("course details expose the correct teacher and class periods, then restore 
   await expect(page.getByRole("dialog")).toContainText("全程外教英文授课");
 });
 
+test("course details show the assessment method and keep personal additions across occurrences and reloads", async ({ page }) => {
+  await page.getByRole("button", { name: "Curriculum", exact: true }).click();
+  const view = page.getByRole("main", { name: "Curriculum" });
+  await view.getByRole("region", { name: "2026-09-15" }).getByRole("button", { name: /C\+\+程序设计及上机/ }).first().click();
+  let dialog = page.getByRole("dialog", { name: "C++程序设计及上机" });
+  await expect(dialog).toContainText("考核方式考查");
+  await expect(dialog).toContainText("限选 · 3 学分");
+  await dialog.getByRole("button", { name: "添加信息" }).click();
+  await expect(dialog.getByLabel("名称")).toBeFocused();
+  await page.keyboard.type("成绩构成");
+  await dialog.getByLabel("内容").fill("平时 40% + 大作业 60%\n第 16 周提交");
+  await dialog.getByRole("button", { name: "添加信息" }).click();
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await page.getByRole("button", { name: "Curriculum", exact: true }).click();
+  await view.getByRole("region", { name: "2026-09-15" }).getByRole("button", { name: /C\+\+程序设计及上机/ }).last().click();
+  dialog = page.getByRole("dialog", { name: "C++程序设计及上机" });
+  await expect(dialog.getByLabel("名称")).toHaveCount(1);
+  await expect(dialog.getByLabel("名称")).toHaveValue("成绩构成");
+  await expect(dialog.getByLabel("内容")).toHaveValue("平时 40% + 大作业 60%\n第 16 周提交");
+  await dialog.getByRole("button", { name: "删除此信息" }).click();
+  await page.keyboard.press("Escape");
+  await view.getByRole("region", { name: "2026-09-14" }).getByRole("button", { name: /工程数学/ }).click();
+  await expect(page.getByRole("dialog")).toContainText("考核方式考试");
+  await expect(page.getByRole("dialog")).toContainText("必修 · 4 学分");
+  await expect(page.getByRole("dialog").getByLabel("名称")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await view.getByRole("region", { name: "2026-09-15" }).getByRole("button", { name: /C\+\+程序设计及上机/ }).first().click();
+  await expect(page.getByRole("dialog").getByLabel("名称")).toHaveCount(0);
+});
+
 test("weekly overview remains readable in both themes and a narrow window", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("button", { name: "Curriculum", exact: true }).click();

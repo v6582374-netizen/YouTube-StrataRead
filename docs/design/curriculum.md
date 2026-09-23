@@ -1,6 +1,6 @@
 # Curriculum
 
-Status: implemented as a local, read-only sidebar module.
+Status: implemented as a local sidebar module. The schedule is read-only; course details accept personal additions.
 
 ## Purpose and agreed scope
 
@@ -13,6 +13,8 @@ Confirmed by the user:
 - Show course name, actual time, and classroom directly on each occurrence.
 - Personal tasks and task planning are outside the product boundary.
 - No editing for temporary cancellations, classroom changes, or rescheduling.
+- Course details show the assessment method (考试/考查), course category, and credits from the PDF.
+- Course details accept any number of free-form label/content additions. They belong to the course (shared by all its occurrences), persist on this device, and never alter the source schedule. Blank additions are discarded.
 
 The bounded feature does not require a long-running Wayfinder map. Remaining source reconciliation and implementation validation are engineering work, not additional product decisions.
 
@@ -85,7 +87,9 @@ The PDF contains 10 courses and 26 scheduling records; no odd/even-week restrict
 | Sun | 6–7 | 三维造型与工业设计 | 1 | 张哲硕 | 文3-115 |
 | Sun | 8–9 | 三维造型与工业设计 | 1 | 张哲硕 | 理5A-410 |
 
-可持续旅游与数字创新 is explicitly an all-English course taught by a foreign instructor. All personal exam arrangements are marked 未安排.
+可持续旅游与数字创新 is explicitly an all-English course taught by a foreign instructor. All personal exam arrangements (考试方式) are marked 未安排.
+
+Assessment method (考核方式) is recorded on each course's main teaching record; lab and make-up records say 未安排 and do not override it. 考试: 工程数学, 单片机应用技术, 计算思维与人工智能, 物联网技术与原理, 科学计算可视化. 考查: Python程序设计与应用, 三维造型与工业设计, C++程序设计及上机, 会展设计的艺术性, 可持续旅游与数字创新.
 
 ## Presentation and acceptance
 

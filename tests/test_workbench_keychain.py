@@ -66,3 +66,16 @@ def test_locked_keychain_fails_closed_without_caching_a_missing_record():
     with pytest.raises(VaultError):
         vault.load("refresh")
     assert vault._values is None
+
+
+def test_service_account_file_is_opt_in_owner_only_and_survives_restart(tmp_path, monkeypatch):
+    path = tmp_path / "credentials.json"
+    monkeypatch.setenv("EDISON_CREDENTIAL_FILE", str(path))
+    refresh = "YOUTUBE_WORKBENCH_OAUTH_REFRESH_TOKEN"
+    NativeKeychainVault(namespace="/srv").save_many(
+        {refresh: "refresh", "YOUTUBE_WORKBENCH_OAUTH_ACCESS_TOKEN": "access"}
+    )
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert "access" not in path.read_text()
+    assert NativeKeychainVault(namespace="/srv").load(refresh) == "refresh"
+    assert NativeKeychainVault(namespace="/other").keys() == set()

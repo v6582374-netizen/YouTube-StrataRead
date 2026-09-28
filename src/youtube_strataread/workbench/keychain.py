@@ -1,18 +1,46 @@
 """Profile-owned OAuth credentials in the operating system's credential store.
 
-The complete record is written atomically. No plaintext fallback; the record is
-cached only in this process, so navigation never reopens the credential store.
+The complete record is written atomically. The record is cached only in this
+process, so navigation never reopens the credential store. A headless server
+has no credential store; it opts in to a file readable only by its service
+account via ``EDISON_CREDENTIAL_FILE``, and nothing falls back to it silently.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import threading
+from pathlib import Path
 from typing import Any
 
 from youtube_strataread.workbench.vault import VaultError
+
+
+class ServiceAccountFile:
+    """Keyring-shaped store in one owner-only JSON file for a headless service account."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def _records(self) -> dict[str, str]:
+        if not self.path.exists():
+            return {}
+        return json.loads(self.path.read_text(encoding="utf-8"))
+
+    def get_password(self, service: str, account: str) -> str | None:
+        return self._records().get(f"{service}/{account}")
+
+    def set_password(self, service: str, account: str, value: str) -> None:
+        records = {**self._records(), f"{service}/{account}": value}
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        staging = self.path.with_name(self.path.name + ".tmp")
+        fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(records, handle)
+        os.replace(staging, self.path)
 
 
 class NativeKeychainVault:
@@ -26,8 +54,10 @@ class NativeKeychainVault:
 
     def _store(self):
         if self._backend is None:
-            # Select a native backend explicitly. Never accept a file-based fallback.
-            if sys.platform == "darwin":
+            # Select a native backend explicitly. A file store is used only when opted in.
+            if os.environ.get("EDISON_CREDENTIAL_FILE"):
+                self._backend = ServiceAccountFile(Path(os.environ["EDISON_CREDENTIAL_FILE"]))
+            elif sys.platform == "darwin":
                 from keyring.backends.macOS import Keyring
 
                 self._backend = Keyring()

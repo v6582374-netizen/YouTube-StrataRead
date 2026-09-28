@@ -19,8 +19,8 @@ test("navigates holidays and make-up weeks without duplicating courses", async (
   await expect(view).toContainText("国庆节放假");
   await view.getByRole("button", { name: "下一周", exact: true }).click();
   await expect(view.getByRole("heading", { name: "第 4 周", exact: true })).toBeVisible();
-  await expect(view.getByRole("region", { name: "2026-10-10" }).getByRole("button")).toHaveCount(3);
-  await expect(view.getByRole("region", { name: "2026-10-09" }).getByRole("button")).toHaveCount(3);
+  await expect(view.getByRole("region", { name: "2026-10-10" }).getByRole("button")).toHaveCount(4);
+  await expect(view.getByRole("region", { name: "2026-10-09" }).getByRole("button")).toHaveCount(4);
   await expect(view.getByRole("region", { name: "2026-10-05" }).getByRole("button")).toHaveCount(0);
   await expect(view).toContainText("上单周周五课程");
   await view.getByRole("button", { name: "上一周", exact: true }).click();
@@ -30,7 +30,7 @@ test("navigates holidays and make-up weeks without duplicating courses", async (
   await expect(view).toContainText("校运会");
   await jump.fill("2026-11-09");
   await expect(view).toContainText("期中考试，不停课");
-  await expect(view.getByRole("region", { name: "2026-11-09" }).getByRole("button")).toHaveCount(2);
+  await expect(view.getByRole("region", { name: "2026-11-09" }).getByRole("button")).toHaveCount(3);
   await view.getByRole("button", { name: "本周", exact: true }).click();
   await expect(jump).toHaveValue("2026-09-20");
 });
@@ -41,14 +41,30 @@ test("opens this week's actual courses from the sidebar, including Sunday's make
   await expect(view.getByRole("heading", { name: "第 1 周", exact: true })).toBeVisible();
   await expect(view.getByLabel("跳转日期")).toHaveValue("2026-09-20");
   const sunday = view.getByRole("region", { name: "2026-09-20" });
-  await expect(sunday.getByRole("button")).toHaveCount(3);
+  await expect(sunday.getByRole("button")).toHaveCount(4);
   await expect(sunday).toContainText("09:50–11:25");
-  await expect(sunday).toContainText("理5A-306");
+  await expect(sunday).toContainText("理5A-325");
   const tuesday = view.getByRole("region", { name: "2026-09-15" });
   await expect(tuesday.getByRole("button", { name: /单片机应用技术/ })).toHaveCount(2);
+  await expect(tuesday.getByRole("button", { name: /GO语言程序设计/ })).toHaveCount(2);
   await expect(tuesday.getByRole("button", { name: /C\+\+程序设计及上机/ })).toHaveCount(2);
   await expect(tuesday).toContainText("文3-115");
   await expect(tuesday).toContainText("理5A-302");
+  await expect(tuesday).toContainText("理5A-306");
+});
+
+test("courses the source schedules in the same periods stay side by side and clickable", async ({ page }) => {
+  await page.getByRole("button", { name: "Curriculum", exact: true }).click();
+  const tuesday = page.getByRole("main", { name: "Curriculum" }).getByRole("region", { name: "2026-09-15" });
+  const go = await tuesday.getByRole("button", { name: /GO语言程序设计/ }).first().boundingBox();
+  const microcontroller = await tuesday.getByRole("button", { name: /单片机应用技术/ }).first().boundingBox();
+  expect(go!.y).toBe(microcontroller!.y);
+  expect(go!.x + go!.width <= microcontroller!.x || microcontroller!.x + microcontroller!.width <= go!.x).toBe(true);
+  await tuesday.getByRole("button", { name: /GO语言程序设计/ }).first().click();
+  await expect(page.getByRole("dialog", { name: "GO语言程序设计" })).toContainText("尹居鑫");
+  await page.keyboard.press("Escape");
+  await tuesday.getByRole("button", { name: /单片机应用技术/ }).first().click();
+  await expect(page.getByRole("dialog", { name: "单片机应用技术" })).toContainText("谢浩");
 });
 
 test("keeps the final Monday's courses and distinguishes missing spring data from an empty week", async ({ page }) => {
@@ -56,7 +72,7 @@ test("keeps the final Monday's courses and distinguishes missing spring data fro
   const view = page.getByRole("main", { name: "Curriculum" });
   await view.getByLabel("跳转日期").fill("2027-01-11");
   await expect(view.getByRole("heading", { name: "第 18 周", exact: true })).toBeVisible();
-  await expect(view.getByRole("region", { name: "2027-01-11" }).getByRole("button")).toHaveCount(3);
+  await expect(view.getByRole("region", { name: "2027-01-11" }).getByRole("button")).toHaveCount(4);
   await expect(view).toContainText("个人考试安排未提供");
   await view.getByLabel("跳转日期").fill("2027-01-18");
   await expect(view).toContainText("本周 0 次课程");
@@ -77,18 +93,20 @@ test("keeps the final Monday's courses and distinguishes missing spring data fro
 test("course details expose the correct teacher and class periods, then restore keyboard focus", async ({ page }) => {
   await page.getByRole("button", { name: "Curriculum", exact: true }).click();
   const view = page.getByRole("main", { name: "Curriculum" });
-  const course = view.getByRole("region", { name: "2026-09-14" }).getByRole("button", { name: /物联网技术与原理/ });
+  const monday = view.getByRole("region", { name: "2026-09-14" });
+  const course = monday.getByRole("button", { name: /物联网技术与原理/ }).last();
   await course.click();
   const dialog = page.getByRole("dialog", { name: "物联网技术与原理" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("郑腾");
+  await expect(dialog).toContainText("张懿");
   await expect(dialog).toContainText("第 8–9 节");
   await expect(dialog).toContainText("15:20–16:55");
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(course).toBeFocused();
-  await view.getByRole("region", { name: "2026-09-20" }).getByRole("button", { name: /物联网技术与原理/ }).click();
-  await expect(page.getByRole("dialog")).toContainText("张懿");
+  await monday.getByRole("button", { name: /物联网技术与原理/ }).first().click();
+  await expect(page.getByRole("dialog")).toContainText("郑腾");
+  await expect(page.getByRole("dialog")).toContainText("08:00–09:35");
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await view.getByRole("region", { name: "2026-09-17" }).getByRole("button", { name: /可持续旅游与数字创新/ }).click();
   await expect(page.getByRole("dialog")).toContainText("全程外教英文授课");
@@ -128,14 +146,14 @@ test("course details show the assessment method and keep personal additions acro
 test("weekly overview remains readable in both themes and a narrow window", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("button", { name: "Curriculum", exact: true }).click();
-  await expect(page.locator(".curriculum-course")).toHaveCount(20);
+  await expect(page.locator(".curriculum-course")).toHaveCount(23);
   await page.screenshot({ path: testInfo.outputPath("curriculum-light.png") });
   await page.evaluate(() => document.documentElement.dataset.theme = "dark");
   await page.screenshot({ path: testInfo.outputPath("curriculum-dark.png") });
   await page.setViewportSize({ width: 900, height: 760 });
   const scroller = page.getByRole("region", { name: "每周课表" });
   await scroller.evaluate(element => element.scrollLeft = element.scrollWidth);
-  await page.getByRole("region", { name: "2026-09-20" }).getByRole("button", { name: /物联网技术与原理/ }).click();
+  await page.getByRole("region", { name: "2026-09-20" }).getByRole("button", { name: /GO语言程序设计/ }).first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("curriculum-narrow.png") });
   await page.getByRole("button", { name: "关闭", exact: true }).click();

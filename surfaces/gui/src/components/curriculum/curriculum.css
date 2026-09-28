@@ -37,7 +37,7 @@
 .curriculum-day { position: relative; border-left: 1px solid var(--line); min-width: 0; }
 .curriculum-day.is-today { background: color-mix(in srgb, var(--accent) 2.5%, transparent); }
 .curriculum-period-line { position: absolute; width: 100%; border-top: 1px solid var(--line); pointer-events: none; }
-.curriculum-course { position: absolute; left: 5px; right: 5px; width: calc(100% - 10px); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 7px 8px; border: 1px solid color-mix(in srgb, var(--course-color) 24%, var(--line)); border-left: 3px solid var(--course-color); border-radius: 6px; background: color-mix(in srgb, var(--course-color) 12%, var(--canvas)); color: var(--ink); text-align: left; overflow: hidden; }
+.curriculum-course { position: absolute; left: calc(5px + (100% - 6px) * var(--lane, 0) / var(--lanes, 1)); width: calc((100% - 6px) / var(--lanes, 1) - 4px); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 7px 8px; border: 1px solid color-mix(in srgb, var(--course-color) 24%, var(--line)); border-left: 3px solid var(--course-color); border-radius: 6px; background: color-mix(in srgb, var(--course-color) 12%, var(--canvas)); color: var(--ink); text-align: left; overflow: hidden; }
 .curriculum-course:hover { background: color-mix(in srgb, var(--course-color) 20%, var(--canvas)); }
 .curriculum-course-time { font-size: var(--fs-label); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .curriculum-course strong { font-size: var(--fs-ui); line-height: 1.4; font-weight: 500; overflow-wrap: anywhere; }

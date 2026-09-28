@@ -46,7 +46,7 @@ mod course_notification_service {
     pub fn verify() -> Result<i32, String> {
         use std::thread::sleep;
         let timestamp = |s: &str| chrono::DateTime::parse_from_rfc3339(s).unwrap().timestamp_millis();
-        let initial_time = timestamp("2026-09-15T07:59:59+08:00");
+        let initial_time = timestamp("2026-09-22T07:59:59+08:00");
         CLOCK.store(initial_time, Ordering::SeqCst);
         let path = std::env::temp_dir().join(format!("edison-notification-smoke-{}.json", uuid::Uuid::new_v4()));
         let service = CourseNotificationService::start_with_clock(path.clone(), controlled_now);
@@ -62,7 +62,7 @@ mod course_notification_service {
             let initial = platform::delivered_count();
             if initial < 0 { return Err("Cannot query Notification Center".into()); }
             for time in ["08:00:00", "08:45:00", "08:50:00", "09:35:00"] {
-                let due = timestamp(&format!("2026-09-15T{time}+08:00"));
+                let due = timestamp(&format!("2026-09-22T{time}+08:00"));
                 CLOCK.store(due - 1_000, Ordering::SeqCst);
                 sleep(Duration::from_millis(800));
                 CLOCK.store(due, Ordering::SeqCst);
@@ -72,7 +72,7 @@ mod course_notification_service {
             if delivered != 4 { return Err(format!("Expected four OS deliveries, observed {delivered}")); }
             service.set_enabled(false)?;
             // A future scheduled boundary must not deliver while disabled.
-            let next = timestamp("2026-09-15T09:50:00+08:00");
+            let next = timestamp("2026-09-22T09:50:00+08:00");
             CLOCK.store(next - 1_000, Ordering::SeqCst);
             sleep(Duration::from_millis(800));
             CLOCK.store(next, Ordering::SeqCst);
@@ -83,9 +83,9 @@ mod course_notification_service {
             if restarted.status().enabled { return Err("Off choice did not survive restart".into()); }
             restarted.set_enabled(true)?;
             restarted.stop();
-            CLOCK.store(timestamp("2026-09-15T10:34:59+08:00"), Ordering::SeqCst);
+            CLOCK.store(timestamp("2026-09-22T10:34:59+08:00"), Ordering::SeqCst);
             sleep(Duration::from_millis(800));
-            CLOCK.store(timestamp("2026-09-15T10:35:00+08:00"), Ordering::SeqCst);
+            CLOCK.store(timestamp("2026-09-22T10:35:00+08:00"), Ordering::SeqCst);
             sleep(Duration::from_millis(1_200));
             if platform::delivered_count() - initial != 4 { return Err("Stopped service delivered a notification".into()); }
             Ok(delivered)

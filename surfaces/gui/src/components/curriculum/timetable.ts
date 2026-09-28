@@ -55,6 +55,9 @@ export type Occurrence = Schedule & (typeof COURSES)[CourseId] & {
   date: string;
   start: string;
   end: string;
+  // The source can schedule two courses in the same periods; they share the column side by side.
+  lane: number;
+  lanes: number;
 };
 
 export function curriculumWeek(date: string) {
@@ -67,13 +70,18 @@ export function curriculumWeek(date: string) {
   const days = Array.from({ length: 7 }, (_, index) => {
     const dayDate = addDays(monday, index);
     const covered = dayDate >= AUTUMN_START && dayDate <= "2027-01-20";
-    const courses: Occurrence[] = covered ? SCHEDULE
+    const slots = covered ? SCHEDULE
       .filter(slot => slot.day === index + 1 && slot.weeks.includes(week!))
-      .map(slot => ({
+      .sort((a, b) => a.first - b.first) : [];
+    const courses: Occurrence[] = slots.map(slot => {
+      const overlapping = slots.filter(other => other.first <= slot.last && slot.first <= other.last);
+      return {
         ...slot, ...COURSES[slot.course], date: dayDate,
         id: `${dayDate}-${slot.course}-${slot.first}`,
         start: PERIODS[slot.first - 1][0], end: PERIODS[slot.last - 1][1],
-      })).sort((a, b) => a.first - b.first) : [];
+        lane: overlapping.indexOf(slot), lanes: overlapping.length,
+      };
+    });
     return { date: dayDate, covered, courses, events: CALENDAR.filter(event => event.start <= dayDate && event.end >= dayDate) };
   });
   const notes = CALENDAR.filter(event => event.note && event.start <= addDays(monday, 6) && event.end >= monday);

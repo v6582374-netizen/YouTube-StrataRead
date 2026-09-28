@@ -93,7 +93,7 @@ export function CurriculumView() {
             </div>
             {schedule.days.map(day => <section key={day.date} className={`curriculum-day ${day.date === today ? "is-today" : ""}`} aria-label={day.date}>
               {PERIODS.map(([start]) => <div key={start} className="curriculum-period-line" style={{ top: position(start) }} />)}
-              {day.courses.map(course => <button key={course.id} className="curriculum-course" onClick={() => setSelectedCourse(course)} style={{ top: position(course.start), height: `${(minutes(course.end) - minutes(course.start)) / (GRID_END - GRID_START) * 100}%`, "--course-color": course.color } as CSSProperties}>
+              {day.courses.map(course => <button key={course.id} className="curriculum-course" onClick={() => setSelectedCourse(course)} style={{ top: position(course.start), height: `${(minutes(course.end) - minutes(course.start)) / (GRID_END - GRID_START) * 100}%`, "--course-color": course.color, "--lane": course.lane, "--lanes": course.lanes } as CSSProperties}>
                 <span className="curriculum-course-time">{course.start}–{course.end}</span>
                 <strong>{course.name}</strong>
                 <span className="curriculum-course-room">{course.room}</span>

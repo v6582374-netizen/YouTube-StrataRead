@@ -25,7 +25,7 @@ export type Source = {
   title: string;
   description?: string;
 };
-export type Preferences = { sources: Source[]; excluded_channels: string[] };
+export type Preferences = { sources: Source[]; excluded_channels: string[]; last_synced_at?: number | null; sync_error?: string; reconnect_required?: boolean };
 export type Connection = {
   configured: boolean;
   authorized: boolean;
@@ -116,13 +116,13 @@ export const dateLabel = (value: string) => {
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
   });
 };
-export const excerpt = (value = "") =>
+export const excerpt = (value = "", length = 110) =>
   value
     .replace(/^#+\s+.*$/gm, "")
     .replace(/[`*_>#\[\]]/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 110);
+    .slice(0, length);
 
 export type ProgressEvent = {
   sequence: number; video_id: string; title: string; stage: string; detail: string; occurred_at: number;

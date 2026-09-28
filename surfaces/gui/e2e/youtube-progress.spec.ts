@@ -25,7 +25,7 @@ test('YouTube progress is a page, not an overflowing popover', async ({ page }) 
   const status = page.getByRole('status').filter({ hasText: '自动更新中' });
   await expect(status).toBeVisible();
   await status.click();
-  await expect(page.getByRole('button', { name: '阅读文档', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('button', { name: '处理进度', exact: true })).toHaveAttribute('aria-current', 'page');
   await page.getByRole('button', { name: '处理进度', exact: true }).click();
   await page.screenshot({ path: 'test-results/youtube-progress.png', fullPage: true });
   await expect(page.locator('.yp-popover')).toHaveCount(0);

@@ -19,6 +19,8 @@ import {
   Source,
   publicationLabel,
   videoDurationLabel,
+  excerpt,
+  readingTime,
 } from "./youtube/types";
 import "./youtube/youtube.css";
 
@@ -53,6 +55,7 @@ export function YouTubeView({
     sources: [],
     excluded_channels: [],
   });
+  const [progressActions, setProgressActions] = useState<HTMLDivElement | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [query, setQuery] = useState("");
   const [period, setPeriod] = useState("7");
@@ -73,6 +76,7 @@ export function YouTubeView({
   const [excluded, setExcluded] = useState<string[]>([]);
   const [channelSearch, setChannelSearch] = useState("");
   const [connection, setConnection] = useState<Connection | null>(null);
+  const [subscriptionsSyncing, setSubscriptionsSyncing] = useState(false);
   const [connectionChecking, setConnectionChecking] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
   const connectionEpoch = useRef(0);
@@ -109,7 +113,7 @@ export function YouTubeView({
   const [clientSecret, setClientSecret] = useState("");
   const [selected, setSelected] = useState<Inspection | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [page, setPage] = useState<"documents" | "progress" | "activity">("documents");
+  const [page, setPage] = useState<"documents" | "progress" | "activity">("progress");
   const [activityReceivedAt, setActivityReceivedAt] = useState(0);
   const [activityError, setActivityError] = useState(false);
   const revision = useRef(0),
@@ -206,14 +210,41 @@ export function YouTubeView({
     return () => { alive = false; activityRevision.current++; clearTimeout(timer); };
   }, [refreshActivity]);
   const close = (input: ModalInput = modal.input()) => {
-    modal.end(input);
+    if (panel !== "document") modal.end(input);
     panelRevision.current++;
     setPanel(null);
     setPanelMessage("");
     setConfirmDelete(false);
   };
+  const syncSubscriptions = async (version: number) => {
+    setSubscriptionsSyncing(true);
+    try {
+      const state = await checkConnection();
+      if (!state.authorized || version !== panelRevision.current) return;
+      const next = await call<Connection>("connection.refresh_subscriptions");
+      if (version === panelRevision.current) setConnection(next);
+    } catch (e) {
+      if (version === panelRevision.current) setPanelMessage(errorMessage(e));
+    } finally {
+      try {
+        const next = await call<Preferences>("collection.preferences");
+        if (version === panelRevision.current) setPrefs(next);
+      } catch { /* Last known subscription list stays usable while offline. */ }
+      if (version === panelRevision.current) setSubscriptionsSyncing(false);
+    }
+  };
+  useEffect(() => {
+    if (panel !== "channels") return;
+    const version = panelRevision.current;
+    const timer = setInterval(() => {
+      void call<Preferences>("collection.preferences").then(next => {
+        if (version === panelRevision.current) setPrefs(next);
+      }).catch(() => {});
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [panel]);
   const openPanel = async (kind: NonNullable<typeof panel>, asset?: Asset) => {
-    modal.begin();
+    if (kind !== "document") modal.begin();
     const version = ++panelRevision.current;
     setPanel(kind);
     setPanelMessage("");
@@ -223,11 +254,11 @@ export function YouTubeView({
     setConfirmDelete(false);
     try {
       if (kind === "channels") {
-        void checkConnection().catch(() => {});
         const value = await preferences();
         if (version === panelRevision.current) {
           setExcluded(value.excluded_channels);
           setChannelSearch("");
+          void syncSubscriptions(version);
         }
       }
       if (kind === "connection") {
@@ -266,8 +297,8 @@ export function YouTubeView({
       setConnectionError(false);
       setPanelMessage(
         capability === "connection.configure"
-          ? yt("正在保存，请在 Automic Vault 中完成授权…")
-          : yt("请完成浏览器或 Vault 中的授权…"),
+          ? yt("正在保存到系统钥匙串…")
+          : capability === "connection.migrate_credentials" ? yt("正在迁移现有连接，请完成这一次 Vault 授权…") : yt("请在浏览器中完成 Google 授权…"),
       );
       const result = await call<Connection>(capability, args);
       setConnection(result);
@@ -275,6 +306,8 @@ export function YouTubeView({
       setPanelMessage(
         capability === "connection.authorize"
           ? yt("YouTube 已连接，已导入 {{value1}} 个订阅。", { value1: result.subscription_count })
+          : capability === "connection.migrate_credentials"
+            ? yt("连接已迁移到系统钥匙串，今后不再需要 Vault。")
           : capability === "connection.disconnect"
             ? yt("YouTube 授权已断开，已有文档仍保留。")
             : yt("客户端已保存，请继续在浏览器中授权 YouTube。"),
@@ -318,16 +351,17 @@ export function YouTubeView({
   };
   const selectedId = selected?.video_id;
   return (
-    <main ref={mainRef} tabIndex={-1} {...modal.capture} className="yp-main" aria-label={yt("YouTube 资料库")}>
+    <main ref={mainRef} tabIndex={-1} {...modal.capture} className={`yp-main${page === "documents" ? " yp-documents" : ""}`} aria-label={yt("YouTube 资料库")}>
       <NoticeStack messages={[message, progressMessage, panel ? "" : panelMessage, activity?.discovery_error || ""].map(value => value ? yt(value) : "")} />
       <header className="yp-head">
         <div className="yp-header">
           <nav className="yp-page-nav" aria-label={yt("YouTube 页面")}>
-            <button aria-current={page === "documents" ? "page" : undefined} onClick={() => setPage("documents")}>{yt("阅读文档")}</button>
             <button aria-current={page === "progress" ? "page" : undefined} onClick={() => setPage("progress")}>{yt("处理进度")}</button>
+            <button aria-current={page === "documents" ? "page" : undefined} onClick={() => setPage("documents")}>{yt("阅读文档")}</button>
             <button aria-current={page === "activity" ? "page" : undefined} onClick={() => setPage("activity")}>{yt("事件时间线")}</button>
           </nav>
           <div className="yp-tools">
+            {page === "progress" && <div className="yp-progress-actions" ref={setProgressActions} />}
             <span className="yp-sync" role="status">
               <span className={`yp-dot ${activity?.drain_paused ? "pending" : ""}`} />{status}
             </span>
@@ -454,7 +488,7 @@ export function YouTubeView({
       </header>
       <div className="yp-content">
         {page === "progress" ? (
-          <ProgressPage activity={activity} receivedAt={activityReceivedAt} disconnected={activityError}
+          <ProgressPage actionsTarget={progressActions} activity={activity} receivedAt={activityReceivedAt} disconnected={activityError}
             onRefresh={refreshActivity} onModelSettings={onModelSettings} onNotice={setProgressMessage} />
         ) : page === "activity" ? (
           <ActivityPage activity={activity} disconnected={activityError} />
@@ -495,254 +529,32 @@ export function YouTubeView({
             sources={sources}
             channel={channel}
             onChannel={setChannel}
-            onSelect={(a) => void openPanel("document", a)}
-            searching={!!query.trim()}
+            onSelect={(a) => { if (!busy) void openPanel("document", a); }}
+            selectedId={panel === "document" ? selectedId : undefined}
           />
         )}
       </div>
-      <Dialog
-        open={panel !== null} interaction={modal} fallbackFocusRef={mainRef}
-        title={panel === "channels" ? yt("订阅频道") : panel === "connection" ? yt("连接 YouTube") : yt("文档信息")}
-        subtitle={panel === "channels" ? yt("默认自动生成所有订阅频道的阅读文档。") : panel === "connection" ? yt("通过 Google 安全连接，登录凭据由系统钥匙串保存。") : selected?.channel_title}
-        detail={panel === "document"}
-        onClose={close}
-        footer={panel === "channels" ? (
-            <>
-              <span>
-                {
-                  prefs.sources.filter((s) => !excluded.includes(s.channel_id))
-                    .length
-                }{" "}
-                {yt("个频道已开启")}</span>
-              <div>
-                <button className="yp-btn" onClick={() => close()}>
-                  {yt("取消")}</button>{" "}
-                <button
-                  className="yp-btn primary"
-                  disabled={busy || panelLoading || !panelReady}
-                  onClick={() =>
-                    void panelAction(async (input) => {
-                      setPrefs(
-                        await call<Preferences>("collection.set_exclusions", {
-                          excluded_channels: excluded,
-                        }),
-                      );
-                      close(input);
-                      setMessage(yt("频道设置已保存。"));
-                      await refresh();
-                    })
-                  }
-                >
-                  {yt("保存")}</button>
-              </div>
-            </>
-        ) : panel === "document" ? (
-          selected && !panelLoading ? (
-              <>
-                <span>
-                  {selected.reading_state === "read" ? yt("已读") : yt("未读")} · v
-                  {selected.manuscript_version}
-                </span>
-                <button
-                  className="yp-link"
-                  disabled={busy}
-                  onClick={() =>
-                    void panelAction(async () => {
-                      setSelected(
-                        await call<Inspection>("library.set_reading_state", {
-                          video_id: selectedId,
-                          reading_state:
-                            selected.reading_state === "read"
-                              ? "inbox"
-                              : "read",
-                        }),
-                      );
-                      await refresh();
-                    })
-                  }
-                >
-                  {selected.reading_state === "read" ? yt("标为未读") : yt("标为已读")}
-                </button>
-              </>
-            ) : null
-        ) : null}
-      >
-        {panelMessage && <p role="status" className="yp-inline-note">{yt(panelMessage)}</p>}
-        {panel === "channels" && (<>
-          <div className="yp-inline-note">
-            {yt("关闭频道后，不再领取它的新文档；正在生成的文档会完成，已有文档仍保留。新导入的订阅默认开启。")}</div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button
-              className="yp-btn"
-              onClick={() => void openPanel("connection")}
-            >
-              {connection?.authorized && (
-                <span className="yp-dot" aria-hidden="true" />
-              )}
-              {connection?.authorized ? yt("已连接 YouTube") : yt("连接 YouTube")}
-            </button>
-            <span
-              role="status"
-              className="yp-inline-status"
-              style={{ padding: "7px 0" }}
-            >
-              {connectionChecking
-                ? yt("正在确认连接状态…")
-                : connectionError
-                  ? yt("连接状态未知，请重试")
-                  : connection?.authorized
-                    ? yt("{{value1}} 个订阅", { value1: connection.subscription_count })
-                    : connection
-                      ? yt("未连接")
-                      : ""}
-            </span>
-            <button
-              className="yp-btn"
-              disabled={busy}
-              onClick={() =>
-                void panelAction(async () => {
-                  await call("connection.refresh_subscriptions");
-                  const next = await preferences();
-                  setExcluded(next.excluded_channels);
-                  setPanelMessage(yt("订阅已同步。"));
-                })
-              }
-            >
-              {yt("同步订阅")}</button>
-          </div>
-          <label className="yp-search">
-            <Icon name="search" />
-            <input
-              aria-label={yt("搜索订阅频道")}
-              placeholder={yt("搜索订阅频道")}
-              value={channelSearch}
-              onChange={(e) => setChannelSearch(e.target.value)}
-            />
-          </label>
-          <div className="yp-channel-actions">
-            <span className="yp-inline-status">{yt("全部")}{prefs.sources.length} {yt("个频道")}</span>
-            <button
-              className="yp-btn"
-              disabled={busy || panelLoading || !panelReady || !prefs.sources.length}
-              onClick={() => setExcluded((current) => current.filter(
-                (id) => !prefs.sources.some((source) => source.channel_id === id),
-              ))}
-            >
-              {yt("全选")}</button>
-            <button
-              className="yp-btn"
-              disabled={busy || panelLoading || !panelReady || !prefs.sources.length}
-              onClick={() => setExcluded((current) => [...new Set([
-                ...current, ...prefs.sources.map((source) => source.channel_id),
-              ])])}
-            >
-              {yt("全不选")}</button>
-          </div>
-          {panelLoading ? (
-            <p>{yt("正在读取频道…")}</p>
-          ) : (
-            prefs.sources
-              .filter((s) =>
-                s.title.toLowerCase().includes(channelSearch.toLowerCase()),
-              )
-              .map((s) => (
-                <div className="yp-channel-row" key={s.channel_id}>
-                  <ChannelAvatar name={s.title} />
-                  <div>
-                    <strong>{s.title}</strong>
-                  </div>
-                  <label className="yp-switch">
-                    <input
-                      type="checkbox"
-                      aria-label={yt("自动生成 {{value1}}", { value1: s.title })}
-                      checked={!excluded.includes(s.channel_id)}
-                      onChange={(e) =>
-                        setExcluded(
-                          e.target.checked
-                            ? excluded.filter((x) => x !== s.channel_id)
-                            : [...excluded, s.channel_id],
-                        )
-                      }
-                    />
-                    <span />
-                  </label>
-                </div>
-              ))
-          )}
-          {!panelLoading && !prefs.sources.length && (
-            <p className="yp-inline-status">{yt("尚未导入订阅。请先连接 YouTube。")}</p>
-          )}
-        </>)}
-        {panel === "connection" && (<>
-          {panelLoading ? (
-            <p>{yt("正在检查连接状态…")}</p>
-          ) : !connection?.configured ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void connectAction("connection.configure", {
-                  client_id: clientId,
-                  client_secret: clientSecret,
-                });
-              }}
-            >
-              <label>
-                Client ID
-                <input
-                  className="yp-modal-field"
-                  required
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                />
-              </label>
-              <label>
-                Client Secret
-                <input
-                  className="yp-modal-field"
-                  required
-                  type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                />
-              </label>
-              <button
-                className="yp-btn primary"
-                style={{ marginTop: 16 }}
-                disabled={busy}
-              >
-                {busy ? yt("正在保存…") : yt("保存到系统钥匙串")}
-              </button>
-            </form>
-          ) : !connection.authorized ? (
-            <button
-              className="yp-btn primary"
-              disabled={busy}
-              onClick={() => void connectAction("connection.authorize")}
-            >
-              {yt("在浏览器中授权并导入订阅")}</button>
-          ) : (
-            <>
-              <p>{yt("已连接 ·")}{connection.subscription_count} {yt("个订阅")}</p>
-              <button
-                className="yp-btn"
-                disabled={busy}
-                onClick={() => void connectAction("connection.disconnect")}
-              >
-                {yt("断开授权")}</button>
-            </>
-          )}
-          <p className="yp-inline-status">
-            {yt("测试模式下，请将登录邮箱加入 Google Cloud 的测试用户名单。")}</p>
-        </>)}
-        {panel === "document" && (<>
+
+      {page === "documents" && <aside className="yp-inspector" aria-label={yt("文档信息")}>
+        <header className="yp-inspector-head"><span>{yt("文档信息")}</span>
+          {panel === "document" && <button className="yp-iconbtn" aria-label={yt("关闭文档信息")} onClick={() => close()}><Icon name="x" /></button>}
+        </header>
+        <div className="yp-inspector-body">
+          {panelMessage && panel === "document" && <p role="status" className="yp-inline-note">{yt(panelMessage)}</p>}
+          {panel === "document" && (<>
           {panelLoading ? (
             <p>{yt("正在读取文档信息…")}</p>
           ) : (
             selected && (
               <>
-                <ChannelAvatar name={selected.channel_title} />
                 <h3>{selected.title}</h3>
+                <div className="yp-inspector-author"><ChannelAvatar name={selected.channel_title} /><span>{selected.channel_title}</span></div>
+                {selected.excerpt && <section className="yp-inspector-summary">
+                  <h4>{yt("摘要")}</h4><p>{excerpt(selected.excerpt, 1000)}</p>
+                </section>}
+                <h4>{yt("元数据")}</h4>
                 <dl>
+                  <dt>{yt("阅读时间")}</dt><dd>{readingTime(selected) || "—"}</dd>
                   <dt>{yt("发布日期")}</dt>
                   <dd>{publicationLabel(selected.published_at)}</dd>
                   <dt>{yt("视频时长")}</dt>
@@ -861,6 +673,248 @@ export function YouTubeView({
             )
           )}
         </>)}
+          {panel !== "document" && <p className="yp-inspector-placeholder">{yt("选择文档，查看摘要与详细信息。")}</p>}
+        </div>
+        {panel === "document" && <footer className="yp-inspector-footer">{
+          selected && !panelLoading ? (
+              <>
+                <span>
+                  {selected.reading_state === "read" ? yt("已读") : yt("未读")} · v
+                  {selected.manuscript_version}
+                </span>
+                <button
+                  className="yp-link"
+                  disabled={busy}
+                  onClick={() =>
+                    void panelAction(async () => {
+                      setSelected(
+                        await call<Inspection>("library.set_reading_state", {
+                          video_id: selectedId,
+                          reading_state:
+                            selected.reading_state === "read"
+                              ? "inbox"
+                              : "read",
+                        }),
+                      );
+                      await refresh();
+                    })
+                  }
+                >
+                  {selected.reading_state === "read" ? yt("标为未读") : yt("标为已读")}
+                </button>
+              </>
+            ) : null}</footer>}
+      </aside>}
+      <Dialog
+        open={panel === "channels" || panel === "connection"} interaction={modal} fallbackFocusRef={mainRef}
+        title={panel === "channels" ? yt("订阅频道") : panel === "connection" ? yt("连接 YouTube") : yt("文档信息")}
+        subtitle={panel === "channels" ? yt("默认自动生成所有订阅频道的阅读文档。") : panel === "connection" ? yt("通过 Google 安全连接，登录凭据由系统钥匙串保存。") : selected?.channel_title}
+        onClose={close}
+        footer={panel === "channels" ? (
+            <>
+              <span>
+                {
+                  prefs.sources.filter((s) => !excluded.includes(s.channel_id))
+                    .length
+                }{" "}
+                {yt("个频道已开启")}</span>
+              <div>
+                <button className="yp-btn" onClick={() => close()}>
+                  {yt("取消")}</button>{" "}
+                <button
+                  className="yp-btn primary"
+                  disabled={busy || panelLoading || !panelReady}
+                  onClick={() =>
+                    void panelAction(async (input) => {
+                      setPrefs(
+                        await call<Preferences>("collection.set_exclusions", {
+                          excluded_channels: excluded,
+                        }),
+                      );
+                      close(input);
+                      setMessage(yt("频道设置已保存。"));
+                      await refresh();
+                    })
+                  }
+                >
+                  {yt("保存")}</button>
+              </div>
+            </>
+        ) : null}
+      >
+        {panelMessage && <p role="status" className="yp-inline-note">{yt(panelMessage)}</p>}
+        {panel === "channels" && (<>
+          <div className="yp-inline-note">
+            {yt("关闭频道后，不再领取它的新文档；正在生成的文档会完成，已有文档仍保留。新导入的订阅默认开启。")}</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <button
+              className="yp-btn"
+              onClick={() => void openPanel("connection")}
+            >
+              {connection?.authorized && (
+                <span className="yp-dot" aria-hidden="true" />
+              )}
+              {connection?.authorized ? yt("已连接 YouTube") : yt("连接 YouTube")}
+            </button>
+            <span
+              role="status"
+              className="yp-inline-status"
+              style={{ padding: "7px 0" }}
+            >
+              {connectionChecking
+                ? yt("正在确认连接状态…")
+                : connectionError
+                  ? yt("连接状态未知，请重试")
+                  : connection?.authorized
+                    ? yt("{{value1}} 个订阅", { value1: connection.subscription_count })
+                    : connection
+                      ? yt("未连接")
+                      : ""}
+            </span>
+            <button className="yp-btn" disabled={busy || subscriptionsSyncing || !connection?.authorized}
+              onClick={() => void syncSubscriptions(panelRevision.current)}>
+              {subscriptionsSyncing ? yt("正在同步订阅…") : yt("同步订阅")}</button>
+          </div>
+          <p className="yp-inline-status" role="status">
+            {prefs.last_synced_at ? yt("上次同步：{{value1}}", { value1: new Date(prefs.last_synced_at * 1000).toLocaleString() }) : yt("尚未同步账号订阅")}
+            {prefs.reconnect_required ? ` · ${yt("授权已失效，请重新连接 YouTube。")}` : prefs.sync_error ? ` · ${yt("同步暂时失败，继续显示上次结果。")}` : ""}
+          </p>
+          <label className="yp-search">
+            <Icon name="search" />
+            <input
+              aria-label={yt("搜索订阅频道")}
+              placeholder={yt("搜索订阅频道")}
+              value={channelSearch}
+              onChange={(e) => setChannelSearch(e.target.value)}
+            />
+          </label>
+          <div className="yp-channel-actions">
+            <span className="yp-inline-status">{yt("全部")}{prefs.sources.length} {yt("个频道")}</span>
+            <button
+              className="yp-btn"
+              disabled={busy || panelLoading || !panelReady || !prefs.sources.length}
+              onClick={() => setExcluded((current) => current.filter(
+                (id) => !prefs.sources.some((source) => source.channel_id === id),
+              ))}
+            >
+              {yt("全选")}</button>
+            <button
+              className="yp-btn"
+              disabled={busy || panelLoading || !panelReady || !prefs.sources.length}
+              onClick={() => setExcluded((current) => [...new Set([
+                ...current, ...prefs.sources.map((source) => source.channel_id),
+              ])])}
+            >
+              {yt("全不选")}</button>
+          </div>
+          {panelLoading ? (
+            <p>{yt("正在读取频道…")}</p>
+          ) : (
+            prefs.sources
+              .filter((s) =>
+                s.title.toLowerCase().includes(channelSearch.toLowerCase()),
+              )
+              .map((s) => (
+                <div className="yp-channel-row" key={s.channel_id}>
+                  <ChannelAvatar name={s.title} />
+                  <div>
+                    <strong>{s.title}</strong>
+                  </div>
+                  <label className="yp-switch">
+                    <input
+                      type="checkbox"
+                      aria-label={yt("自动生成 {{value1}}", { value1: s.title })}
+                      checked={!excluded.includes(s.channel_id)}
+                      onChange={(e) =>
+                        setExcluded(
+                          e.target.checked
+                            ? excluded.filter((x) => x !== s.channel_id)
+                            : [...excluded, s.channel_id],
+                        )
+                      }
+                    />
+                    <span />
+                  </label>
+                </div>
+              ))
+          )}
+          {!panelLoading && !prefs.sources.length && (
+            <p className="yp-inline-status">{yt("尚未导入订阅。请先连接 YouTube。")}</p>
+          )}
+        </>)}
+        {panel === "connection" && (<>
+          {panelLoading ? (
+            <p>{yt("正在检查连接状态…")}</p>
+          ) : connectionError || !connection ? (
+            <div>
+              <p>{yt("连接状态未知，请重试")}</p>
+              <button className="yp-btn" onClick={() => void openPanel("connection")}>{yt("重试")}</button>
+            </div>
+          ) : !connection.configured ? (
+            <>
+            <p>{yt("此构建尚未配置 Google 登录。可迁移本机已有连接，或展开开发者设置。")}</p>
+            <button className="yp-btn primary" disabled={busy} onClick={() => void connectAction("connection.migrate_credentials")}>{yt("迁移现有连接")}</button>
+            <details style={{ marginTop: 16 }}><summary>{yt("开发者设置")}</summary>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void connectAction("connection.configure", {
+                  client_id: clientId,
+                  client_secret: clientSecret,
+                });
+              }}
+            >
+              <label>
+                Client ID
+                <input
+                  className="yp-modal-field"
+                  required
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+              </label>
+              <label>
+                Client Secret
+                <input
+                  className="yp-modal-field"
+                  required
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                />
+              </label>
+              <button
+                className="yp-btn primary"
+                style={{ marginTop: 16 }}
+                disabled={busy}
+              >
+                {busy ? yt("正在保存…") : yt("保存到系统钥匙串")}
+              </button>
+            </form>
+            </details>
+            </>
+          ) : !connection.authorized ? (
+            <button
+              className="yp-btn primary"
+              disabled={busy}
+              onClick={() => void connectAction("connection.authorize")}
+            >
+              {yt("在浏览器中授权并导入订阅")}</button>
+          ) : (
+            <>
+              <p>{yt("已连接 ·")}{connection.subscription_count} {yt("个订阅")}</p>
+              <button
+                className="yp-btn"
+                disabled={busy}
+                onClick={() => void connectAction("connection.disconnect")}
+              >
+                {yt("断开授权")}</button>
+            </>
+          )}
+          <p className="yp-inline-status">
+            {yt("测试模式下，请将登录邮箱加入 Google Cloud 的测试用户名单。")}</p>
+        </>)}
+
       </Dialog>
     </main>
   );

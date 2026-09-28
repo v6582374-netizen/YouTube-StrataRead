@@ -58,7 +58,7 @@ test('Shorts admission, deferred classification and retained manuscripts through
     await page.getByTestId('nav-youtube').click();
     await page.getByRole('button', { name: '处理进度', exact: true }).click();
     const progress = page.getByRole('region', { name: '处理进度', exact: true });
-    await progress.getByRole('button', { name: '恢复自动更新', exact: true }).click();
+    await page.locator('.yp-head').getByRole('button', { name: '恢复自动更新', exact: true }).click();
     await expect.poll(async () => (await call('activity.snapshot')).ready, { timeout: 15000 }).toBe(2);
     await expect.poll(async () => (await call('activity.snapshot')).awaiting_classification, { timeout: 15000 }).toBe(1);
     expect((await readFile(join(dir, 'caption-calls'), 'utf8')).trim().split('\n')).toEqual(['normal00001']);

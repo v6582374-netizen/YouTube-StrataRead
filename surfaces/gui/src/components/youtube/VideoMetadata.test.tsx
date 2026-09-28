@@ -16,7 +16,7 @@ const video: Asset = {
 
 function show(asset: Asset, layout: Layout = "timeline") {
   render(<DocumentViews layout={layout} assets={[asset]} sources={[]} channel=""
-    onChannel={() => {}} onSelect={() => {}} searching={false} />);
+    onChannel={() => {}} onSelect={() => {}} />);
 }
 
 beforeEach(async () => {

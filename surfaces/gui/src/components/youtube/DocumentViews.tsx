@@ -5,8 +5,8 @@ import {
   Asset,
   Layout,
   Source,
-  dateLabel,
   excerpt,
+  dateLabel,
   readingTime,
   publicationLabel,
   videoDurationLabel,
@@ -22,26 +22,30 @@ export function ChannelAvatar({ name }: { name: string }) {
 function Row({
   asset,
   onSelect,
+  selectedId,
 }: {
   asset: Asset;
+  selectedId?: string;
   onSelect: (a: Asset) => void;
 }) {
   useTranslation();
   return (
-    <button className="yp-row" onClick={() => onSelect(asset)}>
-      <ChannelAvatar name={asset.channel_title} />
+    <button className="yp-row" aria-pressed={asset.video_id === selectedId} onClick={() => onSelect(asset)}>
+      <span className="yp-document-cover" aria-hidden="true">{/^[\w-]{11}$/.test(asset.video_id) && <img src={`https://i.ytimg.com/vi/${asset.video_id}/mqdefault.jpg`} alt="" loading="lazy" onError={event => { event.currentTarget.hidden = true; }} />}<Icon name="file" size={26} /><span>{asset.channel_title}</span></span>
       <span className="yp-rowtext">
         <h3>{asset.title}</h3>
-        <p>
+        <p className="yp-rowexcerpt">{excerpt(asset.excerpt)}</p>
+        <p className="yp-rowbyline">
+          <Icon name="file" size={12} />
           <span>{asset.channel_title}</span>
-          <span>{publicationLabel(asset.published_at)}</span>
           <span>{videoDurationLabel(asset.duration_seconds)}</span>
+          {readingTime(asset) && <span>{readingTime(asset)}</span>}
           {asset.reading_state === "read" && <span>{yt("已读")}</span>}
         </p>
-        <p>{readingTime(asset)}</p>
+
       </span>
-      <span className="yp-rowmeta">
-        <Icon name="file" />
+      <span className="yp-rowmeta" title={publicationLabel(asset.published_at)}>
+        <span aria-hidden="true">{dateLabel(asset.published_at)}</span><span className="sr-only">{publicationLabel(asset.published_at)}</span>
       </span>
     </button>
   );
@@ -53,7 +57,7 @@ export function DocumentViews({
   channel,
   onChannel,
   onSelect,
-  searching,
+  selectedId,
 }: {
   layout: Layout;
   assets: Asset[];
@@ -61,7 +65,7 @@ export function DocumentViews({
   channel: string;
   onChannel: (id: string) => void;
   onSelect: (a: Asset) => void;
-  searching: boolean;
+  selectedId?: string;
 }) {
   useTranslation();
   if (layout === "library")
@@ -71,6 +75,7 @@ export function DocumentViews({
           <button
             key={a.video_id}
             className="yp-document"
+            aria-pressed={a.video_id === selectedId}
             onClick={() => onSelect(a)}
           >
             <div className="yp-document-top">
@@ -122,7 +127,7 @@ export function DocumentViews({
           </div>
           {assets.length ? (
             assets.map((a) => (
-              <Row key={a.video_id} asset={a} onSelect={onSelect} />
+              <Row key={a.video_id} asset={a} onSelect={onSelect} selectedId={selectedId} />
             ))
           ) : (
             <p className="yp-inline-status">{yt("当前筛选下没有文档。")}</p>
@@ -130,24 +135,9 @@ export function DocumentViews({
         </section>
       </div>
     );
-  const groups = new Map<string, Asset[]>();
-  for (const a of assets) {
-    const key = searching ? yt("搜索结果") : dateLabel(a.published_at);
-    groups.set(key, [...(groups.get(key) || []), a]);
-  }
   return (
     <div className="yp-timeline">
-      {[...groups].map(([day, items]) => (
-        <section className="yp-day" key={day}>
-          <h2>
-            {day}
-            <span>{items.length} {yt("篇")}</span>
-          </h2>
-          {items.map((a) => (
-            <Row key={a.video_id} asset={a} onSelect={onSelect} />
-          ))}
-        </section>
-      ))}
+      {assets.map((a) => <Row key={a.video_id} asset={a} onSelect={onSelect} selectedId={selectedId} />)}
     </div>
   );
 }

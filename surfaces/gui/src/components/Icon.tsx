@@ -2,6 +2,9 @@
 // currentColor, rounded caps/joins. Replaces emoji in the chrome for a crisp, consistent look.
 
 export type IconName =
+  | "pause"
+  | "play"
+  | "retry"
   | "sparkle"
   | "logo"
   | "sidebar"
@@ -69,6 +72,12 @@ export function Icon({
   };
 
   switch (name) {
+    case "pause":
+      return <svg {...s}><path d="M8 5v14M16 5v14" /></svg>;
+    case "play":
+      return <svg {...s}><path d="m8 4 12 8-12 8Z" /></svg>;
+    case "retry":
+      return <svg {...s}><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg>;
     case "book":
       // A playbook — Skills are the worker's recipe book (Settings ▸ Skills).
       // Hardcover with a full spine + two text lines: "written instructions inside".

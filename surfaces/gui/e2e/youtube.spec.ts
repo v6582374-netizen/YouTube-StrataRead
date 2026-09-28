@@ -40,6 +40,7 @@ for (const width of [800, 1100, 1440]) {
         manuscript_characters: 3000,
       };
       let result: unknown = {};
+      if (capability === "activity.list") result = {items: [], total: 0};
       if (capability === "library.list") {
         expect(args.documents_only).toBe(true);
         result = { assets: [asset], total: 1 };
@@ -99,6 +100,7 @@ for (const width of [800, 1100, 1440]) {
     });
     await page.goto("/");
     await page.getByTestId("nav-youtube").click();
+    await page.getByRole("button", {name: "阅读文档", exact: true}).click();
     const main = page.getByRole("main", { name: "YouTube 资料库" });
     await expect(
       main.getByRole("heading", { name: "YouTube", exact: true }),
@@ -126,7 +128,7 @@ for (const width of [800, 1100, 1440]) {
       });
     }
     await main.getByRole("button", { name: /一份用于验证整合的稿件/ }).click();
-    const dialog = page.getByRole("dialog", { name: "文档信息" });
+    const dialog = page.getByRole("complementary", { name: "文档信息" });
     await expect(dialog).toBeVisible();
     expect(opened).toBe(0);
     expect(sourceOpened).toBe(0);
@@ -134,7 +136,7 @@ for (const width of [800, 1100, 1440]) {
     await expect.poll(() => sourceOpened).toBe(1);
     await dialog.getByRole("button", { name: "用默认应用打开" }).click();
     await expect.poll(() => opened).toBe(1);
-    await page.keyboard.press("Escape");
+    await dialog.getByRole("button", {name: "关闭文档信息"}).click();
     await main.getByRole("button", { name: "订阅频道", exact: true }).click();
     await page
       .getByRole("checkbox", { name: "自动生成 Example channel" })
@@ -178,6 +180,7 @@ for (const width of [800, 1100, 1440]) {
     await page.screenshot({ path: `test-results/youtube-translation-${width}.png` });
     await page.reload();
     await page.getByTestId("nav-youtube").click();
+    await page.getByRole("button", {name: "阅读文档", exact: true}).click();
     await expect(
       main.getByRole("button", { name: "频道索引" }),
     ).toHaveAttribute("aria-pressed", "true");

@@ -14,7 +14,7 @@ test('YouTube follows the app language and keeps notifications outside the page'
     if (capability === 'activity.snapshot') {
       snapshots++;
       result = {
-        queued: 0, acquiring: 0, generating: 0, ready: 0, failed: 0, unavailable: 0,
+        queued: 0, acquiring: 0, generating: 0, ready: 0, failed: 2, unavailable: 0,
         drain_paused: false, model_ready: true, batch: { completed: 0, limit: 100 },
         discovery_error: discoveryError, runtime: { worker_alive: true, heartbeat_at: Date.now() / 1000 },
       };
@@ -34,6 +34,10 @@ test('YouTube follows the app language and keeps notifications outside the page'
   expect(await page.locator('.yp-main').innerText()).not.toMatch(/[\u4e00-\u9fff]/);
   await page.screenshot({ path: '../../reports/ui-refinement/youtube-en.png' });
   await expect(page.locator('.notice-card')).toHaveText('Subscriptions could not refresh. Retrying later.');
+  for (const name of ['Pause after current document', 'Check for updates', 'Retry failed']) {
+    await expect(page.locator('.yp-head').getByRole('button', { name, exact: true })).toBeVisible();
+    await expect(progress.getByRole('button', { name, exact: true })).toHaveCount(0);
+  }
   const before = await progress.boundingBox();
   await page.getByRole('button', { name: 'Check for updates', exact: true }).click();
   await expect(page.locator('.notice-card')).toHaveCount(1);

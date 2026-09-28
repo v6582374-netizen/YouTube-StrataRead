@@ -92,7 +92,9 @@ if shorts_mode:
             ("saved000001", "已有的 Shorts 文稿"),
         ]
     ]
+youtube.YouTubeWorkbench._sync_subscriptions = lambda self: None
 workspace = LocalWorkspace.open(root / "youtube")
+workspace.set_meta("youtube_oauth_authorized", "1")
 if workspace.meta("fixture_seeded") != "1":
     # A fresh workspace starts with Auto Update off.
     workspace.set_meta("drain_paused", "1")

@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { Icon } from "../Icon";
 import { useTranslation } from "react-i18next";
 import { yt } from "./text";
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
@@ -7,9 +9,9 @@ import { videoMetadataText } from "./types";
 import { LaunchHero, type Milestone } from "./discovery/LaunchHero";
 import { activityLabels } from "./activityLabels";
 import { RawConsole } from "./RawConsole";
+import { DiscoveryStatus } from "./DiscoveryStatus";
 import "./discovery/discovery.css";
 import "./discovery/hierarchy.css";
-import { DiscoveryStatus } from "./DiscoveryStatus";
 import "./progress.css";
 
 type QueueState = "awaiting_completion" | "expired" | "awaiting_timing" | "queued" | "rate_limited" | "awaiting_classification" | "filtered" | "cancelled" | "failed" | "unavailable";
@@ -29,7 +31,8 @@ function failure(reason: string | null) {
   return { title: yt("处理未完成"), description: yt("已有资料保留，可展开查看原因。") };
 }
 
-export function ProgressPage({ activity, receivedAt, disconnected, onRefresh, onModelSettings, onNotice }: {
+export function ProgressPage({ actionsTarget, activity, receivedAt, disconnected, onRefresh, onModelSettings, onNotice }: {
+  actionsTarget: HTMLDivElement | null;
   activity: Activity | null; receivedAt: number; disconnected: boolean;
   onRefresh: () => Promise<void>; onModelSettings: () => void;
   onNotice: Dispatch<SetStateAction<string>>;
@@ -141,14 +144,18 @@ export function ProgressPage({ activity, receivedAt, disconnected, onRefresh, on
           { label: yt("最近进展"), value: ago(current?.stage_updated_at || events[0]?.occurred_at, now), note: yt("后台心跳：{{value1}}", { value1: ago(heartbeat, now) }) },
         ]} />
     </div>
-    <div className="yp-progress-controls">
-      {activity && !activity.model_ready && <button className="yp-btn" onClick={onModelSettings}>{yt("连接生成模型")}</button>}
-      <button className="yp-btn" disabled={busy || !activity} onClick={() => void run(activity?.drain_paused ? "activity.resume" : "activity.drain_pause")}>
-        {activity?.drain_paused ? yt("恢复自动更新") : yt("完成当前文档后暂停")}
+    {actionsTarget && createPortal(<>
+      <button className="yp-iconbtn" title={activity?.drain_paused ? yt("恢复自动更新") : yt("完成当前文档后暂停")}
+        aria-label={activity?.drain_paused ? yt("恢复自动更新") : yt("完成当前文档后暂停")}
+        disabled={busy || !activity} onClick={() => void run(activity?.drain_paused ? "activity.resume" : "activity.drain_pause")}>
+        <Icon name={activity?.drain_paused ? "play" : "pause"} />
       </button>
-      <button className="yp-btn" disabled={busy} onClick={() => void run("collection.refresh_updates")}>{yt("立即检查更新")}</button>
-      {!!activity?.failed && <button className="yp-btn" disabled={busy} onClick={() => void run("activity.retry_all_failed")}>{yt("重试失败项")}</button>}
-    </div>
+      <button className="yp-iconbtn" title={yt("立即检查更新")} aria-label={yt("立即检查更新")}
+        disabled={busy || !activity} onClick={() => void run("collection.refresh_updates")}><Icon name="refresh" /></button>
+      {!!activity?.failed && <button className="yp-iconbtn" title={yt("重试失败项")} aria-label={yt("重试失败项")}
+        disabled={busy} onClick={() => void run("activity.retry_all_failed")}><Icon name="retry" /></button>}
+    </>, actionsTarget)}
+    {activity && !activity.model_ready && <button className="yp-btn" onClick={onModelSettings}>{yt("连接生成模型")}</button>}
     {activity?.drain_paused && active && <p className="yp-progress-note">{yt("已请求暂停，当前文档完成后不再领取新任务。")}</p>}
     {cooling && <p className="yp-progress-notice" role="status">{yt("YouTube 获取请求已暂停，预计")}{new Date(cooldownUntil * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})} {yt("后再尝试（约")}{Math.ceil((cooldownUntil * 1000 - now) / 60000)} {yt("分钟）。已有文稿可以继续阅读；重启或手动恢复不会提前解除冷却。")}</p>}
 

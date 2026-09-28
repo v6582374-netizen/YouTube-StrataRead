@@ -58,7 +58,7 @@ test('429 pauses every video and remains in force after restart', async ({ page,
     await page.getByTestId('nav-youtube').click();
     await page.getByRole('button', { name: '处理进度', exact: true }).click();
     const progress = page.getByRole('region', { name: '处理进度', exact: true });
-    await progress.getByRole('button', { name: '恢复自动更新', exact: true }).click();
+    await page.locator('.yp-head').getByRole('button', { name: '恢复自动更新', exact: true }).click();
     await expect.poll(async () => {
       try { return (await readFile(join(dir, 'caption-calls'), 'utf8')).trim().split('\n')[0]; }
       catch { return ''; }

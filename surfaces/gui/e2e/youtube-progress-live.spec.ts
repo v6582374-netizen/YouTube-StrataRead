@@ -74,7 +74,7 @@ for (const width of [800, 1440]) {
       await expect(queue.getByText('没有等待处理的视频。')).toBeVisible();
       await progress.getByRole('button', {name: /^已取消/}).click();
       await expect(queue.locator('li')).toHaveCount(3);
-      await progress.getByRole('button', {name: '立即检查更新'}).click();
+      await page.locator('.yp-head').getByRole('button', {name: '立即检查更新'}).click();
       expect((await call('activity.snapshot')).cancelled).toBe(3);
       await stop();
       await start();
@@ -83,12 +83,12 @@ for (const width of [800, 1440]) {
       await expect(queue.locator('li')).toHaveCount(2);
       await progress.getByRole('button', {name: /^待处理/}).click();
       await expect(queue.locator('li')).toHaveCount(1);
-      await progress.getByRole('button', {name: '恢复自动更新', exact: true}).click();
+      await page.locator('.yp-head').getByRole('button', {name: '恢复自动更新', exact: true}).click();
       await expect(progress.getByRole('heading', {name: '获取字幕', exact: true})).toBeVisible({timeout: 15000});
       const raced = await call('activity.cancel', {video_ids: ['one']});
       expect(raced.changed).toEqual([]);
       expect(raced.skipped[0].state).toBe('acquiring');
-      await progress.getByRole('button', {name: '完成当前文档后暂停'}).click();
+      await page.locator('.yp-head').getByRole('button', {name: '完成当前文档后暂停'}).click();
       await writeFile(join(dir, 'captions-release'), 'go');
       await expect(progress.getByRole('heading', {name: '初译', exact: true})).toBeVisible({timeout: 15000});
       const consoleOutput = progress.getByRole('region', {name: '原始控制台'});
@@ -132,7 +132,7 @@ for (const width of [800, 1440]) {
         await expect(document.getByText(/预计阅读 \d+ 分钟/)).toBeVisible();
       }
       await page.getByRole('button', {name: /建筑与时间/}).click();
-      await expect(page.getByRole('dialog').getByText('视频 42 分 18 秒', {exact: true})).toBeVisible();
+      await expect(page.getByRole('complementary', {name: '文档信息'}).getByText('视频 42 分 18 秒', {exact: true})).toBeVisible();
       expect((await call('activity.snapshot')).cancelled).toBe(2);
     } finally {
       await writeFile(join(dir, 'captions-release'), 'go');

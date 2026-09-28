@@ -30,3 +30,6 @@ surfaces/gui/src-tauri/gen/
 .claude/settings.local.json
 
 build/
+
+# Local research notes and captures
+.scratch/

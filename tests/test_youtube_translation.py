@@ -218,8 +218,9 @@ def test_settings_capability_validation_and_restart_recovery(tmp_path, monkeypat
         assert settings(LocalWorkspace.open(tmp_path))["max_calls"] == 50
         config["max_calls"] = 0
         assert not workbench.dispatch("translation.set_settings", {"settings": config})["ok"]
-        assert ws.asset("one")["preparation_state"] == "failed"
-        assert "中断" in ws.asset("one")["failure_reason"]
+        # An interruption is not a task failure: it requeues without spending budget.
+        assert ws.asset("one")["preparation_state"] == "queued"
+        assert ws.activity_items("queued")["items"][0]["automatic_attempts"] == 0
     finally:
         workbench.close()
 
@@ -251,6 +252,29 @@ def test_billing_error_is_visible_without_retry_or_secret_exposure():
         pipeline(fail).run("source")
     assert len(calls) == 1
     assert "secret" not in str(error.value)
+
+
+def test_account_rate_limit_leaves_the_job_immediately_for_the_shared_gate():
+    class RateLimited(Exception):
+        status_code = 429
+
+    calls = []
+
+    def limited(*args, **kwargs):
+        calls.append(args)
+        raise RateLimited("secret")
+
+    with pytest.raises(TranslationError) as error:
+        pipeline(limited).run("source")
+    assert len(calls) == 1  # no in-job sleeping against a limited account
+    assert error.value.__cause__.status_code == 429
+
+
+def test_host_manuscripts_identify_the_provider_account():
+    manager = SimpleNamespace(model="openai/gpt-x", provider_complete=None,
+                              _model_provider=lambda model: "openai")
+    assert HostManuscripts(manager).account == "openai"
+    assert HostManuscripts(SimpleNamespace(model="plain")).account == "plain"
 
 
 def test_v1_attempt_is_retained_and_requires_explicit_regeneration(tmp_path):

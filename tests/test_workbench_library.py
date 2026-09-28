@@ -142,7 +142,7 @@ def test_unavailable_and_drain_pause_keep_batch_outcomes_visible(tmp_path: Path)
     workspace.add_candidate(candidate("two", "Second video"))
     preparation = PreparationService(
         workspace=workspace,
-        captions=FakeCaptions(YouTubeError("no subtitles were available")),
+        captions=FakeCaptions(YouTubeError("Video unavailable. This video has been removed")),
         shorts=RegularVideos(),
         manuscripts=FakeManuscripts("never used"),
     )
@@ -162,7 +162,7 @@ def test_unavailable_and_drain_pause_keep_batch_outcomes_visible(tmp_path: Path)
     assert preparation.run_next() is True
     activity = library.activity()
     assert activity["unavailable"] == 1
-    assert activity["failures"][0]["reason"] == "no subtitles were available"
+    assert activity["failures"][0]["reason"] == "Video unavailable. This video has been removed"
     assert library.inspect("one")["generation_records"] == []
 
 

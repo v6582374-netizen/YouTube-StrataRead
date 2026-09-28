@@ -50,6 +50,12 @@ class HostManuscripts:
         self.manager = manager
         self.workspace = workspace
 
+    @property
+    def account(self) -> str:
+        """Limits apply per provider account, so switching videos cannot bypass them."""
+        provider = getattr(self.manager, "_model_provider", None)
+        return str(provider(self.manager.model) if callable(provider) else self.manager.model)
+
     def generate(self, transcript: str) -> str:
         return self.generate_result(transcript).markdown
 

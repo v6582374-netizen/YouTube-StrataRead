@@ -251,7 +251,8 @@ class TranslationPipeline:
             except Exception as error:
                 transient = (
                     isinstance(error, (TimeoutError, ConnectionError))
-                    or getattr(error, "status_code", None) in {408, 429, 500, 502, 503, 504}
+                    # 429 is an account limit: leave the job so the shared gate pauses the account.
+                    or getattr(error, "status_code", None) in {408, 500, 502, 503, 504}
                     or type(error).__name__
                     in {"APIConnectionError", "APITimeoutError", "ConnectError", "ReadTimeout"}
                 )

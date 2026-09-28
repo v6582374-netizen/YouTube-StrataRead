@@ -19,6 +19,7 @@ from youtube_strataread.downloader.request_policy import (
     rate_limit_error,
 )
 from youtube_strataread.downloader.youtube import SubtitleResult
+from youtube_strataread.workbench.retry import Failure, classify_caption, classify_model
 from youtube_strataread.workbench.shorts import (
     ShortsClassifier,
     VideoTimingUnverified,
@@ -102,6 +103,19 @@ class PreparationService:
         self.workspace.defer_rate_limited(video_id, attempted=limited.response_received)
         return True
 
+    @property
+    def model_account(self) -> str | None:
+        """The provider account whose limits apply to manuscript requests."""
+        account = getattr(self.manuscripts, "account", None)
+        return str(account) if account else type(self.manuscripts).__name__
+
+    def _defer_caption(self, video_id: str, error: Exception) -> bool:
+        failure = classify_caption(error, self.workspace.now())
+        if failure.kind == "fatal":
+            return False
+        self.workspace.defer_retry(video_id, failure)
+        return True
+
     def request_drain_pause(self) -> dict[str, object]:
         self.workspace.set_meta("drain_paused", "1")
         return self.workspace.activity()
@@ -114,7 +128,7 @@ class PreparationService:
         with self._claim_lock:
             if self._stopping:
                 return False
-            asset = self.workspace.claim_next_queued_asset()
+            asset = self.workspace.claim_next_queued_asset(self.model_account)
         if asset is None:
             return False
         video_id = str(asset["video_id"])
@@ -179,14 +193,20 @@ class PreparationService:
         except PreparationDeferred:
             return True
         except YouTubeError as error:
-            if self._defer_request(video_id, error):
+            if self._defer_request(video_id, error) or self._defer_caption(video_id, error):
                 return True
             self.workspace.set_preparation_state(video_id, "unavailable", str(error))
             return True
         except Exception as error:  # acquisition may have safe adapter errors
-            if self._defer_request(video_id, error):
+            if self._defer_request(video_id, error) or self._defer_caption(video_id, error):
                 return True
             self.workspace.set_preparation_state(video_id, "failed", _safe_error(error))
+            return True
+        account = self.model_account
+        limit = self.workspace.model_account_limit(account)
+        if limit is not None:
+            # The retained transcript waits; the account limit is not this task's failure.
+            self.workspace.defer_retry(video_id, Failure("account", limit["reason"], limit["until"]), charge=False)
             return True
         try:
             if not self.workspace.commence_preparation(video_id):
@@ -213,8 +233,16 @@ class PreparationService:
             )
             self.workspace.translation_checkpoint(video_id).unlink(missing_ok=True)
             self.workspace.set_preparation_state(video_id, "ready")
+            self.workspace.model_account_succeeded(account)
         except Exception as error:
-            self.workspace.set_preparation_state(video_id, "failed", _safe_error(error))
+            failure = classify_model(error, self.workspace.now())
+            if failure.kind == "account":
+                failure = self.workspace.limit_model_account(account, failure)
+                self.workspace.defer_retry(video_id, failure, charge=False)
+            elif failure.kind == "transient":
+                self.workspace.defer_retry(video_id, failure)
+            else:
+                self.workspace.set_preparation_state(video_id, "failed", _safe_error(error))
         return True
 
 
@@ -259,6 +287,7 @@ class LibraryService:
         asset = self.workspace.asset(video_id)
         return {
             **asset,
+            "stage_timings": self.workspace.stage_timings(video_id),
             "generation_records": self.workspace.generation_records(video_id),
             "source_trace": {
                 "video_url": asset["url"],

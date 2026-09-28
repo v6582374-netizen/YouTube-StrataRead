@@ -77,6 +77,8 @@ echo "==> [1/5] PyInstaller: bundling openworker-server ($TRIPLE)"
 "$PLATFORM/.venv/bin/pyinstaller" --noconfirm --clean \
   --distpath "$HERE/dist" --workpath "$HERE/build" "$HERE/openworker-server.spec"
 
+"$PLATFORM/.venv/bin/python" "$PLATFORM/tests/smoke_desktop_privacy.py" "$HERE/dist/openworker-server/openworker-server"
+
 echo "==> [2/5] staging sidecar resources"
 # Onedir bundle (exe + _internal/) ships via Tauri `resources` as Contents/Resources/sidecar/
 # — onefile's per-launch self-extraction cost 6-7s of boot splash. rm -rf first: cp WRITES

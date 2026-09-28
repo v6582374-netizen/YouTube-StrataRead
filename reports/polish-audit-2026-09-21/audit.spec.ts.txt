@@ -1,0 +1,38 @@
+import { test, expect } from './fixtures';
+import { writeFileSync } from 'node:fs';
+const dir = '../../reports/polish-audit-2026-09-21';
+test('inspect motion and modal boundaries', async ({page}) => {
+  await page.setViewportSize({width:1100,height:850});
+  await page.addInitScript(() => localStorage.setItem('openworker.lang','zh'));
+  const object={id:'camera',name:'随身相机',memoryBlocks:[],archivePhotoPaths:[],coverProvenance:'none',customMetadata:{},createdAt:'2026-01-01',updatedAt:'2026-01-01',syncVersion:1};
+  await page.route('**/v1/minimalism/capability', async route=>{
+    const {capability}=route.request().postDataJSON();
+    const result=capability==='library.snapshot'?{assets:[object],collections:[{id:'archive',name:'归档',role:'archive',displayOrder:0}],preferences:{coverPromptTemplate:'',visibleMetadataFields:['brand','material']},migration:{},image_ready:false}:{};
+    await route.fulfill({json:{ok:true,result}});
+  });
+  await page.route('**/v1/youtube/capability',async route=>{
+    const {capability}=route.request().postDataJSON(); let result:unknown={};
+    if(capability==='library.list') result={assets:[],total:0};
+    if(capability==='collection.preferences') result={sources:[{channel_id:'one',title:'Design Notes'}],excluded_channels:[]};
+    if(capability==='activity.snapshot') result={queued:0,acquiring:0,generating:0,ready:0,failed:0,unavailable:0,drain_paused:false,model_ready:true,batch:{completed:0,limit:100}};
+    await route.fulfill({json:{ok:true,result}});
+  });
+  const evidence:Record<string,unknown>={};
+  const style=(el:Element)=>{const s=getComputedStyle(el);return {background:s.backgroundColor,transform:s.transform,opacity:s.opacity,transition:s.transition,animation:s.animation,rect:el.getBoundingClientRect().toJSON()}};
+  await page.goto('/'); await page.getByTestId('nav-minimalism').click();
+  const add=page.getByRole('button',{name:'添加物品',exact:true}).first(); await expect(add).toBeVisible(); await add.hover();
+  evidence.pressBefore=await add.evaluate(style); await page.mouse.down(); evidence.pressDuring=await add.evaluate(style); await page.mouse.up();
+  const dialog=page.getByRole('dialog'); await expect(dialog).toBeVisible();
+  evidence.minimalismDialog=await dialog.locator('form').evaluate(style); await page.screenshot({path:dir+'/minimalism-dialog.png'});
+  await dialog.getByRole('button',{name:'保存',exact:true}).focus(); await page.keyboard.press('Tab');
+  evidence.focusAfterLastTab=await page.evaluate(()=>({inside:!!document.activeElement?.closest('[role="dialog"]'),tag:document.activeElement?.tagName,text:document.activeElement?.textContent?.slice(0,80)}));
+  await page.keyboard.press('Escape'); evidence.escapeAfterFocusLeak=await dialog.count();
+  await dialog.getByRole('button',{name:'取消',exact:true}).click();
+  await page.getByRole('button',{name:'打开 随身相机'}).click(); const more=page.getByLabel('物品操作',{exact:true}); await more.click();
+  evidence.objectMenu=await more.locator('..').locator('div.absolute').evaluate(style); await page.screenshot({path:dir+'/object-menu.png'});
+  await page.getByTestId('nav-youtube').click(); await page.getByRole('button',{name:'订阅频道',exact:true}).click(); await expect(page.locator('.yp-dialog')).toBeVisible();
+  evidence.youtubeDialog=await page.locator('.yp-dialog').evaluate(style);
+  evidence.youtubeSwitch=await page.locator('.yp-switch span').first().evaluate(el=>{const s=getComputedStyle(el,'::after');return {transition:s.transition,transform:s.transform}});
+  await page.screenshot({path:dir+'/youtube-dialog.png'}); await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'}); await page.screenshot({path:dir+'/youtube-dialog-dark.png'});
+  writeFileSync(dir+'/runtime.json',JSON.stringify(evidence,null,2));
+});

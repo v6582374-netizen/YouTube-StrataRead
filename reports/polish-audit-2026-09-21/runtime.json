@@ -1,0 +1,97 @@
+{
+  "pressBefore": {
+    "background": "color(srgb 0.145098 0.388235 0.921569)",
+    "transform": "none",
+    "opacity": "1",
+    "transition": "all",
+    "animation": "none",
+    "rect": {
+      "x": 921,
+      "y": 16,
+      "width": 97,
+      "height": 35.5,
+      "top": 16,
+      "right": 1018,
+      "bottom": 51.5,
+      "left": 921
+    }
+  },
+  "pressDuring": {
+    "background": "color(srgb 0.145098 0.388235 0.921569)",
+    "transform": "none",
+    "opacity": "1",
+    "transition": "all",
+    "animation": "none",
+    "rect": {
+      "x": 921,
+      "y": 16,
+      "width": 97,
+      "height": 35.5,
+      "top": 16,
+      "right": 1018,
+      "bottom": 51.5,
+      "left": 921
+    }
+  },
+  "minimalismDialog": {
+    "background": "color(srgb 0.960784 0.964706 0.968627)",
+    "transform": "none",
+    "opacity": "1",
+    "transition": "all",
+    "animation": "none",
+    "rect": {
+      "x": 358,
+      "y": 332.5,
+      "width": 384,
+      "height": 185,
+      "top": 332.5,
+      "right": 742,
+      "bottom": 517.5,
+      "left": 358
+    }
+  },
+  "focusAfterLastTab": {
+    "inside": false,
+    "tag": "BODY",
+    "text": "\n     新建会话 搜索CurriculumYouTubeMinimalism自动化已置顶Draft the launch note定时任务Daily AI "
+  },
+  "escapeAfterFocusLeak": 1,
+  "objectMenu": {
+    "background": "color(srgb 0.960784 0.964706 0.968627)",
+    "transform": "none",
+    "opacity": "1",
+    "transition": "all",
+    "animation": "none",
+    "rect": {
+      "x": 892,
+      "y": 63.75,
+      "width": 176,
+      "height": 97,
+      "top": 63.75,
+      "right": 1068,
+      "bottom": 160.75,
+      "left": 892
+    }
+  },
+  "youtubeDialog": {
+    "background": "rgb(255, 255, 255)",
+    "transform": "none",
+    "opacity": "1",
+    "transition": "all",
+    "animation": "none",
+    "rect": {
+      "x": 250,
+      "y": 167.859375,
+      "width": 600,
+      "height": 514.28125,
+      "top": 167.859375,
+      "right": 850,
+      "bottom": 682.140625,
+      "left": 250
+    }
+  },
+  "youtubeSwitch": {
+    "transition": "all",
+    "transform": "matrix(1, 0, 0, 1, 13, 0)"
+  }
+}

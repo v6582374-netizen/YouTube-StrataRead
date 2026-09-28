@@ -1,0 +1,3 @@
+import { defineConfig, devices } from '@playwright/test';
+import base from './playwright.config';
+export default defineConfig({...base,testMatch:'polish-audit-temp.spec.ts',workers:1,outputDir:'/tmp/edison-polish-webkit',projects:[{name:'webkit',use:{...devices['Desktop Safari']}}]});

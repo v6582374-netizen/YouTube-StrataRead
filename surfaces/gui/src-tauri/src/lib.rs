@@ -216,19 +216,20 @@ fn server_bin() -> PathBuf {
 }
 
 /// Mirror of `coworker.secrets.state_dir()` so the shell and server agree on `desktop.json`.
-/// Windows: `%APPDATA%\coworker`; POSIX: `~/.config/coworker`. `COWORKER_STATE_DIR` overrides.
+/// Edison release and development profiles never share state with the legacy host.
 fn state_dir() -> PathBuf {
     if let Ok(d) = std::env::var("COWORKER_STATE_DIR") {
         return PathBuf::from(d);
     }
+    let profile = if cfg!(debug_assertions) { "edison-dev" } else { "edison" };
     #[cfg(windows)]
     {
         if let Ok(appdata) = std::env::var("APPDATA") {
-            return PathBuf::from(appdata).join("coworker");
+            return PathBuf::from(appdata).join(profile);
         }
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join(".config").join("coworker")
+    PathBuf::from(home).join(".config").join(profile)
 }
 
 fn desktop_prefs_path() -> PathBuf {
@@ -754,6 +755,8 @@ pub fn run() {
                 // KUBECONFIG, …) — see sidecar_env(). Applied FIRST so the explicit COWORKER_*
                 // vars below always win over anything a profile happens to export.
                 .envs(sidecar_env())
+                .env("COWORKER_STATE_DIR", state_dir())
+                .env("YOUTUBE_WORKBENCH_WORKSPACE", state_dir().join("youtube"))
                 // The sidecar self-exits if we die abruptly (dev-watcher restart, crash) —
                 // belt-and-suspenders alongside the RunEvent::ExitRequested kill below.
                 // The explicit PID matters: under PyInstaller onefile the python process is a
@@ -854,13 +857,12 @@ pub fn run() {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &settings_i, &quit_i])?;
 
-            // A monochrome template icon (black + alpha, raw RGBA 44×44) so the menu bar tints
-            // it for light/dark automatically — not the full-color app icon.
+            // The same approved thinker master as the app icon, at menu-bar resolution.
             let tray_icon = tauri::image::Image::new(include_bytes!("../icons/tray.rgba"), 44, 44);
             TrayIconBuilder::new()
                 .tooltip("Edison")
                 .icon(tray_icon)
-                .icon_as_template(true)
+                .icon_as_template(false)
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main(app),

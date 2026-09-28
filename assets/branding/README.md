@@ -7,3 +7,5 @@
 - 母版：`app-icon-mymind.png`，1024 × 1024。图标品牌及版权属于 mymind；此处用于用户指定的个人本地客户端，不属于本项目 MIT 源码授权。
 - 重生成：`uv run --no-project --with pillow python packaging/generate_icons.py`
 - YouTube 模块使用 `simple-icons` 的 `siYoutube` 官方品牌形状。
+
+菜单栏沿用同一 thinker 母版，生成 44 × 44 的 `tray.png` 和 `tray.rgba`；使用原色显示，不再使用旧星形 template 图标。

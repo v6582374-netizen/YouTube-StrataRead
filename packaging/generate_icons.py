@@ -13,3 +13,8 @@ for relative in ('surfaces/gui/src-tauri/icons', 'desktop/src-tauri/icons'):
     master.save(target / 'icon.ico', format='ICO')
     for size, filename in [(32, '32x32.png'), (128, '128x128.png'), (256, '128x128@2x.png')]:
         master.resize((size, size), Image.Resampling.LANCZOS).save(target / filename)
+
+# Keep the menu-bar identity in the same asset pipeline as the Dock icon.
+tray = master.resize((44, 44), Image.Resampling.LANCZOS)
+(root / "surfaces/gui/src-tauri/icons/tray.rgba").write_bytes(tray.tobytes())
+tray.save(root / "surfaces/gui/src-tauri/icons/tray.png")

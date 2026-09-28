@@ -5,6 +5,7 @@ cd "$ROOT"
 uv sync --all-extras
 uv run --no-project --with pillow python packaging/generate_icons.py
 uv run --all-extras --with pyinstaller python -m PyInstaller --noconfirm packaging/openworker-server.spec
+uv run python tests/smoke_desktop_privacy.py
 mkdir -p surfaces/gui/src-tauri/binaries
 python3 - <<'PY'
 import shutil

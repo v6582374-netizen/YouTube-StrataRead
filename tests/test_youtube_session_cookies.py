@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+import io
+
+import pytest
+
+from youtube_strataread.workbench import session_cookies
+
+
+def test_header_and_cookies_txt_become_youtube_only_cookie_files():
+    header = session_cookies.to_cookie_file("Cookie: SID=abc; __Secure-3PSID=def; bad name=x")
+    assert "\tSID\tabc" in header and "\t__Secure-3PSID\tdef" in header and "bad" not in header
+    exported = "\n".join([
+        ".youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\tv",
+        "#HttpOnly_.google.com\tTRUE\t/\tTRUE\t0\tSAPISID\tw",
+        ".bank.example\tTRUE\t/\tTRUE\t0\tsession\tsecret",
+    ])
+    kept = session_cookies.to_cookie_file(exported)
+    assert "LOGIN_INFO" in kept and "SAPISID" in kept and "bank" not in kept
+    with pytest.raises(ValueError):
+        session_cookies.to_cookie_file(".bank.example\tTRUE\t/\tTRUE\t0\tsession\tsecret")
+
+
+def page(signed_in: bool, status: str) -> io.BytesIO:
+    body = f'"LOGGED_IN":{"true" if signed_in else "false"} "playabilityStatus":{{"status":"{status}"}}'
+    return io.BytesIO(body.encode())
+
+
+@pytest.mark.parametrize(("signed_in", "status", "usable"), [
+    (True, "OK", True), (True, "LOGIN_REQUIRED", False), (False, "OK", False),
+])
+def test_usable_means_signed_in_and_not_bot_checked(monkeypatch, tmp_path, signed_in, status, usable):
+    monkeypatch.setattr(session_cookies, "open_page", lambda *a, **k: page(signed_in, status))
+    assert session_cookies.verify(tmp_path / "c.txt", "abcdefghijk")["usable"] is usable
+
+
+def test_failed_replacement_keeps_the_working_session(monkeypatch, tmp_path):
+    path = tmp_path / "cookies.txt"
+    path.write_text("working")
+    monkeypatch.setattr(session_cookies, "open_page", lambda *a, **k: page(False, "OK"))
+    assert session_cookies.replace(path, "SID=new", "abcdefghijk")["saved"] is False
+    assert path.read_text() == "working"
+    assert not path.with_name("cookies.txt.candidate").exists()
+    monkeypatch.setattr(session_cookies, "open_page", lambda *a, **k: page(True, "OK"))
+    assert session_cookies.replace(path, "SID=new", "abcdefghijk")["saved"] is True
+    assert "\tSID\tnew" in path.read_text() and path.stat().st_mode & 0o777 == 0o600

@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import re
 from html.parser import HTMLParser
-from http.cookiejar import MozillaCookieJar
 from typing import Protocol
 from urllib.parse import parse_qs, urlsplit
-from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
+from urllib.request import Request, urlopen
 
 from youtube_strataread.downloader.request_policy import YouTubeRequestPolicy, rate_limit_error
 from youtube_strataread.downloader.youtube import youtube_cookie_file
+from youtube_strataread.workbench.session_cookies import open_page
 
 CLASSIFICATION_RETRY_SECONDS = 15 * 60
 _MAX_PAGE_BYTES = 4 * 1024 * 1024
@@ -104,15 +104,6 @@ def classify_page(video_id: str, html: str, *, completed_event: bool = False) ->
     return signal if type(signal) is bool and signal == canonical_short else None
 
 
-def _open_page(request: Request):
-    cookies = youtube_cookie_file()
-    if cookies is None:
-        return urlopen(request, timeout=15)
-    jar = MozillaCookieJar(str(cookies))
-    jar.load(ignore_discard=True, ignore_expires=True)
-    return build_opener(HTTPCookieProcessor(jar)).open(request, timeout=15)
-
-
 class YouTubeShortsClassifier:
     def __init__(self, requests: YouTubeRequestPolicy | None = None) -> None:
         self.requests = requests
@@ -130,7 +121,9 @@ class YouTubeShortsClassifier:
         try:
             if self.requests:
                 self.requests.before_request()
-            with _open_page(request) as response:
+            cookies = youtube_cookie_file()
+            opened = urlopen(request, timeout=15) if cookies is None else open_page(request, cookies)
+            with opened as response:
                 if response.status != 200:
                     return None
                 final_url = urlsplit(response.geturl())

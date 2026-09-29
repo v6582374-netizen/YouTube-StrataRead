@@ -18,8 +18,16 @@
     "classroom": "Classroom",
     "teacher": "Teacher",
     "assessment": "Assessment",
-    "assessments": { "exam": "Exam", "coursework": "Coursework" },
-    "categories": { "required": "Required", "restricted": "Restricted elective", "public": "General elective", "free": "Free elective" },
+    "assessments": {
+      "exam": "Exam",
+      "coursework": "Coursework"
+    },
+    "categories": {
+      "required": "Required",
+      "restricted": "Restricted elective",
+      "public": "General elective",
+      "free": "Free elective"
+    },
     "credits_one": "{{count}} credit",
     "credits_other": "{{count}} credits",
     "add_entry": "Add information",
@@ -398,7 +406,25 @@
     "补查未完成：本轮新增数量达到上限。": "Coverage incomplete: the new-video limit was reached.",
     "YouTube 官方 API 暂不可用，稍后重试。": "YouTube Data API is temporarily unavailable. Retry later.",
     "YouTube 项目额度已用尽，等待配额重置。实际余额由 Google 管理。": "YouTube project quota exhausted. Waiting for reset. Google manages the actual balance.",
-    "本机 YouTube API 日预算已用尽，等待下一预算日。": "Local daily YouTube API budget exhausted. Waiting for the next budget day."
+    "本机 YouTube API 日预算已用尽，等待下一预算日。": "Local daily YouTube API budget exhausted. Waiting for the next budget day.",
+    "YouTube 登录 Cookie": "YouTube sign-in cookies",
+    "服务器用它通过 YouTube 的机器人检查，才能判断 Shorts 和抓取字幕。": "The server uses these to pass YouTube's bot check so it can classify Shorts and fetch captions.",
+    "此实例未启用登录 Cookie。": "Sign-in cookies are not enabled for this instance.",
+    "已保存 {{count}} 个 Cookie": "{{count}} cookies saved",
+    "尚未保存 Cookie": "No cookies saved yet",
+    "尚未保存 Cookie。": "No cookies saved yet.",
+    "最后更新：{{time}}": "Last updated: {{time}}",
+    "测试中…": "Testing…",
+    "测试当前 Cookie": "Test current cookies",
+    "替换为新的 Cookie": "Replace with new cookies",
+    "粘贴 cookies.txt 内容，或 Cookie 请求头": "Paste a cookies.txt export or a Cookie request header",
+    "获取方式：在已登录 YouTube 的浏览器打开 youtube.com，按 F12 打开开发者工具，进入「网络」，刷新页面，点选任意一条 youtube.com 请求，复制请求头中 Cookie 的整行值。只会保留 youtube.com 与 google.com 的 Cookie。": "How to get them: in a browser signed in to YouTube, open youtube.com, press F12, open Network, reload, select any youtube.com request and copy the full Cookie request header value. Only youtube.com and google.com cookies are kept.",
+    "测试并保存": "Test and save",
+    "新 Cookie 未保存，原有 Cookie 保持不变。": "The new cookies were not saved; the existing ones are unchanged.",
+    "已保存并生效。": "Saved and in effect.",
+    "可用：已登录，视频页面正常返回。": "Usable: signed in and the video page loads normally.",
+    "YouTube 不认为这些 Cookie 处于登录状态，可能已退出或过期。": "YouTube does not treat these cookies as signed in; they may be signed out or expired.",
+    "请粘贴 Cookie 内容。": "Paste the cookies first."
   },
   "boot": {
     "starting": "Starting OpenWorker…",

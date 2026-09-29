@@ -18,8 +18,16 @@
     "classroom": "教室",
     "teacher": "教师",
     "assessment": "考核方式",
-    "assessments": { "exam": "考试", "coursework": "考查" },
-    "categories": { "required": "必修", "restricted": "限选", "public": "公选", "free": "任选" },
+    "assessments": {
+      "exam": "考试",
+      "coursework": "考查"
+    },
+    "categories": {
+      "required": "必修",
+      "restricted": "限选",
+      "public": "公选",
+      "free": "任选"
+    },
     "credits_other": "{{count}} 学分",
     "add_entry": "添加信息",
     "entry_label": "名称",
@@ -397,7 +405,25 @@
     "补查未完成：本轮新增数量达到上限。": "补查未完成：本轮新增数量达到上限。",
     "YouTube 官方 API 暂不可用，稍后重试。": "YouTube 官方 API 暂不可用，稍后重试。",
     "YouTube 项目额度已用尽，等待配额重置。实际余额由 Google 管理。": "YouTube 项目额度已用尽，等待配额重置。实际余额由 Google 管理。",
-    "本机 YouTube API 日预算已用尽，等待下一预算日。": "本机 YouTube API 日预算已用尽，等待下一预算日。"
+    "本机 YouTube API 日预算已用尽，等待下一预算日。": "本机 YouTube API 日预算已用尽，等待下一预算日。",
+    "YouTube 登录 Cookie": "YouTube 登录 Cookie",
+    "服务器用它通过 YouTube 的机器人检查，才能判断 Shorts 和抓取字幕。": "服务器用它通过 YouTube 的机器人检查，才能判断 Shorts 和抓取字幕。",
+    "此实例未启用登录 Cookie。": "此实例未启用登录 Cookie。",
+    "已保存 {{count}} 个 Cookie": "已保存 {{count}} 个 Cookie",
+    "尚未保存 Cookie": "尚未保存 Cookie",
+    "尚未保存 Cookie。": "尚未保存 Cookie。",
+    "最后更新：{{time}}": "最后更新：{{time}}",
+    "测试中…": "测试中…",
+    "测试当前 Cookie": "测试当前 Cookie",
+    "替换为新的 Cookie": "替换为新的 Cookie",
+    "粘贴 cookies.txt 内容，或 Cookie 请求头": "粘贴 cookies.txt 内容，或 Cookie 请求头",
+    "获取方式：在已登录 YouTube 的浏览器打开 youtube.com，按 F12 打开开发者工具，进入「网络」，刷新页面，点选任意一条 youtube.com 请求，复制请求头中 Cookie 的整行值。只会保留 youtube.com 与 google.com 的 Cookie。": "获取方式：在已登录 YouTube 的浏览器打开 youtube.com，按 F12 打开开发者工具，进入「网络」，刷新页面，点选任意一条 youtube.com 请求，复制请求头中 Cookie 的整行值。只会保留 youtube.com 与 google.com 的 Cookie。",
+    "测试并保存": "测试并保存",
+    "新 Cookie 未保存，原有 Cookie 保持不变。": "新 Cookie 未保存，原有 Cookie 保持不变。",
+    "已保存并生效。": "已保存并生效。",
+    "可用：已登录，视频页面正常返回。": "可用：已登录，视频页面正常返回。",
+    "YouTube 不认为这些 Cookie 处于登录状态，可能已退出或过期。": "YouTube 不认为这些 Cookie 处于登录状态，可能已退出或过期。",
+    "请粘贴 Cookie 内容。": "请粘贴 Cookie 内容。"
   },
   "boot": {
     "starting": "正在启动 OpenWorker…",

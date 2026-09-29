@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -20,6 +21,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from coworker.secrets import state_dir
+from youtube_strataread.downloader.youtube import youtube_cookie_file
+from youtube_strataread.workbench import session_cookies
 from youtube_strataread.workbench.connection import (
     ConnectionError,
     ConnectionService,
@@ -236,6 +239,28 @@ class YouTubeWorkbench:
                 return {"ok": False, "error": str(error)}
             except TypeError:
                 return {"ok": False, "error": "翻译设置格式无效。"}
+        if capability in {"session_cookies.status", "session_cookies.test", "session_cookies.replace"}:
+            path = youtube_cookie_file()
+            if capability == "session_cookies.status" or path is None:
+                return {"ok": True, "result": session_cookies.status(path)}
+            with sqlite3.connect(self.workspace.database_path) as connection:
+                row = connection.execute(
+                    "SELECT video_id FROM candidates ORDER BY published_at DESC LIMIT 1"
+                ).fetchone()
+            video_id = row[0] if row else "jNQXAC9IVRw"
+            try:
+                if capability == "session_cookies.test":
+                    if not path.exists():
+                        raise ValueError("尚未保存 Cookie。")
+                    result = session_cookies.verify(path, video_id)
+                else:
+                    text = arguments.get("text")
+                    if not isinstance(text, str) or not text.strip() or len(text) > 200_000:
+                        raise ValueError("请粘贴 Cookie 内容。")
+                    result = session_cookies.replace(path, text, video_id)
+            except ValueError as error:
+                return {"ok": False, "error": str(error)}
+            return {"ok": True, "result": {**result, **session_cookies.status(path)}}
         if capability == "sources.open":
             try:
                 asset = self.workspace.asset(str(arguments.get("video_id", "")))

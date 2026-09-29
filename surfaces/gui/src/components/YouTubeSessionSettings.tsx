@@ -47,7 +47,7 @@ export function YouTubeSessionSettings() {
       <label htmlFor="youtube-cookie-text" className="block text-[13px] font-medium mb-2">{yt("替换为新的 Cookie")}</label>
       <textarea id="youtube-cookie-text" className={input + " resize-y"} rows={6} value={text} maxLength={200000}
         placeholder={yt("粘贴 cookies.txt 内容，或 Cookie 请求头")} onChange={(event) => setText(event.target.value)} />
-      <p className="mt-2 text-[12px] text-muted leading-relaxed">{yt("获取方式：在已登录 YouTube 的浏览器打开 youtube.com，按 F12 打开开发者工具，进入「网络」，刷新页面，点选任意一条 youtube.com 请求，复制请求头中 Cookie 的整行值。只会保留 youtube.com 与 google.com 的 Cookie。")}</p>
+      <p className="mt-2 text-[12px] text-muted leading-relaxed">{yt("获取方式：打开一个新的无痕窗口并登录 YouTube，在同一标签页访问 youtube.com/robots.txt，按 F12 打开开发者工具，进入「网络」并刷新，点选这条请求，复制请求头中 Cookie 的整行值，粘贴到这里保存，然后关闭无痕窗口且不再打开。日常窗口里的 Cookie 会被 YouTube 轮换，很快失效。只会保留 youtube.com 与 google.com 的 Cookie。")}</p>
       <button className="mt-4 rounded-lg bg-accent text-white px-4 py-2 text-[13px] disabled:opacity-40" disabled={!!busy || !text.trim()} onClick={() => void run("replace")}>{busy === "replace" ? yt("测试中…") : yt("测试并保存")}</button>
     </>}
   </section>;

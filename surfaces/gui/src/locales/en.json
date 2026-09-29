@@ -418,7 +418,7 @@
     "测试当前 Cookie": "Test current cookies",
     "替换为新的 Cookie": "Replace with new cookies",
     "粘贴 cookies.txt 内容，或 Cookie 请求头": "Paste a cookies.txt export or a Cookie request header",
-    "获取方式：在已登录 YouTube 的浏览器打开 youtube.com，按 F12 打开开发者工具，进入「网络」，刷新页面，点选任意一条 youtube.com 请求，复制请求头中 Cookie 的整行值。只会保留 youtube.com 与 google.com 的 Cookie。": "How to get them: in a browser signed in to YouTube, open youtube.com, press F12, open Network, reload, select any youtube.com request and copy the full Cookie request header value. Only youtube.com and google.com cookies are kept.",
+    "获取方式：打开一个新的无痕窗口并登录 YouTube，在同一标签页访问 youtube.com/robots.txt，按 F12 打开开发者工具，进入「网络」并刷新，点选这条请求，复制请求头中 Cookie 的整行值，粘贴到这里保存，然后关闭无痕窗口且不再打开。日常窗口里的 Cookie 会被 YouTube 轮换，很快失效。只会保留 youtube.com 与 google.com 的 Cookie。": "How to get them: open a new private window and sign in to YouTube, then in the same tab visit youtube.com/robots.txt, press F12, open Network and reload, select that request and copy the full Cookie request header value. Paste and save it here, then close the private window and never reopen that session. Cookies from your everyday window are rotated by YouTube and expire quickly. Only youtube.com and google.com cookies are kept.",
     "测试并保存": "Test and save",
     "新 Cookie 未保存，原有 Cookie 保持不变。": "The new cookies were not saved; the existing ones are unchanged.",
     "已保存并生效。": "Saved and in effect.",

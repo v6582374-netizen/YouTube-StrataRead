@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import tempfile
 from collections.abc import Callable
@@ -52,6 +53,12 @@ def validate_url(url: str) -> None:
         raise YouTubeError(
             "URL does not look like a YouTube video/shorts/live link: " + url
         )
+
+
+def youtube_cookie_file() -> Path | None:
+    """Signed-in YouTube session for hosts whose address YouTube treats as a bot."""
+    path = os.environ.get("YOUTUBE_COOKIES_FILE")
+    return Path(path) if path else None
 
 
 def download_subtitles(

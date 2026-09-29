@@ -18,7 +18,7 @@ from youtube_strataread.downloader.request_policy import (
     YouTubeRequestsStopped,
     rate_limit_error,
 )
-from youtube_strataread.downloader.youtube import SubtitleResult
+from youtube_strataread.downloader.youtube import SubtitleResult, youtube_cookie_file
 from youtube_strataread.workbench.retry import Failure, classify_caption, classify_model
 from youtube_strataread.workbench.shorts import (
     ShortsClassifier,
@@ -58,8 +58,8 @@ class YtDlpCaptions:
         self.on_metadata: Callable[[str, float | None], None] | None = None
 
     def acquire(self, url: str, *, before_subtitles: Callable[[dict[str, Any]], None] | None = None) -> SubtitleResult:
-        return download_subtitles(url, request_policy=self.requests, on_metadata=self.on_metadata,
-                                  before_subtitles=before_subtitles)
+        return download_subtitles(url, cookiefile=youtube_cookie_file(), request_policy=self.requests,
+                                  on_metadata=self.on_metadata, before_subtitles=before_subtitles)
 
 
 class ConfiguredManuscripts:

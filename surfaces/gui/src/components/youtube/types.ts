@@ -24,6 +24,7 @@ export type Source = {
   channel_id: string;
   title: string;
   description?: string;
+  thumbnail_url?: string | null;
 };
 export type Preferences = { sources: Source[]; excluded_channels: string[]; last_synced_at?: number | null; sync_error?: string; reconnect_required?: boolean };
 export type Connection = {

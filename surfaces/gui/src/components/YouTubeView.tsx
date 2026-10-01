@@ -322,17 +322,15 @@ export function YouTubeView({
       /* Private browsing does not block the switch. */
     }
   };
-  const sources: Source[] = [
-    ...new Map(
-      [
-        ...prefs.sources,
-        ...assets.map((a) => ({
-          channel_id: a.channel_id,
-          title: a.channel_title,
-        })),
-      ].map((s) => [s.channel_id, s]),
-    ).values(),
-  ];
+  const sourcesById = new Map<string, Source>(prefs.sources.map((source) => [source.channel_id, source]));
+  for (const asset of assets) {
+    sourcesById.set(asset.channel_id, {
+      ...sourcesById.get(asset.channel_id),
+      channel_id: asset.channel_id,
+      title: asset.channel_title,
+    });
+  }
+  const sources = [...sourcesById.values()];
   const status = activity?.drain_paused
     ? yt("更新已暂停")
     : activity && !activity.model_ready
@@ -548,7 +546,7 @@ export function YouTubeView({
             selected && (
               <>
                 <h3>{selected.title}</h3>
-                <div className="yp-inspector-author"><ChannelAvatar name={selected.channel_title} /><span>{selected.channel_title}</span></div>
+                <div className="yp-inspector-author"><ChannelAvatar name={selected.channel_title} thumbnailUrl={sourcesById.get(selected.channel_id)?.thumbnail_url} /><span>{selected.channel_title}</span></div>
                 {selected.excerpt && <section className="yp-inspector-summary">
                   <h4>{yt("摘要")}</h4><p>{excerpt(selected.excerpt, 1000)}</p>
                 </section>}
@@ -816,7 +814,7 @@ export function YouTubeView({
               )
               .map((s) => (
                 <div className="yp-channel-row" key={s.channel_id}>
-                  <ChannelAvatar name={s.title} />
+                  <ChannelAvatar name={s.title} thumbnailUrl={s.thumbnail_url} />
                   <div>
                     <strong>{s.title}</strong>
                   </div>

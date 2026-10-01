@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { yt } from "./text";
 import { Icon } from "../Icon";
@@ -12,10 +13,13 @@ import {
   videoDurationLabel,
 } from "./types";
 
-export function ChannelAvatar({ name }: { name: string }) {
+export function ChannelAvatar({ name, thumbnailUrl }: { name: string; thumbnailUrl?: string | null }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const imageUrl = thumbnailUrl?.startsWith("https://") && thumbnailUrl !== failedUrl ? thumbnailUrl : null;
   return (
     <span className="yp-avatar" aria-hidden="true">
       {[...name][0]?.toUpperCase() || "·"}
+      {imageUrl && <img src={imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailedUrl(imageUrl)} />}
     </span>
   );
 }
@@ -68,6 +72,7 @@ export function DocumentViews({
   selectedId?: string;
 }) {
   useTranslation();
+  const thumbnails = new Map(sources.map((source) => [source.channel_id, source.thumbnail_url]));
   if (layout === "library")
     return (
       <div className="yp-grid">
@@ -79,7 +84,7 @@ export function DocumentViews({
             onClick={() => onSelect(a)}
           >
             <div className="yp-document-top">
-              <ChannelAvatar name={a.channel_title} />
+              <ChannelAvatar name={a.channel_title} thumbnailUrl={thumbnails.get(a.channel_id)} />
               <span>{a.channel_title}</span>
               <Icon name="chevronRight" />
             </div>
@@ -112,7 +117,7 @@ export function DocumentViews({
               className={channel === s.channel_id ? "chosen" : ""}
               onClick={() => onChannel(s.channel_id)}
             >
-              <ChannelAvatar name={s.title} />
+              <ChannelAvatar name={s.title} thumbnailUrl={s.thumbnail_url} />
               <span>{s.title}</span>
             </button>
           ))}

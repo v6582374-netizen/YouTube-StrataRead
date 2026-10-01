@@ -80,6 +80,35 @@ function renderDocuments(onTranslationSettings: () => void) {
 }
 
 describe("YouTube document views", () => {
+  it("shows the saved channel image across views and falls back when it fails", async () => {
+    const implementation = call.getMockImplementation()!;
+    const thumbnailUrl = "https://yt3.googleusercontent.com/channel-image";
+    call.mockImplementation(async (capability, args) =>
+      capability === "collection.preferences"
+        ? { sources: [{ channel_id: "channel", title: "Example", thumbnail_url: thumbnailUrl }], excluded_channels: [] }
+        : implementation(capability, args),
+    );
+    const { container } = renderDocuments(() => {});
+    await screen.findByRole("button", { name: /Prepared manuscript/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "文档库" }));
+    const libraryAvatar = container.querySelector(".yp-document-top .yp-avatar")!;
+    await waitFor(() => expect(libraryAvatar.querySelector("img")?.getAttribute("src")).toBe(thumbnailUrl));
+    fireEvent.error(libraryAvatar.querySelector("img")!);
+    expect(libraryAvatar.textContent).toBe("E");
+    expect(libraryAvatar.querySelector("img")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "频道索引" }));
+    expect(container.querySelector(".yp-source-nav .yp-avatar img")?.getAttribute("src")).toBe(thumbnailUrl);
+
+    fireEvent.click(screen.getByRole("button", { name: /Prepared manuscript/ }));
+    await screen.findByText("Useful source text");
+    expect(container.querySelector(".yp-inspector-author .yp-avatar img")?.getAttribute("src")).toBe(thumbnailUrl);
+
+    fireEvent.click(screen.getByRole("button", { name: "订阅频道" }));
+    await screen.findByRole("checkbox", { name: "自动生成 Example" });
+    expect(document.querySelector(".yp-channel-row .yp-avatar img")?.getAttribute("src")).toBe(thumbnailUrl);
+  });
   it("keeps host configuration out of the normal UI and opens connection immediately", async () => {
     renderDocuments(() => {});
     await screen.findByRole("button", { name: /Prepared manuscript/ });

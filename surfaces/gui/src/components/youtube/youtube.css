@@ -191,6 +191,8 @@
   background: var(--chrome-hover);
 }
 .yp-avatar {
+  position: relative;
+  overflow: hidden;
   width: 31px;
   height: 31px;
   border: 1px solid var(--line);
@@ -203,6 +205,13 @@
   font-size: 12px;
   font-weight: 600;
   flex: none;
+}
+.yp-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .yp-rowtext {
   min-width: 0;

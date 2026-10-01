@@ -19,7 +19,6 @@ import {
   Source,
   publicationLabel,
   videoDurationLabel,
-  excerpt,
   readingTime,
 } from "./youtube/types";
 import "./youtube/youtube.css";
@@ -112,6 +111,8 @@ export function YouTubeView({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [selected, setSelected] = useState<Inspection | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [page, setPage] = useState<"documents" | "progress" | "activity">("progress");
   const [activityReceivedAt, setActivityReceivedAt] = useState(0);
@@ -251,6 +252,8 @@ export function YouTubeView({
     setPanelLoading(true);
     setPanelReady(false);
     setSelected(null);
+    setSummaryLoading(false);
+    setSummaryError("");
     setConfirmDelete(false);
     try {
       if (kind === "channels") {
@@ -268,7 +271,25 @@ export function YouTubeView({
         const value = await call<Inspection>("library.inspect", {
           video_id: asset.video_id,
         });
-        if (version === panelRevision.current) setSelected(value);
+        if (version === panelRevision.current) {
+          setSelected(value);
+          if (!value.summary && value.manuscript_version) {
+            setSummaryLoading(true);
+            void call<{summary: string}>("summary.ensure", { video_id: asset.video_id })
+              .then((result) => {
+                if (version === panelRevision.current) {
+                  setSelected((current) => current?.video_id === asset.video_id
+                    ? { ...current, summary: result.summary } : current);
+                }
+              })
+              .catch((error) => {
+                if (version === panelRevision.current) setSummaryError(errorMessage(error));
+              })
+              .finally(() => {
+                if (version === panelRevision.current) setSummaryLoading(false);
+              });
+          }
+        }
       }
       if (version === panelRevision.current) setPanelReady(true);
     } catch (e) {
@@ -547,9 +568,11 @@ export function YouTubeView({
               <>
                 <h3>{selected.title}</h3>
                 <div className="yp-inspector-author"><ChannelAvatar name={selected.channel_title} thumbnailUrl={sourcesById.get(selected.channel_id)?.thumbnail_url} /><span>{selected.channel_title}</span></div>
-                {selected.excerpt && <section className="yp-inspector-summary">
-                  <h4>{yt("摘要")}</h4><p>{excerpt(selected.excerpt, 1000)}</p>
-                </section>}
+                <section className="yp-inspector-summary" aria-live="polite">
+                  <h4>{yt("摘要")}</h4>
+                  <p>{selected.summary || (summaryLoading ? yt("正在生成摘要…")
+                    : summaryError || yt("摘要暂不可用，请稍后重新打开文档。"))}</p>
+                </section>
                 <h4>{yt("元数据")}</h4>
                 <dl>
                   <dt>{yt("阅读时间")}</dt><dd>{readingTime(selected) || "—"}</dd>

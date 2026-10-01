@@ -287,6 +287,7 @@ class LibraryService:
         asset = self.workspace.asset(video_id)
         return {
             **asset,
+            "summary": self.workspace.summary(video_id),
             "stage_timings": self.workspace.stage_timings(video_id),
             "generation_records": self.workspace.generation_records(video_id),
             "source_trace": {

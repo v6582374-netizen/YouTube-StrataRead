@@ -721,6 +721,28 @@ class LocalWorkspace:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def summary(self, video_id: str) -> str | None:
+        with sqlite3.connect(self.database_path) as connection:
+            row = connection.execute(
+                "SELECT summary FROM candidates WHERE video_id = ?", (video_id,)
+            ).fetchone()
+        return str(row[0]) if row and row[0] is not None else None
+
+    def save_summary(self, video_id: str, text: str) -> str:
+        if not text or len(text) > 120:
+            raise ValueError("摘要必须为 1–120 个字符。")
+        with sqlite3.connect(self.database_path) as connection:
+            connection.execute(
+                "UPDATE candidates SET summary = ? WHERE video_id = ? AND summary IS NULL",
+                (text, video_id),
+            )
+            row = connection.execute(
+                "SELECT summary FROM candidates WHERE video_id = ?", (video_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(f"unknown asset: {video_id}")
+        return str(row[0])
+
     def asset(self, video_id: str) -> dict[str, object]:
         with sqlite3.connect(self.database_path) as connection:
             connection.row_factory = sqlite3.Row
@@ -1220,6 +1242,7 @@ class LocalWorkspace:
                 "source_observed_from": "REAL",
                 "source_observed_until": "REAL",
                 "request_kind": "TEXT NOT NULL DEFAULT 'automatic'",
+                "summary": "TEXT CHECK(summary IS NULL OR length(summary) BETWEEN 1 AND 120)",
             }.items():
                 if name not in existing:
                     connection.execute(f"ALTER TABLE candidates ADD COLUMN {name} {definition}")

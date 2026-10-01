@@ -80,6 +80,25 @@ function renderDocuments(onTranslationSettings: () => void) {
 }
 
 describe("YouTube document views", () => {
+  it("retries an unsaved summary when the document is opened again", async () => {
+    const implementation = call.getMockImplementation()!;
+    let attempts = 0;
+    call.mockImplementation(async (capability, args) => {
+      if (capability === "summary.ensure") {
+        attempts++;
+        if (attempts === 1) throw new Error("模型暂不可用");
+        return { summary: "整篇文稿的独立概览。" };
+      }
+      return implementation(capability, args);
+    });
+    renderDocuments(() => {});
+    fireEvent.click(await screen.findByRole("button", { name: /Prepared manuscript/ }));
+    await screen.findByText("模型暂不可用");
+    fireEvent.click(screen.getByRole("button", { name: "关闭文档信息" }));
+    fireEvent.click(screen.getByRole("button", { name: /Prepared manuscript/ }));
+    await screen.findByText("整篇文稿的独立概览。");
+    expect(attempts).toBe(2);
+  });
   it("shows the saved channel image across views and falls back when it fails", async () => {
     const implementation = call.getMockImplementation()!;
     const thumbnailUrl = "https://yt3.googleusercontent.com/channel-image";

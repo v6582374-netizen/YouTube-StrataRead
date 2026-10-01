@@ -12,7 +12,7 @@ const cfg = {
   prompts: Object.fromEntries(Object.entries(templates).map(([stage, roles]) => [stage, Object.fromEntries(roles.map(role => [role, `${stage} ${role} {source_text}`]))])),
   max_calls: 240, max_tokens: 1500000,
 };
-const response = { settings: cfg, defaults: cfg, required: Object.fromEntries(Object.entries(templates).map(([stage, roles]) => [stage, Object.fromEntries(roles.map(role => [role, ["source_text"]]))])) };
+const response = { settings: cfg, defaults: cfg, required: Object.fromEntries(Object.entries(templates).map(([stage, roles]) => [stage, Object.fromEntries(roles.map(role => [role, ["source_text"]]))])), summary_prompt: "Summarize the whole manuscript.", default_summary_prompt: "Summarize the whole manuscript." };
 beforeEach(() => {
   i18n.addResourceBundle("zh", "translation", zh);
   void i18n.changeLanguage("zh");
@@ -59,4 +59,22 @@ it("edits and saves every upstream variant and region without losing other templ
   for (const [stage, roles] of Object.entries(templates)) for (const role of roles) {
     expect(saved.prompts[stage][role]).toContain(`${stage} edited`);
   }
+});
+
+it("edits the summary prompt alongside the existing generation rules", async () => {
+  render(<YouTubeTranslationSettings />);
+  await screen.findByLabelText("任务模板");
+  fireEvent.click(screen.getByRole("tab", { name: "摘要" }));
+  fireEvent.change(screen.getByLabelText("摘要提示词"), { target: { value: "概括完整成稿的核心结论。" } });
+  call.mockImplementationOnce(async (_capability, args) => ({
+    ...response,
+    settings: (args as { settings: typeof cfg }).settings,
+    summary_prompt: (args as { summary_prompt: string }).summary_prompt,
+  }));
+  fireEvent.click(screen.getByRole("button", { name: "保存设置" }));
+  await screen.findByText("已保存，后续新任务使用这些设置。");
+  expect(call).toHaveBeenCalledWith("translation.set_settings", {
+    settings: cfg,
+    summary_prompt: "概括完整成稿的核心结论。",
+  });
 });

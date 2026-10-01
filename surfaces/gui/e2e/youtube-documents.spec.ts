@@ -34,6 +34,11 @@ for (const width of [1440, 800]) {
       if (capability === 'activity.snapshot') result = {queued: 0, acquiring: 0, generating: 0, ready: 8, failed: 0, unavailable: 0, drain_paused: true, model_ready: true, batch: {completed: 0, limit: 100}};
       if (capability === 'activity.list') result = {items: [], total: 0};
       if (capability === 'library.inspect') result = assets.find(a => a.video_id === args.video_id);
+      if (capability === 'summary.ensure') {
+        const summary = 'An independent overview of the whole document.';
+        assets = assets.map(a => a.video_id === args.video_id ? {...a, summary} : a);
+        result = {summary};
+      }
       if (capability === 'library.set_reading_state') {
         assets = assets.map(a => a.video_id === args.video_id ? {...a, reading_state: args.reading_state} : a);
         result = assets.find(a => a.video_id === args.video_id);
@@ -52,12 +57,15 @@ for (const width of [1440, 800]) {
     await row.click();
     const info = page.getByRole('complementary', {name: 'Document details'});
     await expect(info.getByRole('heading', {name: assets[0].title})).toBeVisible();
+    await expect(info.locator('.yp-inspector-summary')).toContainText('An independent overview of the whole document.');
+    await expect(info.locator('.yp-inspector-summary')).not.toContainText('Good design begins with attention');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(row).toHaveAttribute('aria-pressed', 'true');
     await info.getByRole('button', {name: 'Open with default app', exact: true}).click();
     expect(calls).toContain('documents.open');
     await info.getByRole('button', {name: 'Mark read', exact: true}).click();
     await expect(info.getByRole('button', {name: 'Mark unread', exact: true})).toBeVisible();
+    await expect(info.locator('.yp-inspector-summary')).toContainText('An independent overview of the whole document.');
     await page.screenshot({path: testInfo.outputPath(`documents-light-${width}.png`)});
     await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
     await page.screenshot({path: testInfo.outputPath(`documents-dark-${width}.png`)});

@@ -17,6 +17,7 @@ export type Asset = {
   manuscript_characters?: number;
 };
 export type Inspection = Asset & {
+  summary?: string | null;
   source_trace: { video_url: string; transcript_available: boolean; translation_available?: boolean };
   generation_records: { manuscript_version: number; created_at: number }[];
 };

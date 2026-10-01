@@ -5,25 +5,27 @@ import { youtubeCapability as call } from "../api";
 import { PanelHead } from "./IntegrationsView";
 import { NoticeStack } from "./NoticeStack";
 
-type Stage = "initial" | "review" | "revision" | "composition";
+type TranslationStage = "initial" | "review" | "revision" | "composition";
+type Stage = TranslationStage | "summary";
 type Config = {
   version: number;
   country: string;
-  prompts: Record<Stage, Record<string, string>>;
+  prompts: Record<TranslationStage, Record<string, string>>;
   max_calls: number;
   max_tokens: number;
 };
-type Response = { settings: Config; defaults: Config; required: Record<Stage, Record<string, string[]>>; legacy_settings?: string | null };
+type Response = { settings: Config; defaults: Config; required: Record<TranslationStage, Record<string, string[]>>; summary_prompt: string; default_summary_prompt: string; legacy_settings?: string | null };
 const input = "w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-ink focus:border-accent outline-none";
 const button = "rounded-lg border border-line px-3 py-2 text-[13px] hover:bg-panel disabled:opacity-40";
 
 export function YouTubeTranslationSettings() {
   useTranslation();
   const stages: [Stage, string][] = [
-    ["initial", yt("初译")], ["review", yt("审校")], ["revision", yt("修订")], ["composition", yt("成稿整理")],
+    ["initial", yt("初译")], ["review", yt("审校")], ["revision", yt("修订")], ["composition", yt("成稿整理")], ["summary", yt("摘要")],
   ];
   const [data, setData] = useState<Response | null>(null);
   const [draft, setDraft] = useState<Config | null>(null);
+  const [summaryDraft, setSummaryDraft] = useState("");
   const [stage, setStage] = useState<Stage>("initial");
   const [variant, setVariant] = useState("user");
   const [busy, setBusy] = useState(false);
@@ -32,11 +34,11 @@ export function YouTubeTranslationSettings() {
   const load = () => {
     setError("");
     void call<Response>("translation.settings").then((value) => {
-      setData(value); setDraft(value.settings);
+      setData(value); setDraft(value.settings); setSummaryDraft(value.summary_prompt);
     }).catch((e) => setError(String(e.message || e)));
   };
   useEffect(load, []);
-  const dirty = !!data && JSON.stringify(draft) !== JSON.stringify(data.settings);
+  const dirty = !!data && (JSON.stringify(draft) !== JSON.stringify(data.settings) || summaryDraft !== data.summary_prompt);
   useEffect(() => {
     if (!dirty) return;
     const prevent = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -47,13 +49,13 @@ export function YouTubeTranslationSettings() {
     if (!draft) return;
     setBusy(true); setError(""); setMessage("");
     try {
-      const value = await call<Response>("translation.set_settings", { settings: draft });
-      setData(value); setDraft(value.settings); setMessage(yt("已保存，后续新任务使用这些设置。"));
+      const value = await call<Response>("translation.set_settings", { settings: draft, summary_prompt: summaryDraft });
+      setData(value); setDraft(value.settings); setSummaryDraft(value.summary_prompt); setMessage(yt("已保存，后续新任务使用这些设置。"));
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
   const edit = (role: string, value: string) => {
-    if (!draft) return;
+    if (!draft || stage === "summary") return;
     setMessage("");
     setDraft({ ...draft, prompts: { ...draft.prompts, [stage]: { ...draft.prompts[stage], [role]: value } } });
   };
@@ -67,6 +69,16 @@ export function YouTubeTranslationSettings() {
           onClick={() => { setStage(key); setVariant("user"); }}>{label}</button>)}
       </div>
       <fieldset disabled={busy} className="space-y-5">
+        {stage === "summary" ? <>
+          <div>
+            <label htmlFor="youtube-summary-prompt" className="block text-[13px] font-medium mb-2">{yt("摘要提示词")}</label>
+            <textarea id="youtube-summary-prompt" className={input + " leading-relaxed resize-y"}
+              rows={7} value={summaryDraft} maxLength={4000}
+              onChange={(event) => { setMessage(""); setSummaryDraft(event.target.value); }} />
+            <p className="mt-2 text-[12px] text-muted">{yt("摘要概括完整成稿，最多 120 个字符；已生成的摘要不会因修改提示词而重做。")}</p>
+          </div>
+          <button className={button} onClick={() => { setMessage(""); setSummaryDraft(data.default_summary_prompt); }}>{yt("恢复本阶段默认提示词")}</button>
+        </> : <>
         {stage !== "composition" && <label className="block text-[13px] font-medium">{yt("任务模板类型")}<select aria-label={yt("任务模板类型")} className={input + " mt-2"} value={variant} onChange={(event) => setVariant(event.target.value)}>
             {Object.keys(draft.prompts[stage]).filter((key) => key !== "system").map((key) => <option key={key} value={key}>{({ user: yt("单段文本"), multichunk_user: yt("多段文本"), user_region: yt("单段文本 · 指定地区"), multichunk_user_region: yt("多段文本 · 指定地区") } as Record<string, string>)[key]}</option>)}
           </select>
@@ -95,6 +107,7 @@ export function YouTubeTranslationSettings() {
           </div>
           <p className="text-[12px] text-muted leading-relaxed">{yt("超出预算将舍弃本次未完成结果，不自动重试。字幕和历史稿件保留。模型未报告用量时按保守上界计入预算。")}</p>
         </div>
+        </>}
       </fieldset>
       {data.legacy_settings && <details className="mt-5 text-[12px] text-muted">
         <summary>{yt("查看保留的旧版模板")}</summary>

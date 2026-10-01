@@ -2,14 +2,18 @@
 
 import copy
 import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from translation_fixture import EchoModel
 
-from coworker.providers.base import TokenUsage
-from coworker.server.youtube import HostManuscripts, YouTubeWorkbench
+from coworker.providers.base import AssistantTurn, TokenUsage
+from coworker.server.youtube import HostManuscripts, YouTubeWorkbench, _bounded_summary
 from youtube_strataread.downloader.youtube import SubtitleResult
 from youtube_strataread.workbench.discovery import Candidate
 from youtube_strataread.workbench.library import PreparationService
@@ -214,8 +218,11 @@ def test_settings_capability_validation_and_restart_recovery(tmp_path, monkeypat
         response = workbench.dispatch("translation.settings", {})
         config = response["result"]["settings"]
         config["max_calls"] = 50
-        assert workbench.dispatch("translation.set_settings", {"settings": config})["ok"]
+        assert workbench.dispatch("translation.set_settings", {
+            "settings": config, "summary_prompt": "概括关键结论，不照抄开头。"
+        })["ok"]
         assert settings(LocalWorkspace.open(tmp_path))["max_calls"] == 50
+        assert LocalWorkspace.open(tmp_path).meta("youtube_summary_prompt") == "概括关键结论，不照抄开头。"
         config["max_calls"] = 0
         assert not workbench.dispatch("translation.set_settings", {"settings": config})["ok"]
         # An interruption is not a task failure: it requeues without spending budget.
@@ -223,6 +230,89 @@ def test_settings_capability_validation_and_restart_recovery(tmp_path, monkeypat
         assert ws.activity_items("queued")["items"][0]["automatic_attempts"] == 0
     finally:
         workbench.close()
+
+
+def test_summary_is_generated_once_per_video_and_survives_prompt_and_manuscript_changes(tmp_path):
+    ws = LocalWorkspace.open(tmp_path)
+    ws.add_candidate(Candidate("one", "c", "C", "Title", "url", "2026-09-19", 1))
+    ws.save_manuscript("one", "# First version\nA complete article.", generator="test", transcript_characters=20)
+    complete = Mock(return_value=AssistantTurn(text="核心主题与重要结论。", finish_reason="stop"))
+    manager = SimpleNamespace(model="host-model", provider_complete=complete,
+                              get_settings=lambda: {"model_ready": True})
+    workbench = object.__new__(YouTubeWorkbench)
+    workbench.workspace = ws
+    workbench.manager = manager
+    workbench.summary_locks = {}
+    workbench.summary_locks_guard = threading.Lock()
+
+    config = settings(ws)
+    saved = workbench.dispatch("translation.set_settings", {
+        "settings": config, "summary_prompt": "突出关键结论。"
+    })
+    assert saved["ok"]
+    assert saved["result"]["summary_prompt"] == "突出关键结论。"
+    assert workbench.dispatch("summary.ensure", {"video_id": "one"}) == {
+        "ok": True, "result": {"summary": "核心主题与重要结论。"}
+    }
+    assert "突出关键结论。" in complete.call_args.args[1][0]["content"]
+    assert "# First version\nA complete article." in complete.call_args.args[1][1]["content"]
+    ws.set_meta("youtube_summary_prompt", "后来修改的提示词。")
+    ws.save_manuscript("one", "# Second version\nDifferent article.", generator="test", transcript_characters=20)
+    assert workbench.dispatch("summary.ensure", {"video_id": "one"})["result"]["summary"] == "核心主题与重要结论。"
+    assert LocalWorkspace.open(tmp_path).summary("one") == "核心主题与重要结论。"
+    assert complete.call_count == 1
+    ws.delete_asset("one")
+    assert ws.summary("one") is None
+
+
+def test_failed_summary_can_retry_without_saving_and_length_is_bounded(tmp_path):
+    ws = LocalWorkspace.open(tmp_path)
+    ws.add_candidate(Candidate("one", "c", "C", "Title", "url", "2026-09-19", 1))
+    ws.save_manuscript("one", "# Complete article", generator="test", transcript_characters=20)
+    complete = Mock(side_effect=[
+        TimeoutError(),
+        AssistantTurn(text="概览：" + "要" * 140, finish_reason="stop"),
+        AssistantTurn(text="这是压缩后的完整概览。", finish_reason="stop"),
+    ])
+    manager = SimpleNamespace(model="host-model", provider_complete=complete,
+                              get_settings=lambda: {"model_ready": True})
+    workbench = object.__new__(YouTubeWorkbench)
+    workbench.workspace = ws
+    workbench.manager = manager
+    workbench.summary_locks = {}
+    workbench.summary_locks_guard = threading.Lock()
+
+    assert not workbench.dispatch("summary.ensure", {"video_id": "one"})["ok"]
+    assert ws.summary("one") is None
+    response = workbench.dispatch("summary.ensure", {"video_id": "one"})
+    assert response["ok"]
+    assert response["result"]["summary"] == "这是压缩后的完整概览。"
+    assert ws.summary("one") == response["result"]["summary"]
+    assert complete.call_count == 3
+    with pytest.raises(ValueError, match="超过"):
+        _bounded_summary("这是主题。" * 30)
+
+
+def test_simultaneous_summary_requests_share_one_generation(tmp_path):
+    ws = LocalWorkspace.open(tmp_path)
+    ws.add_candidate(Candidate("one", "c", "C", "Title", "url", "2026-09-19", 1))
+    ws.save_manuscript("one", "# Complete article", generator="test", transcript_characters=20)
+
+    def complete(*_args, **_kwargs):
+        time.sleep(0.05)
+        return AssistantTurn(text="一段已保存的概览。", finish_reason="stop")
+
+    manager = SimpleNamespace(model="host-model", provider_complete=Mock(side_effect=complete),
+                              get_settings=lambda: {"model_ready": True})
+    workbench = object.__new__(YouTubeWorkbench)
+    workbench.workspace = ws
+    workbench.manager = manager
+    workbench.summary_locks = {}
+    workbench.summary_locks_guard = threading.Lock()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: workbench.ensure_summary("one"), range(2)))
+    assert results == ["一段已保存的概览。"] * 2
+    assert manager.provider_complete.call_count == 1
 
 
 def test_regeneration_cannot_erase_an_active_checkpoint(tmp_path):

@@ -348,6 +348,10 @@ class YouTubeWorkbench:
                     if not isinstance(text, str) or not text.strip() or len(text) > 200_000:
                         raise ValueError("请粘贴 Cookie 内容。")
                     result = session_cookies.replace(path, text, video_id)
+                    if result.get('saved'):
+                        result['resumed'] = self.workspace.retry_failed(
+                            reason=session_cookies.SESSION_BLOCKED_REASON
+                        )
             except ValueError as error:
                 return {"ok": False, "error": str(error)}
             return {"ok": True, "result": {**result, **session_cookies.status(path)}}

@@ -22,6 +22,7 @@ _HEADERS = {
 }
 _PLAYABILITY = re.compile(r'"playabilityStatus":\{"status":"([A-Z_]+)"(?:,"reason":"([^"]*)")?')
 _MAX_COOKIES = 500
+SESSION_BLOCKED_REASON = 'YouTube 登录 Cookie 已失效或被拦截。请在设置中更新 Cookie 后重试。'
 
 
 def open_page(request: Request, path: Path | None = None, timeout: float = 15):

@@ -49,3 +49,26 @@ def test_failed_replacement_keeps_the_working_session(monkeypatch, tmp_path):
     monkeypatch.setattr(session_cookies, "open_page", lambda *a, **k: page(True, "OK"))
     assert session_cookies.replace(path, "SID=new", "abcdefghijk")["saved"] is True
     assert "\tSID\tnew" in path.read_text() and path.stat().st_mode & 0o777 == 0o600
+
+
+def test_verified_cookie_replacement_retries_only_session_blocked_videos(monkeypatch, tmp_path):
+    from test_workbench_library import candidate
+
+    from coworker.server import youtube
+    from youtube_strataread.workbench.workspace import LocalWorkspace
+
+    workspace = LocalWorkspace.open(tmp_path / 'workspace')
+    workspace.add_candidate(candidate('blocked0001'))
+    workspace.add_candidate(candidate('other00001'))
+    workspace.set_preparation_state('blocked0001', 'failed', session_cookies.SESSION_BLOCKED_REASON)
+    workspace.set_preparation_state('other00001', 'failed', 'unrelated failure')
+    workbench = youtube.YouTubeWorkbench.__new__(youtube.YouTubeWorkbench)
+    workbench.workspace = workspace
+    path = tmp_path / 'cookies.txt'
+    monkeypatch.setattr(youtube, 'youtube_cookie_file', lambda: path)
+    monkeypatch.setattr(session_cookies, 'replace', lambda *args: {'saved': True})
+    result = workbench.dispatch('session_cookies.replace', {'text': 'valid'})
+    assert result['ok']
+    assert result['result']['resumed'] == 1
+    assert workspace.asset('blocked0001')['preparation_state'] == 'queued'
+    assert workspace.asset('other00001')['preparation_state'] == 'failed'

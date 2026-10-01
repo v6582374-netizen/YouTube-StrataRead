@@ -71,9 +71,7 @@ class YtDlpCaptions:
             video_id = parse_qs(urlsplit(url).query).get('v', [None])[0]
             if (cookies is not None and video_id and 'no subtitles' in str(error).lower()
                     and session_cookies.verify(cookies, video_id).get('blocked')):
-                raise YouTubeError(
-                    'YouTube 登录 Cookie 已失效或被拦截。请在设置中更新 Cookie 后重试。'
-                ) from error
+                raise YouTubeError(session_cookies.SESSION_BLOCKED_REASON) from error
             raise
 
 

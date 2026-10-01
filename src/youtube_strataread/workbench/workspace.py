@@ -469,7 +469,7 @@ class LocalWorkspace:
                 (video_id,),
             )
 
-    def retry_failed(self, video_id: str | None = None) -> int:
+    def retry_failed(self, video_id: str | None = None, *, reason: str | None = None) -> int:
         statement = """
             UPDATE candidates SET preparation_state = 'queued', failure_reason = NULL,
                 rate_limit_attempts = 0, retry_at = NULL,
@@ -480,6 +480,9 @@ class LocalWorkspace:
         if video_id is not None:
             statement += " AND video_id = ?"
             values = (video_id,)
+        if reason is not None:
+            statement += " AND failure_reason = ?"
+            values += (reason,)
         with sqlite3.connect(self.database_path) as connection:
             cursor = connection.execute(statement, values)
             self._recheck_waiting(connection)

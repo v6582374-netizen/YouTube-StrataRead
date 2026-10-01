@@ -111,6 +111,63 @@ def test_http_failure_challenge_encoding_and_size_limits(monkeypatch, status, ur
     assert shorts.YouTubeShortsClassifier().classify(VIDEO) is None
 
 
+def test_short_route_resolves_a_watch_page_bot_challenge(monkeypatch):
+    calls = []
+
+    def fetch(request, timeout):
+        calls.append(request.full_url)
+        if len(calls) == 1:
+            response = BytesIO(b'<html>Sign in to confirm you are not a bot</html>')
+            response.geturl = lambda: f'https://www.youtube.com/watch?v={VIDEO}'
+        else:
+            response = BytesIO(player_page(VIDEO, True).encode())
+            response.geturl = lambda: f'https://www.youtube.com/shorts/{VIDEO}'
+        response.status = 200
+        return response
+
+    monkeypatch.setattr(shorts, 'urlopen', fetch)
+    assert shorts.YouTubeShortsClassifier().classify(VIDEO) is True
+    assert len(calls) == 2
+    assert calls[1].startswith(f'https://www.youtube.com/shorts/{VIDEO}')
+
+
+def test_identity_matched_short_route_redirect_admits_an_ordinary_video(monkeypatch):
+    calls = []
+
+    def fetch(request, timeout):
+        calls.append(request.full_url)
+        response = BytesIO(b'<html>Sign in to confirm you are not a bot</html>')
+        response.status = 200
+        response.geturl = lambda: (
+            f'https://www.youtube.com/watch?v={VIDEO}'
+            if len(calls) == 2 else request.full_url
+        )
+        return response
+
+    monkeypatch.setattr(shorts, 'urlopen', fetch)
+    assert shorts.YouTubeShortsClassifier().classify(VIDEO) is False
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('final_url', [
+    'https://www.youtube.com/watch?v=another0001',
+    f'https://www.youtube.com/shorts/{VIDEO}',
+])
+def test_short_route_never_trusts_another_video_or_challenge(monkeypatch, final_url):
+    calls = []
+
+    def fetch(request, timeout):
+        calls.append(request.full_url)
+        response = BytesIO(b'<html>Sign in to confirm you are not a bot</html>')
+        response.status = 200
+        response.geturl = lambda: final_url if len(calls) == 2 else request.full_url
+        return response
+
+    monkeypatch.setattr(shorts, 'urlopen', fetch)
+    assert shorts.YouTubeShortsClassifier().classify(VIDEO) is None
+    assert len(calls) == 2
+
+
 def test_unknown_does_not_block_other_videos_and_retries_after_restart(tmp_path, monkeypatch):
     now = [1000.0]
     monkeypatch.setattr("youtube_strataread.workbench.workspace.time.time", lambda: now[0])

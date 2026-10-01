@@ -111,14 +111,15 @@ class YouTubeShortsClassifier:
     def classify(self, video_id: str, *, completed_event: bool = False) -> bool | None:
         if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             return None
-        request = Request(
-            f"https://www.youtube.com/watch?v={video_id}&hl=en",
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Accept-Language": "en-US,en;q=0.9",
-            },
-        )
-        try:
+
+        def read_page(url: str) -> tuple[str, str] | None:
+            request = Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            )
             if self.requests:
                 self.requests.before_request()
             cookies = youtube_cookie_file()
@@ -126,13 +127,33 @@ class YouTubeShortsClassifier:
             with opened as response:
                 if response.status != 200:
                     return None
-                final_url = urlsplit(response.geturl())
-                if final_url.netloc not in {"www.youtube.com", "youtube.com"}:
+                final_url = response.geturl()
+                if urlsplit(final_url).netloc not in {"www.youtube.com", "youtube.com"}:
                     return None
                 data = response.read(_MAX_PAGE_BYTES + 1)
             if len(data) > _MAX_PAGE_BYTES:
                 return None
-            return classify_page(video_id, data.decode("utf-8"), completed_event=completed_event)
+            return data.decode("utf-8"), final_url
+
+        try:
+            watch = read_page(f"https://www.youtube.com/watch?v={video_id}&hl=en")
+            if watch is None:
+                return None
+            result = classify_page(video_id, watch[0], completed_event=completed_event)
+            if result is not None:
+                return result
+
+            # A watch-page bot challenge does not answer the format question.
+            # The Shorts route can still serve the identity-matched player or
+            # explicitly redirect this same ID to the ordinary watch route.
+            short_page = read_page(f"https://www.youtube.com/shorts/{video_id}?hl=en")
+            if short_page is None:
+                return None
+            final_url = urlsplit(short_page[1])
+            if final_url.scheme == "https" and final_url.path == "/watch" \
+                    and parse_qs(final_url.query).get("v") == [video_id]:
+                return False
+            return classify_page(video_id, short_page[0], completed_event=completed_event)
         except (OSError, ValueError) as error:
             limited = rate_limit_error(error)
             if limited:

@@ -118,10 +118,10 @@ def test_source_duration_is_independent_of_subtitle_length(
     assert download_subtitles("https://youtu.be/abcdefghijk").duration_seconds == expected
 
 
-def test_unavailable_video_keeps_publication_and_duration_in_the_workspace(monkeypatch, tmp_path) -> None:
+def test_caption_wait_keeps_publication_and_duration_in_the_workspace(monkeypatch, tmp_path) -> None:
     from shorts_fixture import RegularVideos
-
     from test_workbench_library import candidate
+
     from youtube_strataread.workbench.library import PreparationService, YtDlpCaptions
     from youtube_strataread.workbench.workspace import LocalWorkspace
 
@@ -143,7 +143,7 @@ def test_unavailable_video_keeps_publication_and_duration_in_the_workspace(monke
         workspace, YtDlpCaptions(), NoGeneration(), shorts=RegularVideos(),
     )
     assert preparation.run_next()
-    video = LocalWorkspace.open(tmp_path).activity_items("unavailable")["items"][0]
+    video = LocalWorkspace.open(tmp_path).activity_items("waiting_retry")["items"][0]
     assert video["duration_seconds"] == 2538
     assert video["published_at"] == source.published_at
     assert video["commenced_at"] is None

@@ -34,6 +34,11 @@ def test_usable_means_signed_in_and_not_bot_checked(monkeypatch, tmp_path, signe
     assert session_cookies.verify(tmp_path / "c.txt", "abcdefghijk")["usable"] is usable
 
 
+def test_login_required_is_exposed_separately_from_cookie_usability(monkeypatch, tmp_path):
+    monkeypatch.setattr(session_cookies, "open_page", lambda *a, **k: page(False, "LOGIN_REQUIRED"))
+    assert session_cookies.verify(tmp_path / "c.txt", "abcdefghijk")["blocked"] is True
+
+
 def test_failed_replacement_keeps_the_working_session(monkeypatch, tmp_path):
     path = tmp_path / "cookies.txt"
     path.write_text("working")

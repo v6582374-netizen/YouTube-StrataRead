@@ -64,7 +64,8 @@ def verify(path: Path, video_id: str) -> dict[str, object]:
         with open_page(request, path) as response:
             page = response.read(4 * 1024 * 1024).decode("utf-8", "replace")
     except (OSError, ValueError) as error:
-        return {"usable": False, "signed_in": False, "detail": f"无法访问 YouTube：{error}"}
+        return {"usable": False, "signed_in": False, "blocked": False,
+                "detail": f"无法访问 YouTube：{error}"}
     signed_in = '"LOGGED_IN":true' in page
     match = _PLAYABILITY.search(page)
     status, reason = (match.group(1), match.group(2) or "") if match else ("UNKNOWN", "")
@@ -75,7 +76,8 @@ def verify(path: Path, video_id: str) -> dict[str, object]:
         detail = f"已登录，但 YouTube 仍拦截访问：{reason or status}"
     else:
         detail = "可用：已登录，视频页面正常返回。"
-    return {"usable": signed_in and not blocked, "signed_in": signed_in, "detail": detail,
+    return {"usable": signed_in and not blocked, "signed_in": signed_in,
+            "blocked": blocked, "detail": detail,
             "video_id": video_id, "checked_at": time.time()}
 
 

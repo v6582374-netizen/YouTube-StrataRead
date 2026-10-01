@@ -7,6 +7,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+from urllib.parse import parse_qs, urlsplit
 
 from youtube_strataread.ai.base import get_provider
 from youtube_strataread.ai.prompts import load_prompt
@@ -19,6 +20,7 @@ from youtube_strataread.downloader.request_policy import (
     rate_limit_error,
 )
 from youtube_strataread.downloader.youtube import SubtitleResult, youtube_cookie_file
+from youtube_strataread.workbench import session_cookies
 from youtube_strataread.workbench.retry import Failure, classify_caption, classify_model
 from youtube_strataread.workbench.shorts import (
     ShortsClassifier,
@@ -58,8 +60,21 @@ class YtDlpCaptions:
         self.on_metadata: Callable[[str, float | None], None] | None = None
 
     def acquire(self, url: str, *, before_subtitles: Callable[[dict[str, Any]], None] | None = None) -> SubtitleResult:
-        return download_subtitles(url, cookiefile=youtube_cookie_file(), request_policy=self.requests,
-                                  on_metadata=self.on_metadata, before_subtitles=before_subtitles)
+        cookies = youtube_cookie_file()
+        try:
+            return download_subtitles(url, cookiefile=cookies, request_policy=self.requests,
+                                      on_metadata=self.on_metadata, before_subtitles=before_subtitles)
+        except YouTubeError as error:
+            # yt-dlp can report an empty subtitle list when YouTube has served
+            # a bot check instead of video metadata. Verify before saying the
+            # creator has not provided captions.
+            video_id = parse_qs(urlsplit(url).query).get('v', [None])[0]
+            if (cookies is not None and video_id and 'no subtitles' in str(error).lower()
+                    and session_cookies.verify(cookies, video_id).get('blocked')):
+                raise YouTubeError(
+                    'YouTube 登录 Cookie 已失效或被拦截。请在设置中更新 Cookie 后重试。'
+                ) from error
+            raise
 
 
 class ConfiguredManuscripts:

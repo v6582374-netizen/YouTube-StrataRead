@@ -9,7 +9,7 @@ import pytest
 from shorts_fixture import player_page
 from test_workbench_library import candidate, ready_service
 
-from youtube_strataread.workbench import shorts
+from youtube_strataread.workbench import library, session_cookies, shorts
 from youtube_strataread.workbench.connection import SubscriptionSource
 from youtube_strataread.workbench.discovery import SourcePage, SubscriptionDiscovery
 from youtube_strataread.workbench.workspace import LocalWorkspace
@@ -166,6 +166,18 @@ def test_short_route_never_trusts_another_video_or_challenge(monkeypatch, final_
     monkeypatch.setattr(shorts, 'urlopen', fetch)
     assert shorts.YouTubeShortsClassifier().classify(VIDEO) is None
     assert len(calls) == 2
+
+
+def test_caption_probe_reports_invalid_session_instead_of_missing_captions(monkeypatch, tmp_path):
+    monkeypatch.setenv('YOUTUBE_COOKIES_FILE', str(tmp_path / 'youtube-cookies.txt'))
+
+    def no_captions(*args, **kwargs):
+        raise library.YouTubeError('no subtitles were available')
+
+    monkeypatch.setattr(library, 'download_subtitles', no_captions)
+    monkeypatch.setattr(session_cookies, 'verify', lambda *args: {'blocked': True})
+    with pytest.raises(library.YouTubeError, match='YouTube 登录 Cookie'):
+        library.YtDlpCaptions().acquire(f'https://www.youtube.com/watch?v={VIDEO}')
 
 
 def test_unknown_does_not_block_other_videos_and_retries_after_restart(tmp_path, monkeypatch):
